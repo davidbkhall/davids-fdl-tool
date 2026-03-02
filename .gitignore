@@ -1,0 +1,41 @@
+# Swift
+.build/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+*.dSYM
+*.ipa
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# App data (local only)
+*.db
+*.sqlite
+
+# Environment
+.env
+.env.local

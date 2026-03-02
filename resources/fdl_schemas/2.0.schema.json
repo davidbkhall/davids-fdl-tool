@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ascmitc.github.io/fdl/schemas/2.0.schema.json",
+  "title": "ASC Framing Decision List v2.0",
+  "description": "JSON Schema for ASC FDL documents v2.0 (vendored reference)",
+  "type": "object",
+  "required": ["uuid", "header", "fdl_contexts"],
+  "properties": {
+    "uuid": {
+      "type": "string"
+    },
+    "header": {
+      "type": "object",
+      "required": ["uuid", "version"],
+      "properties": {
+        "uuid": { "type": "string" },
+        "version": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "fdl_creator": { "type": "string" },
+        "description": { "type": "string" },
+        "default_framing_intent": { "type": "string" }
+      }
+    },
+    "fdl_contexts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["context_uuid", "canvases"],
+        "properties": {
+          "context_uuid": { "type": "string" },
+          "label": { "type": "string" },
+          "context_creator": { "type": "string" },
+          "canvases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["canvas_uuid", "dimensions"],
+              "properties": {
+                "canvas_uuid": { "type": "string" },
+                "label": { "type": "string" },
+                "dimensions": {
+                  "type": "object",
+                  "required": ["width", "height"],
+                  "properties": {
+                    "width": { "type": "number" },
+                    "height": { "type": "number" }
+                  }
+                },
+                "framing_decisions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["fd_uuid", "dimensions"],
+                    "properties": {
+                      "fd_uuid": { "type": "string" },
+                      "label": { "type": "string" },
+                      "framing_intent": { "type": "string" },
+                      "dimensions": {
+                        "type": "object",
+                        "required": ["width", "height"],
+                        "properties": {
+                          "width": { "type": "number" },
+                          "height": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

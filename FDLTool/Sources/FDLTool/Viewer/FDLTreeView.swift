@@ -1,0 +1,181 @@
+import SwiftUI
+
+/// Hierarchical visualization of an FDL document structure.
+/// Shows Header → Contexts → Canvases → Framing Decisions as a disclosure tree.
+struct FDLTreeView: View {
+    let document: FDLDocument
+
+    var body: some View {
+        GroupBox("Document Structure") {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header node
+                DisclosureGroup {
+                    headerDetails
+                } label: {
+                    Label("Header", systemImage: "doc.text")
+                        .font(.body.weight(.medium))
+                }
+                .padding(.vertical, 2)
+
+                // Contexts
+                ForEach(document.contexts) { context in
+                    DisclosureGroup {
+                        contextDetails(context)
+
+                        // Canvases under this context
+                        ForEach(context.canvases) { canvas in
+                            DisclosureGroup {
+                                canvasDetails(canvas)
+
+                                // Framing decisions under this canvas
+                                ForEach(canvas.framingDecisions) { fd in
+                                    DisclosureGroup {
+                                        framingDecisionDetails(fd)
+                                    } label: {
+                                        Label {
+                                            Text(fd.label ?? fd.fdUUID)
+                                        } icon: {
+                                            Image(systemName: "viewfinder")
+                                                .foregroundStyle(.purple)
+                                        }
+                                    }
+                                    .padding(.leading, 16)
+                                    .padding(.vertical, 1)
+                                }
+                            } label: {
+                                Label {
+                                    HStack(spacing: 6) {
+                                        Text(canvas.label ?? canvas.canvasUUID)
+                                        if let dims = Optional(canvas.dimensions) {
+                                            AspectRatioLabel(width: dims.width, height: dims.height)
+                                        }
+                                    }
+                                } icon: {
+                                    Image(systemName: "rectangle.on.rectangle")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                            .padding(.leading, 8)
+                            .padding(.vertical, 1)
+                        }
+                    } label: {
+                        Label {
+                            Text(context.label ?? context.contextUUID)
+                        } icon: {
+                            Image(systemName: "folder")
+                                .foregroundStyle(.orange)
+                        }
+                        .font(.body.weight(.medium))
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var headerDetails: some View {
+        DetailGrid {
+            DetailRow(label: "UUID", value: document.header.uuid)
+            DetailRow(label: "Version", value: document.header.version)
+            if let creator = document.header.fdlCreator {
+                DetailRow(label: "Creator", value: creator)
+            }
+            if let desc = document.header.description {
+                DetailRow(label: "Description", value: desc)
+            }
+            if let intent = document.header.defaultFramingIntent {
+                DetailRow(label: "Default Intent", value: intent)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func contextDetails(_ context: FDLContext) -> some View {
+        DetailGrid {
+            DetailRow(label: "UUID", value: context.contextUUID)
+            if let label = context.label {
+                DetailRow(label: "Label", value: label)
+            }
+            if let creator = context.contextCreator {
+                DetailRow(label: "Creator", value: creator)
+            }
+            DetailRow(label: "Canvases", value: "\(context.canvases.count)")
+        }
+    }
+
+    @ViewBuilder
+    private func canvasDetails(_ canvas: FDLCanvas) -> some View {
+        DetailGrid {
+            DetailRow(label: "UUID", value: canvas.canvasUUID)
+            DetailRow(label: "Dimensions",
+                      value: "\(Int(canvas.dimensions.width)) \u{00D7} \(Int(canvas.dimensions.height))")
+            if let eff = canvas.effectiveDimensions {
+                DetailRow(label: "Effective",
+                          value: "\(Int(eff.width)) \u{00D7} \(Int(eff.height))")
+            }
+            if let anchor = canvas.effectiveAnchor {
+                DetailRow(label: "Eff. Anchor",
+                          value: "(\(Int(anchor.x)), \(Int(anchor.y)))")
+            }
+            if let ps = canvas.photosite {
+                DetailRow(label: "Photosites",
+                          value: "\(Int(ps.width)) \u{00D7} \(Int(ps.height))")
+            }
+            DetailRow(label: "FDs", value: "\(canvas.framingDecisions.count)")
+        }
+    }
+
+    @ViewBuilder
+    private func framingDecisionDetails(_ fd: FDLFramingDecision) -> some View {
+        DetailGrid {
+            DetailRow(label: "UUID", value: fd.fdUUID)
+            DetailRow(label: "Dimensions",
+                      value: "\(Int(fd.dimensions.width)) \u{00D7} \(Int(fd.dimensions.height))")
+            if let intent = fd.framingIntent {
+                DetailRow(label: "Intent", value: intent)
+            }
+            if let anchor = fd.anchor {
+                DetailRow(label: "Anchor",
+                          value: "(\(Int(anchor.x)), \(Int(anchor.y)))")
+            }
+            if let protDims = fd.protectionDimensions {
+                DetailRow(label: "Protection",
+                          value: "\(Int(protDims.width)) \u{00D7} \(Int(protDims.height))")
+            }
+        }
+    }
+}
+
+/// Grid container for detail rows
+struct DetailGrid<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
+            content()
+        }
+        .font(.caption)
+        .padding(.leading, 24)
+        .padding(.vertical, 4)
+    }
+}
+
+/// A single label-value row in the detail grid
+struct DetailRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .gridColumnAlignment(.trailing)
+            Text(value)
+                .textSelection(.enabled)
+                .gridColumnAlignment(.leading)
+        }
+    }
+}

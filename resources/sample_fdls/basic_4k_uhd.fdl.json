@@ -1,0 +1,63 @@
+{
+  "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "header": {
+    "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "version": "2.0.1",
+    "fdl_creator": "FDL Tool Sample",
+    "description": "Basic 4K UHD framing with common deliverable formats"
+  },
+  "fdl_contexts": [
+    {
+      "context_uuid": "ctx-001-basic-4k",
+      "label": "Basic 4K UHD Production",
+      "context_creator": "FDL Tool",
+      "canvases": [
+        {
+          "canvas_uuid": "canvas-001-uhd",
+          "label": "UHD 3840x2160",
+          "dimensions": {
+            "width": 3840,
+            "height": 2160
+          },
+          "framing_decisions": [
+            {
+              "fd_uuid": "fd-001-239",
+              "label": "2.39:1 Scope",
+              "framing_intent": "scope",
+              "dimensions": {
+                "width": 3840,
+                "height": 1608
+              },
+              "anchor": {
+                "x": 0,
+                "y": 276
+              }
+            },
+            {
+              "fd_uuid": "fd-002-185",
+              "label": "1.85:1 Flat",
+              "framing_intent": "flat",
+              "dimensions": {
+                "width": 3840,
+                "height": 2076
+              },
+              "anchor": {
+                "x": 0,
+                "y": 42
+              }
+            },
+            {
+              "fd_uuid": "fd-003-169",
+              "label": "16:9 Full Frame",
+              "framing_intent": "full_frame",
+              "dimensions": {
+                "width": 3840,
+                "height": 2160
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

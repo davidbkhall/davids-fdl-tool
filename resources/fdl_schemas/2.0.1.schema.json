@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ascmitc.github.io/fdl/schemas/2.0.1.schema.json",
+  "title": "ASC Framing Decision List v2.0.1",
+  "description": "JSON Schema for ASC FDL documents (vendored reference)",
+  "type": "object",
+  "required": ["uuid", "header", "fdl_contexts"],
+  "properties": {
+    "uuid": {
+      "type": "string",
+      "description": "Unique identifier for the FDL document"
+    },
+    "header": {
+      "type": "object",
+      "required": ["uuid", "version"],
+      "properties": {
+        "uuid": { "type": "string" },
+        "version": {
+          "type": "string",
+          "const": "2.0.1"
+        },
+        "fdl_creator": { "type": "string" },
+        "description": { "type": "string" },
+        "default_framing_intent": { "type": "string" }
+      }
+    },
+    "fdl_contexts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FDLContext"
+      }
+    }
+  },
+  "$defs": {
+    "FDLContext": {
+      "type": "object",
+      "required": ["context_uuid", "canvases"],
+      "properties": {
+        "context_uuid": { "type": "string" },
+        "label": { "type": "string" },
+        "context_creator": { "type": "string" },
+        "canvases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Canvas" }
+        }
+      }
+    },
+    "Canvas": {
+      "type": "object",
+      "required": ["canvas_uuid", "dimensions"],
+      "properties": {
+        "canvas_uuid": { "type": "string" },
+        "label": { "type": "string" },
+        "source_fdl_uuid": { "type": "string" },
+        "dimensions": { "$ref": "#/$defs/Dimensions" },
+        "effective_anchor": { "$ref": "#/$defs/Point" },
+        "effective_dimensions": { "$ref": "#/$defs/Dimensions" },
+        "photosite": { "$ref": "#/$defs/Dimensions" },
+        "photosite_anchor": { "$ref": "#/$defs/Point" },
+        "framing_decisions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FramingDecision" }
+        }
+      }
+    },
+    "FramingDecision": {
+      "type": "object",
+      "required": ["fd_uuid", "dimensions"],
+      "properties": {
+        "fd_uuid": { "type": "string" },
+        "label": { "type": "string" },
+        "framing_intent": { "type": "string" },
+        "dimensions": { "$ref": "#/$defs/Dimensions" },
+        "anchor": { "$ref": "#/$defs/Point" },
+        "protection_dimensions": { "$ref": "#/$defs/Dimensions" },
+        "protection_anchor": { "$ref": "#/$defs/Point" }
+      }
+    },
+    "Dimensions": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      }
+    },
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    }
+  }
+}

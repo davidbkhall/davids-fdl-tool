@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FDL Tool Camera Database",
+  "type": "object",
+  "required": ["version", "last_updated", "cameras"],
+  "properties": {
+    "version": { "type": "string" },
+    "last_updated": { "type": "string", "format": "date" },
+    "cameras": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "manufacturer", "model", "sensor", "recording_modes"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "manufacturer": { "type": "string" },
+          "model": { "type": "string" },
+          "sensor": {
+            "type": "object",
+            "required": ["name", "photosite_dimensions", "physical_dimensions_mm", "pixel_pitch_um"],
+            "properties": {
+              "name": { "type": "string" },
+              "photosite_dimensions": {
+                "type": "object",
+                "required": ["width", "height"],
+                "properties": {
+                  "width": { "type": "integer", "minimum": 1 },
+                  "height": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "physical_dimensions_mm": {
+                "type": "object",
+                "required": ["width", "height"],
+                "properties": {
+                  "width": { "type": "number", "minimum": 0 },
+                  "height": { "type": "number", "minimum": 0 }
+                }
+              },
+              "pixel_pitch_um": { "type": "number", "minimum": 0 }
+            }
+          },
+          "recording_modes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "active_photosites", "active_image_area_mm", "max_fps"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "active_photosites": {
+                  "type": "object",
+                  "required": ["width", "height"],
+                  "properties": {
+                    "width": { "type": "integer" },
+                    "height": { "type": "integer" }
+                  }
+                },
+                "active_image_area_mm": {
+                  "type": "object",
+                  "required": ["width", "height"],
+                  "properties": {
+                    "width": { "type": "number" },
+                    "height": { "type": "number" }
+                  }
+                },
+                "max_fps": { "type": "integer" },
+                "codec_options": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          },
+          "common_deliverables": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

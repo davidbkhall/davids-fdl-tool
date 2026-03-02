@@ -1,0 +1,818 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-03-01",
+  "cameras": [
+    {
+      "id": "arri-alexa-35",
+      "manufacturer": "ARRI",
+      "model": "ALEXA 35",
+      "sensor": {
+        "name": "ALEV 4",
+        "photosite_dimensions": {
+          "width": 4608,
+          "height": 3164
+        },
+        "physical_dimensions_mm": {
+          "width": 27.98,
+          "height": 19.22
+        },
+        "pixel_pitch_um": 6.075
+      },
+      "recording_modes": [
+        {
+          "id": "4.6k-3-2-open-window",
+          "name": "4.6K 3:2 Open Window",
+          "active_photosites": {
+            "width": 4608,
+            "height": 3164
+          },
+          "active_image_area_mm": {
+            "width": 27.98,
+            "height": 19.22
+          },
+          "max_fps": 75,
+          "codec_options": ["ARRIRAW", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        },
+        {
+          "id": "4k-16-9",
+          "name": "4K 16:9",
+          "active_photosites": {
+            "width": 4608,
+            "height": 2592
+          },
+          "active_image_area_mm": {
+            "width": 27.98,
+            "height": 15.74
+          },
+          "max_fps": 90,
+          "codec_options": ["ARRIRAW", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        },
+        {
+          "id": "3.8k-16-9-s35",
+          "name": "3.8K 16:9 (S35)",
+          "active_photosites": {
+            "width": 3840,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 23.32,
+            "height": 13.12
+          },
+          "max_fps": 120,
+          "codec_options": ["ARRIRAW", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        },
+        {
+          "id": "3.4k-6-5-anamorphic",
+          "name": "3.4K 6:5 Anamorphic",
+          "active_photosites": {
+            "width": 3414,
+            "height": 2848
+          },
+          "active_image_area_mm": {
+            "width": 20.74,
+            "height": 17.30
+          },
+          "max_fps": 90,
+          "codec_options": ["ARRIRAW", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        }
+      ],
+      "common_deliverables": ["DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "arri-alexa-mini-lf",
+      "manufacturer": "ARRI",
+      "model": "ALEXA Mini LF",
+      "sensor": {
+        "name": "ALEV III LF",
+        "photosite_dimensions": {
+          "width": 4448,
+          "height": 3096
+        },
+        "physical_dimensions_mm": {
+          "width": 36.70,
+          "height": 25.54
+        },
+        "pixel_pitch_um": 8.25
+      },
+      "recording_modes": [
+        {
+          "id": "lf-open-gate",
+          "name": "LF Open Gate",
+          "active_photosites": {
+            "width": 4448,
+            "height": 3096
+          },
+          "active_image_area_mm": {
+            "width": 36.70,
+            "height": 25.54
+          },
+          "max_fps": 40,
+          "codec_options": ["ARRIRAW", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        },
+        {
+          "id": "lf-16-9",
+          "name": "LF 16:9",
+          "active_photosites": {
+            "width": 4448,
+            "height": 2502
+          },
+          "active_image_area_mm": {
+            "width": 36.70,
+            "height": 20.64
+          },
+          "max_fps": 60,
+          "codec_options": ["ARRIRAW", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        },
+        {
+          "id": "lf-2.39-1",
+          "name": "LF 2.39:1",
+          "active_photosites": {
+            "width": 4448,
+            "height": 1862
+          },
+          "active_image_area_mm": {
+            "width": 36.70,
+            "height": 15.36
+          },
+          "max_fps": 60,
+          "codec_options": ["ARRIRAW", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        }
+      ],
+      "common_deliverables": ["DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "arri-alexa-mini",
+      "manufacturer": "ARRI",
+      "model": "ALEXA Mini",
+      "sensor": {
+        "name": "ALEV III",
+        "photosite_dimensions": {
+          "width": 3424,
+          "height": 2202
+        },
+        "physical_dimensions_mm": {
+          "width": 28.17,
+          "height": 18.13
+        },
+        "pixel_pitch_um": 8.25
+      },
+      "recording_modes": [
+        {
+          "id": "arriraw-3.4k",
+          "name": "ARRIRAW 3.4K",
+          "active_photosites": {
+            "width": 3424,
+            "height": 2202
+          },
+          "active_image_area_mm": {
+            "width": 28.17,
+            "height": 18.13
+          },
+          "max_fps": 48,
+          "codec_options": ["ARRIRAW"]
+        },
+        {
+          "id": "prores-3.2k",
+          "name": "ProRes 3.2K",
+          "active_photosites": {
+            "width": 3200,
+            "height": 1800
+          },
+          "active_image_area_mm": {
+            "width": 26.40,
+            "height": 14.85
+          },
+          "max_fps": 60,
+          "codec_options": ["Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ", "Apple ProRes 422"]
+        },
+        {
+          "id": "s16-mode",
+          "name": "S16 Mode",
+          "active_photosites": {
+            "width": 1600,
+            "height": 900
+          },
+          "active_image_area_mm": {
+            "width": 12.80,
+            "height": 7.20
+          },
+          "max_fps": 200,
+          "codec_options": ["Apple ProRes 4444", "Apple ProRes 422 HQ", "Apple ProRes 422"]
+        }
+      ],
+      "common_deliverables": ["2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "red-v-raptor-x",
+      "manufacturer": "RED",
+      "model": "V-RAPTOR [X]",
+      "sensor": {
+        "name": "VV",
+        "photosite_dimensions": {
+          "width": 8192,
+          "height": 4320
+        },
+        "physical_dimensions_mm": {
+          "width": 40.96,
+          "height": 21.60
+        },
+        "pixel_pitch_um": 5.0
+      },
+      "recording_modes": [
+        {
+          "id": "8k-full-frame",
+          "name": "8K Full Frame",
+          "active_photosites": {
+            "width": 8192,
+            "height": 4320
+          },
+          "active_image_area_mm": {
+            "width": 40.96,
+            "height": 21.60
+          },
+          "max_fps": 60,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ"]
+        },
+        {
+          "id": "6k-s35",
+          "name": "6K S35",
+          "active_photosites": {
+            "width": 6144,
+            "height": 3240
+          },
+          "active_image_area_mm": {
+            "width": 30.72,
+            "height": 16.20
+          },
+          "max_fps": 96,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ"]
+        },
+        {
+          "id": "4k",
+          "name": "4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 20.48,
+            "height": 10.80
+          },
+          "max_fps": 150,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ", "Apple ProRes 4444 XQ", "Apple ProRes 422 HQ"]
+        }
+      ],
+      "common_deliverables": ["DCI 8K (8192x4320)", "DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "red-dsmc3",
+      "manufacturer": "RED",
+      "model": "DSMC3",
+      "sensor": {
+        "name": "VV (DSMC3 Platform)",
+        "photosite_dimensions": {
+          "width": 8192,
+          "height": 4320
+        },
+        "physical_dimensions_mm": {
+          "width": 40.96,
+          "height": 21.60
+        },
+        "pixel_pitch_um": 5.0
+      },
+      "recording_modes": [
+        {
+          "id": "8k",
+          "name": "8K",
+          "active_photosites": {
+            "width": 8192,
+            "height": 4320
+          },
+          "active_image_area_mm": {
+            "width": 40.96,
+            "height": 21.60
+          },
+          "max_fps": 60,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ"]
+        },
+        {
+          "id": "6k",
+          "name": "6K",
+          "active_photosites": {
+            "width": 6144,
+            "height": 3240
+          },
+          "active_image_area_mm": {
+            "width": 30.72,
+            "height": 16.20
+          },
+          "max_fps": 96,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ"]
+        },
+        {
+          "id": "4k",
+          "name": "4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 20.48,
+            "height": 10.80
+          },
+          "max_fps": 150,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ", "Apple ProRes 4444 XQ", "Apple ProRes 422 HQ"]
+        }
+      ],
+      "common_deliverables": ["DCI 8K (8192x4320)", "DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "sony-venice-2",
+      "manufacturer": "Sony",
+      "model": "VENICE 2",
+      "sensor": {
+        "name": "8.6K Full-Frame CMOS",
+        "photosite_dimensions": {
+          "width": 8640,
+          "height": 5760
+        },
+        "physical_dimensions_mm": {
+          "width": 36.20,
+          "height": 24.10
+        },
+        "pixel_pitch_um": 4.19
+      },
+      "recording_modes": [
+        {
+          "id": "8.6k-full-frame",
+          "name": "8.6K Full Frame",
+          "active_photosites": {
+            "width": 8640,
+            "height": 5760
+          },
+          "active_image_area_mm": {
+            "width": 36.20,
+            "height": 24.10
+          },
+          "max_fps": 30,
+          "codec_options": ["X-OCN XT", "X-OCN ST", "X-OCN LT"]
+        },
+        {
+          "id": "5.8k-s35",
+          "name": "5.8K S35",
+          "active_photosites": {
+            "width": 5760,
+            "height": 3240
+          },
+          "active_image_area_mm": {
+            "width": 24.13,
+            "height": 13.57
+          },
+          "max_fps": 60,
+          "codec_options": ["X-OCN XT", "X-OCN ST", "X-OCN LT"]
+        },
+        {
+          "id": "4k-16-9",
+          "name": "4K 16:9",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 17.16,
+            "height": 9.05
+          },
+          "max_fps": 120,
+          "codec_options": ["X-OCN XT", "X-OCN ST", "X-OCN LT", "XAVC 4K"]
+        }
+      ],
+      "common_deliverables": ["DCI 8K (8192x4320)", "DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "sony-burano",
+      "manufacturer": "Sony",
+      "model": "BURANO",
+      "sensor": {
+        "name": "8.6K Full-Frame Back-Illuminated CMOS",
+        "photosite_dimensions": {
+          "width": 8640,
+          "height": 5760
+        },
+        "physical_dimensions_mm": {
+          "width": 36.20,
+          "height": 24.10
+        },
+        "pixel_pitch_um": 4.19
+      },
+      "recording_modes": [
+        {
+          "id": "8.6k",
+          "name": "8.6K",
+          "active_photosites": {
+            "width": 8640,
+            "height": 5760
+          },
+          "active_image_area_mm": {
+            "width": 36.20,
+            "height": 24.10
+          },
+          "max_fps": 30,
+          "codec_options": ["X-OCN XT", "X-OCN ST", "X-OCN LT"]
+        },
+        {
+          "id": "4k-120fps",
+          "name": "4K 120fps",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 17.16,
+            "height": 9.05
+          },
+          "max_fps": 120,
+          "codec_options": ["X-OCN XT", "X-OCN ST", "XAVC 4K"]
+        }
+      ],
+      "common_deliverables": ["DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "sony-fr7",
+      "manufacturer": "Sony",
+      "model": "FR7",
+      "sensor": {
+        "name": "Full-Frame Exmor R CMOS",
+        "photosite_dimensions": {
+          "width": 4240,
+          "height": 2832
+        },
+        "physical_dimensions_mm": {
+          "width": 35.60,
+          "height": 23.80
+        },
+        "pixel_pitch_um": 8.40
+      },
+      "recording_modes": [
+        {
+          "id": "ff-4k",
+          "name": "FF 4K",
+          "active_photosites": {
+            "width": 4240,
+            "height": 2832
+          },
+          "active_image_area_mm": {
+            "width": 35.60,
+            "height": 23.80
+          },
+          "max_fps": 60,
+          "codec_options": ["XAVC S-I 4K", "XAVC S 4K"]
+        },
+        {
+          "id": "s35-mode",
+          "name": "S35 Mode",
+          "active_photosites": {
+            "width": 4240,
+            "height": 2832
+          },
+          "active_image_area_mm": {
+            "width": 24.40,
+            "height": 13.70
+          },
+          "max_fps": 120,
+          "codec_options": ["XAVC S-I 4K", "XAVC S 4K"]
+        }
+      ],
+      "common_deliverables": ["DCI 4K (4096x2160)", "UHD (3840x2160)", "HD (1920x1080)"]
+    },
+    {
+      "id": "canon-c500-mark-ii",
+      "manufacturer": "Canon",
+      "model": "C500 Mark II",
+      "sensor": {
+        "name": "Full-Frame CMOS",
+        "photosite_dimensions": {
+          "width": 5952,
+          "height": 3140
+        },
+        "physical_dimensions_mm": {
+          "width": 38.10,
+          "height": 20.10
+        },
+        "pixel_pitch_um": 6.40
+      },
+      "recording_modes": [
+        {
+          "id": "cinema-raw-light-5.9k",
+          "name": "Cinema RAW Light 5.9K",
+          "active_photosites": {
+            "width": 5952,
+            "height": 3140
+          },
+          "active_image_area_mm": {
+            "width": 38.10,
+            "height": 20.10
+          },
+          "max_fps": 60,
+          "codec_options": ["Cinema RAW Light HQ", "Cinema RAW Light ST"]
+        },
+        {
+          "id": "xf-avc-4k",
+          "name": "XF-AVC 4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 26.20,
+            "height": 13.80
+          },
+          "max_fps": 60,
+          "codec_options": ["XF-AVC Intra", "XF-AVC Long GOP"]
+        }
+      ],
+      "common_deliverables": ["DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "canon-c400",
+      "manufacturer": "Canon",
+      "model": "C400",
+      "sensor": {
+        "name": "Full-Frame Back-Illuminated CMOS",
+        "photosite_dimensions": {
+          "width": 6000,
+          "height": 3164
+        },
+        "physical_dimensions_mm": {
+          "width": 38.10,
+          "height": 20.10
+        },
+        "pixel_pitch_um": 6.35
+      },
+      "recording_modes": [
+        {
+          "id": "6k",
+          "name": "6K",
+          "active_photosites": {
+            "width": 6000,
+            "height": 3164
+          },
+          "active_image_area_mm": {
+            "width": 38.10,
+            "height": 20.10
+          },
+          "max_fps": 60,
+          "codec_options": ["Cinema RAW Light HQ", "Cinema RAW Light ST", "Cinema RAW Light LT"]
+        },
+        {
+          "id": "4k",
+          "name": "4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 26.02,
+            "height": 13.72
+          },
+          "max_fps": 120,
+          "codec_options": ["Cinema RAW Light HQ", "Cinema RAW Light ST", "XF-AVC Intra", "XF-AVC Long GOP"]
+        }
+      ],
+      "common_deliverables": ["DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "canon-c300-mark-iii",
+      "manufacturer": "Canon",
+      "model": "C300 Mark III",
+      "sensor": {
+        "name": "Super 35mm DGO (Dual Gain Output) CMOS",
+        "photosite_dimensions": {
+          "width": 4096,
+          "height": 2160
+        },
+        "physical_dimensions_mm": {
+          "width": 26.20,
+          "height": 13.80
+        },
+        "pixel_pitch_um": 6.40
+      },
+      "recording_modes": [
+        {
+          "id": "cinema-raw-light-4k",
+          "name": "Cinema RAW Light 4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 26.20,
+            "height": 13.80
+          },
+          "max_fps": 60,
+          "codec_options": ["Cinema RAW Light HQ", "Cinema RAW Light ST"]
+        },
+        {
+          "id": "xf-avc-4k",
+          "name": "XF-AVC 4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 26.20,
+            "height": 13.80
+          },
+          "max_fps": 120,
+          "codec_options": ["XF-AVC Intra", "XF-AVC Long GOP"]
+        }
+      ],
+      "common_deliverables": ["DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "blackmagic-ursa-cine",
+      "manufacturer": "Blackmagic Design",
+      "model": "URSA Cine 12K",
+      "sensor": {
+        "name": "12K Super 35 CMOS",
+        "photosite_dimensions": {
+          "width": 12288,
+          "height": 6480
+        },
+        "physical_dimensions_mm": {
+          "width": 27.03,
+          "height": 14.26
+        },
+        "pixel_pitch_um": 2.20
+      },
+      "recording_modes": [
+        {
+          "id": "12k",
+          "name": "12K",
+          "active_photosites": {
+            "width": 12288,
+            "height": 6480
+          },
+          "active_image_area_mm": {
+            "width": 27.03,
+            "height": 14.26
+          },
+          "max_fps": 60,
+          "codec_options": ["Blackmagic RAW Q0", "Blackmagic RAW Q1", "Blackmagic RAW Q3", "Blackmagic RAW Q5"]
+        },
+        {
+          "id": "8k",
+          "name": "8K",
+          "active_photosites": {
+            "width": 8192,
+            "height": 4320
+          },
+          "active_image_area_mm": {
+            "width": 18.02,
+            "height": 9.50
+          },
+          "max_fps": 100,
+          "codec_options": ["Blackmagic RAW Q0", "Blackmagic RAW Q1", "Blackmagic RAW Q3", "Blackmagic RAW Q5"]
+        },
+        {
+          "id": "4k",
+          "name": "4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 9.01,
+            "height": 4.75
+          },
+          "max_fps": 220,
+          "codec_options": ["Blackmagic RAW Q0", "Blackmagic RAW Q1", "Blackmagic RAW Q3", "Blackmagic RAW Q5", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        }
+      ],
+      "common_deliverables": ["DCI 8K (8192x4320)", "DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "blackmagic-ursa-mini-pro-12k",
+      "manufacturer": "Blackmagic Design",
+      "model": "URSA Mini Pro 12K",
+      "sensor": {
+        "name": "12K Super 35 CMOS",
+        "photosite_dimensions": {
+          "width": 12288,
+          "height": 6480
+        },
+        "physical_dimensions_mm": {
+          "width": 27.03,
+          "height": 14.25
+        },
+        "pixel_pitch_um": 2.20
+      },
+      "recording_modes": [
+        {
+          "id": "12k",
+          "name": "12K",
+          "active_photosites": {
+            "width": 12288,
+            "height": 6480
+          },
+          "active_image_area_mm": {
+            "width": 27.03,
+            "height": 14.25
+          },
+          "max_fps": 60,
+          "codec_options": ["Blackmagic RAW Q0", "Blackmagic RAW Q1", "Blackmagic RAW Q3", "Blackmagic RAW Q5"]
+        },
+        {
+          "id": "8k",
+          "name": "8K",
+          "active_photosites": {
+            "width": 8192,
+            "height": 4320
+          },
+          "active_image_area_mm": {
+            "width": 18.02,
+            "height": 9.50
+          },
+          "max_fps": 110,
+          "codec_options": ["Blackmagic RAW Q0", "Blackmagic RAW Q1", "Blackmagic RAW Q3", "Blackmagic RAW Q5"]
+        },
+        {
+          "id": "4k",
+          "name": "4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 9.01,
+            "height": 4.75
+          },
+          "max_fps": 220,
+          "codec_options": ["Blackmagic RAW Q0", "Blackmagic RAW Q1", "Blackmagic RAW Q3", "Blackmagic RAW Q5", "Apple ProRes 4444 XQ", "Apple ProRes 4444", "Apple ProRes 422 HQ"]
+        }
+      ],
+      "common_deliverables": ["DCI 8K (8192x4320)", "DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    },
+    {
+      "id": "panavision-millennium-dxl2",
+      "manufacturer": "Panavision",
+      "model": "Millennium DXL2",
+      "sensor": {
+        "name": "RED Monstro 8K VV",
+        "photosite_dimensions": {
+          "width": 8192,
+          "height": 4320
+        },
+        "physical_dimensions_mm": {
+          "width": 40.96,
+          "height": 21.60
+        },
+        "pixel_pitch_um": 5.0
+      },
+      "recording_modes": [
+        {
+          "id": "8k-full-frame",
+          "name": "8K Full Frame",
+          "active_photosites": {
+            "width": 8192,
+            "height": 4320
+          },
+          "active_image_area_mm": {
+            "width": 40.96,
+            "height": 21.60
+          },
+          "max_fps": 60,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ"]
+        },
+        {
+          "id": "6k",
+          "name": "6K",
+          "active_photosites": {
+            "width": 6144,
+            "height": 3240
+          },
+          "active_image_area_mm": {
+            "width": 30.72,
+            "height": 16.20
+          },
+          "max_fps": 75,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ"]
+        },
+        {
+          "id": "4k",
+          "name": "4K",
+          "active_photosites": {
+            "width": 4096,
+            "height": 2160
+          },
+          "active_image_area_mm": {
+            "width": 20.48,
+            "height": 10.80
+          },
+          "max_fps": 120,
+          "codec_options": ["REDCODE RAW HQ", "REDCODE RAW MQ", "REDCODE RAW LQ"]
+        }
+      ],
+      "common_deliverables": ["DCI 8K (8192x4320)", "DCI 4K (4096x2160)", "UHD (3840x2160)", "2K (2048x1080)", "HD (1920x1080)"]
+    }
+  ]
+}

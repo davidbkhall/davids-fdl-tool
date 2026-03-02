@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fdl-backend"
+version = "0.1.0"
+description = "Python backend for FDL Tool macOS app"
+requires-python = ">=3.10"
+dependencies = [
+    "Pillow>=10.0",
+    "svgwrite>=1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+full = [
+    "fdl",
+    "OpenImageIO",
+    "cairosvg>=2.7",
+]
+
+[tool.setuptools.packages.find]
+include = ["fdl_backend*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

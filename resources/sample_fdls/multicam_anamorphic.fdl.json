@@ -1,0 +1,122 @@
+{
+  "uuid": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "header": {
+    "uuid": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "version": "2.0.1",
+    "fdl_creator": "FDL Tool Sample",
+    "description": "Multi-camera anamorphic production with ARRI ALEXA 35 and Sony VENICE 2",
+    "default_framing_intent": "scope"
+  },
+  "fdl_contexts": [
+    {
+      "context_uuid": "ctx-010-alexa35",
+      "label": "ARRI ALEXA 35 — 4.6K Open Window",
+      "context_creator": "FDL Tool",
+      "canvases": [
+        {
+          "canvas_uuid": "canvas-010-a35-ow",
+          "label": "ALEXA 35 4.6K 3:2 Open Window",
+          "dimensions": {
+            "width": 4608,
+            "height": 3164
+          },
+          "photosite": {
+            "width": 4608,
+            "height": 3164
+          },
+          "effective_dimensions": {
+            "width": 4608,
+            "height": 1928
+          },
+          "effective_anchor": {
+            "x": 0,
+            "y": 618
+          },
+          "framing_decisions": [
+            {
+              "fd_uuid": "fd-010-scope",
+              "label": "2.39:1 Anamorphic Scope",
+              "framing_intent": "scope",
+              "dimensions": {
+                "width": 4608,
+                "height": 1928
+              },
+              "anchor": {
+                "x": 0,
+                "y": 618
+              }
+            },
+            {
+              "fd_uuid": "fd-011-imax",
+              "label": "IMAX 1.43:1",
+              "framing_intent": "imax",
+              "dimensions": {
+                "width": 4608,
+                "height": 3222
+              },
+              "anchor": {
+                "x": 0,
+                "y": 0
+              },
+              "protection_dimensions": {
+                "width": 4608,
+                "height": 3164
+              },
+              "protection_anchor": {
+                "x": 0,
+                "y": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "context_uuid": "ctx-020-venice2",
+      "label": "Sony VENICE 2 — 8.6K Full Frame",
+      "context_creator": "FDL Tool",
+      "canvases": [
+        {
+          "canvas_uuid": "canvas-020-v2-ff",
+          "label": "VENICE 2 8.6K Full Frame",
+          "dimensions": {
+            "width": 8640,
+            "height": 5760
+          },
+          "photosite": {
+            "width": 8640,
+            "height": 5760
+          },
+          "framing_decisions": [
+            {
+              "fd_uuid": "fd-020-scope",
+              "label": "2.39:1 Scope",
+              "framing_intent": "scope",
+              "dimensions": {
+                "width": 8640,
+                "height": 3616
+              },
+              "anchor": {
+                "x": 0,
+                "y": 1072
+              }
+            },
+            {
+              "fd_uuid": "fd-021-flat",
+              "label": "1.85:1 Flat",
+              "framing_intent": "flat",
+              "dimensions": {
+                "width": 8640,
+                "height": 4670
+              },
+              "anchor": {
+                "x": 0,
+                "y": 545
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

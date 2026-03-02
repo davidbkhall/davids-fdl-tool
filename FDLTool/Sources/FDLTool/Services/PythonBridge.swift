@@ -1,0 +1,283 @@
+import Foundation
+
+/// JSON-RPC 2.0 request/response types
+struct JSONRPCRequest: Encodable {
+    let jsonrpc = "2.0"
+    let id: Int
+    let method: String
+    let params: [String: AnyCodable]
+}
+
+struct JSONRPCResponse: Decodable {
+    let jsonrpc: String
+    let id: Int?
+    let result: AnyCodable?
+    let error: JSONRPCError?
+}
+
+struct JSONRPCError: Decodable, Error, LocalizedError {
+    let code: Int
+    let message: String
+    let data: AnyCodable?
+
+    var errorDescription: String? { message }
+}
+
+/// Type-erased Codable wrapper for arbitrary JSON values
+struct AnyCodable: Codable, @unchecked Sendable {
+    let value: Any
+
+    init(_ value: Any) {
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            value = NSNull()
+        } else if let bool = try? container.decode(Bool.self) {
+            value = bool
+        } else if let int = try? container.decode(Int.self) {
+            value = int
+        } else if let double = try? container.decode(Double.self) {
+            value = double
+        } else if let string = try? container.decode(String.self) {
+            value = string
+        } else if let array = try? container.decode([AnyCodable].self) {
+            value = array.map(\.value)
+        } else if let dict = try? container.decode([String: AnyCodable].self) {
+            value = dict.mapValues(\.value)
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON type")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch value {
+        case is NSNull:
+            try container.encodeNil()
+        case let bool as Bool:
+            try container.encode(bool)
+        case let int as Int:
+            try container.encode(int)
+        case let double as Double:
+            try container.encode(double)
+        case let string as String:
+            try container.encode(string)
+        case let array as [Any]:
+            try container.encode(array.map { AnyCodable($0) })
+        case let dict as [String: Any]:
+            try container.encode(dict.mapValues { AnyCodable($0) })
+        default:
+            throw EncodingError.invalidValue(value, .init(codingPath: [], debugDescription: "Unsupported type"))
+        }
+    }
+
+    // Convenience accessors
+    var stringValue: String? { value as? String }
+    var intValue: Int? { value as? Int }
+    var doubleValue: Double? { value as? Double }
+    var boolValue: Bool? { value as? Bool }
+    var dictValue: [String: Any]? { value as? [String: Any] }
+    var arrayValue: [Any]? { value as? [Any] }
+}
+
+enum PythonBridgeError: Error, LocalizedError {
+    case notStarted
+    case processExited(Int32)
+    case encodingError
+    case decodingError(String)
+    case rpcError(JSONRPCError)
+    case timeout
+
+    var errorDescription: String? {
+        switch self {
+        case .notStarted: return "Python bridge not started"
+        case .processExited(let code): return "Python process exited with code \(code)"
+        case .encodingError: return "Failed to encode JSON-RPC request"
+        case .decodingError(let msg): return "Failed to decode response: \(msg)"
+        case .rpcError(let err): return "RPC error \(err.code): \(err.message)"
+        case .timeout: return "Request timed out"
+        }
+    }
+}
+
+/// Actor managing the Python subprocess and JSON-RPC communication.
+actor PythonBridge {
+    private var process: Process?
+    private var stdinPipe: Pipe?
+    private var stdoutPipe: Pipe?
+    private var stderrPipe: Pipe?
+    private var nextID = 1
+    private var pendingRequests: [Int: CheckedContinuation<JSONRPCResponse, Error>] = [:]
+    private var readTask: Task<Void, Never>?
+    private var buffer = Data()
+    private var isRunning = false
+
+    /// Path to the Python backend server script.
+    /// Resolves relative to the app bundle or falls back to known dev path.
+    private func pythonServerPath() -> String {
+        // In development, use the path relative to the project
+        let devPath = ProcessInfo.processInfo.environment["FDL_PYTHON_BACKEND"]
+            ?? Bundle.main.path(forResource: "fdl_backend", ofType: nil)
+            ?? "./python_backend"
+        return devPath
+    }
+
+    func start() throws {
+        guard !isRunning else { return }
+
+        let process = Process()
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", "-m", "fdl_backend.server"]
+
+        let backendPath = pythonServerPath()
+        process.currentDirectoryURL = URL(fileURLWithPath: backendPath)
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        // Propagate PATH for finding python3
+        var env = ProcessInfo.processInfo.environment
+        env["PYTHONUNBUFFERED"] = "1"
+        process.environment = env
+
+        process.terminationHandler = { [weak self] proc in
+            Task { [weak self] in
+                await self?.handleTermination(exitCode: proc.terminationStatus)
+            }
+        }
+
+        try process.run()
+
+        self.process = process
+        self.stdinPipe = stdinPipe
+        self.stdoutPipe = stdoutPipe
+        self.stderrPipe = stderrPipe
+        self.isRunning = true
+
+        // Start reading stdout for responses
+        readTask = Task { [weak self] in
+            await self?.readLoop()
+        }
+
+        // Log stderr
+        Task.detached { [stderrPipe] in
+            let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            if let str = String(data: data, encoding: .utf8), !str.isEmpty {
+                print("[Python stderr] \(str)")
+            }
+        }
+    }
+
+    func shutdown() {
+        readTask?.cancel()
+        readTask = nil
+
+        stdinPipe?.fileHandleForWriting.closeFile()
+        process?.terminate()
+
+        // Fail all pending requests
+        for (_, continuation) in pendingRequests {
+            continuation.resume(throwing: PythonBridgeError.notStarted)
+        }
+        pendingRequests.removeAll()
+
+        process = nil
+        stdinPipe = nil
+        stdoutPipe = nil
+        stderrPipe = nil
+        isRunning = false
+    }
+
+    /// Send a JSON-RPC call and await the response.
+    func call(_ method: String, params: [String: Any] = [:]) async throws -> JSONRPCResponse {
+        guard isRunning, let stdinPipe = stdinPipe else {
+            throw PythonBridgeError.notStarted
+        }
+
+        let id = nextID
+        nextID += 1
+
+        let request = JSONRPCRequest(
+            id: id,
+            method: method,
+            params: params.mapValues { AnyCodable($0) }
+        )
+
+        let encoder = JSONEncoder()
+        guard var data = try? encoder.encode(request) else {
+            throw PythonBridgeError.encodingError
+        }
+        data.append(0x0A) // newline delimiter
+
+        let response: JSONRPCResponse = try await withCheckedThrowingContinuation { continuation in
+            pendingRequests[id] = continuation
+            stdinPipe.fileHandleForWriting.write(data)
+        }
+
+        if let error = response.error {
+            throw PythonBridgeError.rpcError(error)
+        }
+
+        return response
+    }
+
+    /// Convenience: call and extract the result dictionary
+    func callForResult(_ method: String, params: [String: Any] = [:]) async throws -> [String: Any] {
+        let response = try await call(method, params: params)
+        return response.result?.dictValue ?? [:]
+    }
+
+    // MARK: - Private
+
+    private func readLoop() async {
+        guard let stdoutPipe = stdoutPipe else { return }
+        let handle = stdoutPipe.fileHandleForReading
+
+        while !Task.isCancelled {
+            let data = handle.availableData
+            if data.isEmpty {
+                // EOF — process likely exited
+                break
+            }
+            buffer.append(data)
+            processBuffer()
+        }
+    }
+
+    private func processBuffer() {
+        // Split on newlines — each line is a complete JSON-RPC response
+        while let newlineIndex = buffer.firstIndex(of: 0x0A) {
+            let lineData = buffer[buffer.startIndex..<newlineIndex]
+            buffer = Data(buffer[buffer.index(after: newlineIndex)...])
+
+            guard !lineData.isEmpty else { continue }
+
+            do {
+                let response = try JSONDecoder().decode(JSONRPCResponse.self, from: Data(lineData))
+                if let id = response.id, let continuation = pendingRequests.removeValue(forKey: id) {
+                    continuation.resume(returning: response)
+                }
+            } catch {
+                print("[PythonBridge] Failed to decode response: \(error)")
+                if let str = String(data: Data(lineData), encoding: .utf8) {
+                    print("[PythonBridge] Raw: \(str)")
+                }
+            }
+        }
+    }
+
+    private func handleTermination(exitCode: Int32) {
+        isRunning = false
+        for (_, continuation) in pendingRequests {
+            continuation.resume(throwing: PythonBridgeError.processExited(exitCode))
+        }
+        pendingRequests.removeAll()
+    }
+}
