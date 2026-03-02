@@ -1,7 +1,5 @@
 """SVG chart rendering utilities."""
 
-from typing import Any
-
 try:
     import svgwrite
 except ImportError:
@@ -45,11 +43,9 @@ def create_chart_svg(
     cx, cy = padding, padding
     cw = int(canvas_width * scale)
     ch = int(canvas_height * scale)
-    dwg.add(dwg.rect(insert=(cx, cy), size=(cw, ch),
-                      fill="none", stroke="#444", stroke_width=1))
+    dwg.add(dwg.rect(insert=(cx, cy), size=(cw, ch), fill="none", stroke="#444", stroke_width=1))
 
-    colors = ["#FF3B30", "#007AFF", "#34C759", "#FF9500",
-              "#AF52DE", "#FFD60A", "#5AC8FA", "#FF2D55"]
+    colors = ["#FF3B30", "#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FFD60A", "#5AC8FA", "#FF2D55"]
 
     for i, fl in enumerate(framelines):
         fw = int(fl["width"] * scale)
@@ -59,7 +55,6 @@ def create_chart_svg(
         sx = cx + (cw - fw) // 2
         sy = cy + (ch - fh) // 2
 
-        dwg.add(dwg.rect(insert=(sx, sy), size=(fw, fh),
-                          fill="none", stroke=color, stroke_width=2))
+        dwg.add(dwg.rect(insert=(sx, sy), size=(fw, fh), fill="none", stroke=color, stroke_width=2))
 
     return dwg.tostring()

@@ -1,13 +1,13 @@
 """Tests for image operations handler."""
 
 import base64
-import io
 import os
 import tempfile
 
 import pytest
 
 from fdl_backend.handlers import image_ops
+
 
 # Create a tiny test image for tests
 def _create_test_image(width=100, height=80):
@@ -18,9 +18,9 @@ def _create_test_image(width=100, height=80):
         pytest.skip("Pillow not installed")
 
     img = Image.new("RGB", (width, height), color=(128, 128, 128))
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    img.save(tmp.name)
-    return tmp.name
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        img.save(tmp.name)
+        return tmp.name
 
 
 def test_get_info():
@@ -39,10 +39,12 @@ def test_load_and_overlay_no_framelines():
     """Load image with empty FDL (no framelines drawn)."""
     path = _create_test_image(320, 240)
     try:
-        result = image_ops.load_and_overlay({
-            "image_path": path,
-            "fdl_data": {"fdl_contexts": []},
-        })
+        result = image_ops.load_and_overlay(
+            {
+                "image_path": path,
+                "fdl_data": {"fdl_contexts": []},
+            }
+        )
         assert "png_base64" in result
         assert result["width"] == 320
         assert result["height"] == 240
@@ -79,10 +81,12 @@ def test_load_and_overlay_with_framelines():
         ]
     }
     try:
-        result = image_ops.load_and_overlay({
-            "image_path": path,
-            "fdl_data": fdl_data,
-        })
+        result = image_ops.load_and_overlay(
+            {
+                "image_path": path,
+                "fdl_data": fdl_data,
+            }
+        )
         assert "png_base64" in result
         assert result["width"] == 400
         assert result["height"] == 300
@@ -114,10 +118,12 @@ def test_load_and_overlay_scaled_canvas():
         ]
     }
     try:
-        result = image_ops.load_and_overlay({
-            "image_path": path,
-            "fdl_data": fdl_data,
-        })
+        result = image_ops.load_and_overlay(
+            {
+                "image_path": path,
+                "fdl_data": fdl_data,
+            }
+        )
         assert result["width"] == 200
         assert result["height"] == 100
     finally:

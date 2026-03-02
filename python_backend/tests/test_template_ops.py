@@ -7,14 +7,16 @@ from fdl_backend.handlers import template_ops
 
 def test_validate_valid_template():
     """Validate a well-formed template."""
-    template = json.dumps({
-        "name": "Test Template",
-        "pipeline": [
-            {"type": "normalize"},
-            {"type": "scale", "scale_x": 3840, "scale_y": 2160},
-            {"type": "round", "strategy": "even"},
-        ],
-    })
+    template = json.dumps(
+        {
+            "name": "Test Template",
+            "pipeline": [
+                {"type": "normalize"},
+                {"type": "scale", "scale_x": 3840, "scale_y": 2160},
+                {"type": "round", "strategy": "even"},
+            ],
+        }
+    )
     result = template_ops.validate({"json_string": template})
     assert result["valid"] is True
     assert len(result["errors"]) == 0
@@ -44,21 +46,29 @@ def test_validate_invalid_json():
 
 def test_apply_scale_template():
     """Apply a scale template to an FDL."""
-    template = json.dumps({
-        "pipeline": [
-            {"type": "scale", "scale_x": 0.5, "scale_y": 0.5},
-        ],
-    })
-    fdl = json.dumps({
-        "fdl_contexts": [{
-            "context_uuid": "ctx-1",
-            "canvases": [{
-                "canvas_uuid": "c-1",
-                "dimensions": {"width": 4096, "height": 2160},
-                "framing_decisions": [],
-            }],
-        }],
-    })
+    template = json.dumps(
+        {
+            "pipeline": [
+                {"type": "scale", "scale_x": 0.5, "scale_y": 0.5},
+            ],
+        }
+    )
+    fdl = json.dumps(
+        {
+            "fdl_contexts": [
+                {
+                    "context_uuid": "ctx-1",
+                    "canvases": [
+                        {
+                            "canvas_uuid": "c-1",
+                            "dimensions": {"width": 4096, "height": 2160},
+                            "framing_decisions": [],
+                        }
+                    ],
+                }
+            ],
+        }
+    )
     result = template_ops.apply_template({"template_json": template, "fdl_json": fdl})
     canvas = result["fdl"]["fdl_contexts"][0]["canvases"][0]
     assert canvas["dimensions"]["width"] == 2048.0
@@ -67,22 +77,30 @@ def test_apply_scale_template():
 
 def test_apply_round_template():
     """Apply a round template."""
-    template = json.dumps({
-        "pipeline": [
-            {"type": "scale", "scale_x": 1.333, "scale_y": 1.333},
-            {"type": "round", "strategy": "even"},
-        ],
-    })
-    fdl = json.dumps({
-        "fdl_contexts": [{
-            "context_uuid": "ctx-1",
-            "canvases": [{
-                "canvas_uuid": "c-1",
-                "dimensions": {"width": 1920, "height": 1080},
-                "framing_decisions": [],
-            }],
-        }],
-    })
+    template = json.dumps(
+        {
+            "pipeline": [
+                {"type": "scale", "scale_x": 1.333, "scale_y": 1.333},
+                {"type": "round", "strategy": "even"},
+            ],
+        }
+    )
+    fdl = json.dumps(
+        {
+            "fdl_contexts": [
+                {
+                    "context_uuid": "ctx-1",
+                    "canvases": [
+                        {
+                            "canvas_uuid": "c-1",
+                            "dimensions": {"width": 1920, "height": 1080},
+                            "framing_decisions": [],
+                        }
+                    ],
+                }
+            ],
+        }
+    )
     result = template_ops.apply_template({"template_json": template, "fdl_json": fdl})
     canvas = result["fdl"]["fdl_contexts"][0]["canvases"][0]
     # 1920 * 1.333 = 2559.36 → round to even = 2560
@@ -93,23 +111,31 @@ def test_apply_round_template():
 
 def test_preview_steps():
     """Preview shows step-by-step results."""
-    template = json.dumps({
-        "pipeline": [
-            {"type": "normalize"},
-            {"type": "scale", "scale_x": 3840, "scale_y": 3840},
-            {"type": "round", "strategy": "nearest"},
-        ],
-    })
-    fdl = json.dumps({
-        "fdl_contexts": [{
-            "context_uuid": "ctx-1",
-            "canvases": [{
-                "canvas_uuid": "c-1",
-                "dimensions": {"width": 4096, "height": 2160},
-                "framing_decisions": [],
-            }],
-        }],
-    })
+    template = json.dumps(
+        {
+            "pipeline": [
+                {"type": "normalize"},
+                {"type": "scale", "scale_x": 3840, "scale_y": 3840},
+                {"type": "round", "strategy": "nearest"},
+            ],
+        }
+    )
+    fdl = json.dumps(
+        {
+            "fdl_contexts": [
+                {
+                    "context_uuid": "ctx-1",
+                    "canvases": [
+                        {
+                            "canvas_uuid": "c-1",
+                            "dimensions": {"width": 4096, "height": 2160},
+                            "framing_decisions": [],
+                        }
+                    ],
+                }
+            ],
+        }
+    )
     result = template_ops.preview({"template_json": template, "fdl_json": fdl})
     steps = result["steps"]
     # input + 3 pipeline steps = 4 entries

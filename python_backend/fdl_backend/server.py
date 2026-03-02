@@ -9,7 +9,7 @@ import sys
 import traceback
 from typing import Any
 
-from fdl_backend.handlers import fdl_ops, chart_gen, clip_id, image_ops, template_ops
+from fdl_backend.handlers import chart_gen, clip_id, fdl_ops, image_ops, template_ops
 
 # Method dispatch table: "domain.method" -> handler function
 HANDLERS: dict[str, Any] = {}

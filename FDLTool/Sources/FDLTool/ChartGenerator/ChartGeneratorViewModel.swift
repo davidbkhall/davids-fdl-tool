@@ -18,8 +18,8 @@ struct Frameline: Identifiable {
             (2.35, "2.35:1"), (4.0/3.0, "4:3"), (1.0, "1:1"),
             (3.0/2.0, "3:2"), (2.0, "2:1"), (1.9, "1.9:1"),
         ]
-        for (value, name) in known {
-            if abs(ratio - value) < 0.02 { return name }
+        for (value, name) in known where abs(ratio - value) < 0.02 {
+            return name
         }
         return String(format: "%.2f:1", ratio)
     }

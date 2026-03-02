@@ -32,10 +32,8 @@ struct AspectRatioLabel: View {
             (1.9, "1.9:1"),
         ]
 
-        for (value, label) in knownRatios {
-            if abs(ratio - value) < 0.02 {
-                return label
-            }
+        for (value, label) in knownRatios where abs(ratio - value) < 0.02 {
+            return label
         }
 
         return String(format: "%.2f:1", ratio)

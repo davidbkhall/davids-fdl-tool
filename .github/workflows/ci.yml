@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift-build-test:
+    name: Swift Build & Test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: FDLTool/.build
+          key: ${{ runner.os }}-spm-${{ hashFiles('FDLTool/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Resolve dependencies
+        working-directory: ./FDLTool
+        run: swift package resolve
+
+      - name: Build
+        working-directory: ./FDLTool
+        run: swift build
+
+      - name: Test
+        working-directory: ./FDLTool
+        run: swift test
+
+  python-test:
+    name: Python Test
+    runs-on: macos-15
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: python_backend/pyproject.toml
+
+      - name: Install dependencies
+        working-directory: ./python_backend
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        working-directory: ./python_backend
+        run: pytest tests/ -v --tb=short
+
+  swift-lint:
+    name: SwiftLint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Lint
+        run: swiftlint lint --config .swiftlint.yml --reporter github-actions-logging
+
+  python-lint:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Ruff check (lint)
+        working-directory: ./python_backend
+        run: ruff check .
+
+      - name: Ruff format (formatting)
+        working-directory: ./python_backend
+        run: ruff format --check .

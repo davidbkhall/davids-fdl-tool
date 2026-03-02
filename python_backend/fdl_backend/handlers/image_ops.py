@@ -2,8 +2,6 @@
 
 import base64
 import io
-import json
-from typing import Any
 
 try:
     from PIL import Image, ImageDraw
@@ -12,8 +10,14 @@ except ImportError:
 
 
 FRAMELINE_COLORS = [
-    "#FF3B30", "#007AFF", "#34C759", "#FF9500",
-    "#AF52DE", "#FFD60A", "#5AC8FA", "#FF2D55",
+    "#FF3B30",
+    "#007AFF",
+    "#34C759",
+    "#FF9500",
+    "#AF52DE",
+    "#FFD60A",
+    "#5AC8FA",
+    "#FF2D55",
 ]
 
 

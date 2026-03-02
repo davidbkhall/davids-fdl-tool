@@ -1,0 +1,42 @@
+included:
+  - FDLTool/Sources
+  - FDLTool/Tests
+
+excluded:
+  - FDLTool/.build
+  - FDLTool/Package.swift
+
+# Rules tuned for this project
+disabled_rules:
+  - trailing_comma
+  - todo
+  - nesting
+  - identifier_name
+  - type_body_length
+  - file_length
+  - function_body_length
+  - large_tuple
+  - cyclomatic_complexity
+  - function_parameter_count
+  - multiple_closures_with_trailing_closure
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_not_nil
+  - fatal_error_message
+  - first_where
+  - implicitly_unwrapped_optional
+  - joined_default_parameter
+  - redundant_nil_coalescing
+  - sorted_first_last
+
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+
+type_name:
+  min_length: 2
+  max_length: 60

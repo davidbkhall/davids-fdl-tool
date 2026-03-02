@@ -2,7 +2,6 @@
 
 import json
 import subprocess
-from typing import Any
 
 
 def run_ffprobe(file_path: str) -> dict:
@@ -10,8 +9,10 @@ def run_ffprobe(file_path: str) -> dict:
     result = subprocess.run(
         [
             "ffprobe",
-            "-v", "quiet",
-            "-print_format", "json",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
             "-show_format",
             "-show_streams",
             file_path,

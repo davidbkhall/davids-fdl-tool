@@ -4,12 +4,21 @@ import json
 import os
 import subprocess
 import uuid
-from typing import Any
 
 # Common video extensions
 VIDEO_EXTENSIONS = {
-    ".mov", ".mp4", ".mxf", ".avi", ".mkv", ".r3d",
-    ".braw", ".ari", ".arx", ".dng", ".dpx", ".exr",
+    ".mov",
+    ".mp4",
+    ".mxf",
+    ".avi",
+    ".mkv",
+    ".r3d",
+    ".braw",
+    ".ari",
+    ".arx",
+    ".dng",
+    ".dpx",
+    ".exr",
 }
 
 
@@ -26,8 +35,10 @@ def probe(params: dict) -> dict:
     result = subprocess.run(
         [
             "ffprobe",
-            "-v", "quiet",
-            "-print_format", "json",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
             "-show_format",
             "-show_streams",
             file_path,
@@ -130,7 +141,9 @@ def generate_fdl(params: dict) -> dict:
     if template:
         template_contexts = template.get("fdl_contexts", [])
         if template_contexts:
-            template_canvas = template_contexts[0].get("canvases", [{}])[0] if template_contexts[0].get("canvases") else {}
+            template_canvas = (
+                template_contexts[0].get("canvases", [{}])[0] if template_contexts[0].get("canvases") else {}
+            )
             for fd in template_canvas.get("framing_decisions", []):
                 new_fd = dict(fd)
                 new_fd["fd_uuid"] = str(uuid.uuid4())
@@ -169,15 +182,17 @@ def validate_canvas(params: dict) -> dict:
             canvas_h = dims.get("height", 0)
 
             match = canvas_w == actual_w and canvas_h == actual_h
-            results.append({
-                "canvas_uuid": canvas.get("canvas_uuid", ""),
-                "canvas_label": canvas.get("label", ""),
-                "canvas_width": canvas_w,
-                "canvas_height": canvas_h,
-                "actual_width": actual_w,
-                "actual_height": actual_h,
-                "match": match,
-            })
+            results.append(
+                {
+                    "canvas_uuid": canvas.get("canvas_uuid", ""),
+                    "canvas_label": canvas.get("label", ""),
+                    "canvas_width": canvas_w,
+                    "canvas_height": canvas_h,
+                    "actual_width": actual_w,
+                    "actual_height": actual_h,
+                    "match": match,
+                }
+            )
 
     all_match = all(r["match"] for r in results) if results else False
     return {"match": all_match, "comparisons": results}

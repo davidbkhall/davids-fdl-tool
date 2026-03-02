@@ -3,7 +3,6 @@
 import json
 import os
 import uuid
-from typing import Any
 
 
 def noop(params: dict) -> dict:
@@ -145,25 +144,49 @@ def validate(params: dict) -> dict:
         for i, ctx in enumerate(contexts):
             ctx_path = f"fdl_contexts[{i}]"
             if "context_uuid" not in ctx:
-                errors.append({"path": f"{ctx_path}.context_uuid", "message": "Missing context UUID", "severity": "error"})
+                errors.append(
+                    {"path": f"{ctx_path}.context_uuid", "message": "Missing context UUID", "severity": "error"}
+                )
 
             canvases = ctx.get("canvases", [])
             if not isinstance(canvases, list):
-                errors.append({"path": f"{ctx_path}.canvases", "message": "canvases must be an array", "severity": "error"})
+                errors.append(
+                    {"path": f"{ctx_path}.canvases", "message": "canvases must be an array", "severity": "error"}
+                )
                 continue
 
             for j, canvas in enumerate(canvases):
                 canvas_path = f"{ctx_path}.canvases[{j}]"
                 if "canvas_uuid" not in canvas:
-                    errors.append({"path": f"{canvas_path}.canvas_uuid", "message": "Missing canvas UUID", "severity": "error"})
+                    errors.append(
+                        {"path": f"{canvas_path}.canvas_uuid", "message": "Missing canvas UUID", "severity": "error"}
+                    )
                 if "dimensions" not in canvas:
-                    errors.append({"path": f"{canvas_path}.dimensions", "message": "Missing canvas dimensions", "severity": "error"})
+                    errors.append(
+                        {
+                            "path": f"{canvas_path}.dimensions",
+                            "message": "Missing canvas dimensions",
+                            "severity": "error",
+                        }
+                    )
                 else:
                     dims = canvas["dimensions"]
                     if not isinstance(dims, dict) or "width" not in dims or "height" not in dims:
-                        errors.append({"path": f"{canvas_path}.dimensions", "message": "Dimensions must have width and height", "severity": "error"})
+                        errors.append(
+                            {
+                                "path": f"{canvas_path}.dimensions",
+                                "message": "Dimensions must have width and height",
+                                "severity": "error",
+                            }
+                        )
                     elif dims.get("width", 0) <= 0 or dims.get("height", 0) <= 0:
-                        warnings.append({"path": f"{canvas_path}.dimensions", "message": "Dimensions should be positive", "severity": "warning"})
+                        warnings.append(
+                            {
+                                "path": f"{canvas_path}.dimensions",
+                                "message": "Dimensions should be positive",
+                                "severity": "warning",
+                            }
+                        )
 
                 # Check framing decisions
                 fds = canvas.get("framing_decisions", [])
@@ -172,7 +195,9 @@ def validate(params: dict) -> dict:
                     if "fd_uuid" not in fd:
                         errors.append({"path": f"{fd_path}.fd_uuid", "message": "Missing FD UUID", "severity": "error"})
                     if "dimensions" not in fd:
-                        errors.append({"path": f"{fd_path}.dimensions", "message": "Missing FD dimensions", "severity": "error"})
+                        errors.append(
+                            {"path": f"{fd_path}.dimensions", "message": "Missing FD dimensions", "severity": "error"}
+                        )
 
     return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings}
 

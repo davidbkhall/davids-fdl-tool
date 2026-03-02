@@ -1,7 +1,6 @@
 """Canvas template operations: validate, apply, preview, export."""
 
 import json
-from typing import Any
 
 
 def validate(params: dict) -> dict:
@@ -45,15 +44,19 @@ def validate(params: dict) -> dict:
         for i, step in enumerate(pipeline):
             step_path = f"pipeline[{i}]"
             if not isinstance(step, dict):
-                errors.append({"path": step_path, "message": "Each pipeline step must be an object", "severity": "error"})
+                errors.append(
+                    {"path": step_path, "message": "Each pipeline step must be an object", "severity": "error"}
+                )
                 continue
             step_type = step.get("type")
             if step_type not in valid_steps:
-                errors.append({
-                    "path": f"{step_path}.type",
-                    "message": f"Unknown step type: {step_type}. Valid: {', '.join(sorted(valid_steps))}",
-                    "severity": "error",
-                })
+                errors.append(
+                    {
+                        "path": f"{step_path}.type",
+                        "message": f"Unknown step type: {step_type}. Valid: {', '.join(sorted(valid_steps))}",
+                        "severity": "error",
+                    }
+                )
 
     return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings}
 
@@ -107,25 +110,29 @@ def preview(params: dict) -> dict:
     dims = canvas.get("dimensions", {"width": 0, "height": 0})
     w, h = float(dims["width"]), float(dims["height"])
 
-    steps_results.append({
-        "step": "input",
-        "type": "original",
-        "width": w,
-        "height": h,
-    })
+    steps_results.append(
+        {
+            "step": "input",
+            "type": "original",
+            "width": w,
+            "height": h,
+        }
+    )
 
     for step in pipeline:
         prev_w, prev_h = w, h
         w, h = _apply_step(step, w, h)
-        steps_results.append({
-            "step": step.get("type", "unknown"),
-            "type": step.get("type", "unknown"),
-            "params": {k: v for k, v in step.items() if k != "type"},
-            "input_width": prev_w,
-            "input_height": prev_h,
-            "output_width": w,
-            "output_height": h,
-        })
+        steps_results.append(
+            {
+                "step": step.get("type", "unknown"),
+                "type": step.get("type", "unknown"),
+                "params": {k: v for k, v in step.items() if k != "type"},
+                "input_width": prev_w,
+                "input_height": prev_h,
+                "output_width": w,
+                "output_height": h,
+            }
+        )
 
     return {"steps": steps_results}
 
@@ -162,9 +169,11 @@ def _apply_step(step: dict, w: float, h: float) -> tuple[float, float]:
             w, h = round(w), round(h)
         elif strategy == "floor":
             import math
+
             w, h = math.floor(w), math.floor(h)
         elif strategy == "ceil":
             import math
+
             w, h = math.ceil(w), math.ceil(h)
         elif strategy == "even":
             w = round(w / 2) * 2

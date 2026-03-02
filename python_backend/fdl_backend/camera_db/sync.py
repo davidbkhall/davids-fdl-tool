@@ -1,7 +1,6 @@
 """Camera database sync from external sources."""
 
 import json
-from typing import Any
 
 
 def sync_from_url(params: dict) -> dict:

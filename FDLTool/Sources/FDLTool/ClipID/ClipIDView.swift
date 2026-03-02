@@ -388,7 +388,8 @@ struct TemplateSelectionSheet: View {
             Text("Select FDL Template")
                 .font(.headline)
 
-            Text("Paste FDL JSON to use as a template for framing decisions. The canvas dimensions will be replaced by each clip's actual resolution.")
+            Text("Paste FDL JSON to use as a template for framing decisions. "
+                + "The canvas dimensions will be replaced by each clip's actual resolution.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

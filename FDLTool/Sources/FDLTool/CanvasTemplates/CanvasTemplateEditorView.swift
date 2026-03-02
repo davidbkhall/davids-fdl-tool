@@ -48,7 +48,7 @@ struct CanvasTemplateEditorView: View {
                                     .frame(maxWidth: .infinity, alignment: .center)
                                     .padding(.vertical, 12)
                             } else {
-                                ForEach(Array(viewModel.editorPipeline.enumerated()), id: \.element.id) { index, step in
+                                ForEach(Array(viewModel.editorPipeline.enumerated()), id: \.element.id) { index, _ in
                                     PipelineStepEditor(
                                         step: Binding(
                                             get: { viewModel.editorPipeline[index] },

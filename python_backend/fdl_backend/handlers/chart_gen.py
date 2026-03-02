@@ -2,9 +2,7 @@
 
 import base64
 import io
-import json
 import uuid
-from typing import Any
 
 try:
     import svgwrite
@@ -12,7 +10,7 @@ except ImportError:
     svgwrite = None
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 except ImportError:
     Image = None
 
@@ -65,15 +63,21 @@ def generate_svg(params: dict) -> dict:
     title_offset = 0
     if title:
         title_offset = 40
-        dwg.add(dwg.text(title, insert=(svg_w / 2, 28), fill="white",
-                         font_size="16px", font_family="sans-serif",
-                         text_anchor="middle"))
+        dwg.add(
+            dwg.text(
+                title,
+                insert=(svg_w / 2, 28),
+                fill="white",
+                font_size="16px",
+                font_family="sans-serif",
+                text_anchor="middle",
+            )
+        )
 
     # Canvas outline
     cx, cy = padding, padding + title_offset
     cw, ch = int(canvas_w * scale), int(canvas_h * scale)
-    dwg.add(dwg.rect(insert=(cx, cy), size=(cw, ch),
-                      fill="none", stroke="#444", stroke_width=1))
+    dwg.add(dwg.rect(insert=(cx, cy), size=(cw, ch), fill="none", stroke="#444", stroke_width=1))
 
     # Draw framelines (centered within canvas)
     for i, fl in enumerate(framelines):
@@ -88,17 +92,23 @@ def generate_svg(params: dict) -> dict:
         sx = cx + (cw - sw) // 2
         sy = cy + (ch - sh) // 2
 
-        dwg.add(dwg.rect(insert=(sx, sy), size=(sw, sh),
-                          fill="none", stroke=color, stroke_width=2))
+        dwg.add(dwg.rect(insert=(sx, sy), size=(sw, sh), fill="none", stroke=color, stroke_width=2))
 
         if show_labels and label:
-            dwg.add(dwg.text(label, insert=(sx + 4, sy + 14), fill=color,
-                             font_size="11px", font_family="sans-serif"))
+            dwg.add(dwg.text(label, insert=(sx + 4, sy + 14), fill=color, font_size="11px", font_family="sans-serif"))
 
     # Canvas dimensions label
     dim_label = f"{canvas_w} \u00d7 {canvas_h}"
-    dwg.add(dwg.text(dim_label, insert=(cx + cw - 4, cy + ch - 6), fill="#666",
-                     font_size="10px", font_family="monospace", text_anchor="end"))
+    dwg.add(
+        dwg.text(
+            dim_label,
+            insert=(cx + cw - 4, cy + ch - 6),
+            fill="#666",
+            font_size="10px",
+            font_family="monospace",
+            text_anchor="end",
+        )
+    )
 
     return {"svg": dwg.tostring()}
 
