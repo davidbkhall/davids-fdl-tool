@@ -115,18 +115,74 @@ actor PythonBridge {
     private var buffer = Data()
     private var isRunning = false
 
-    /// Path to the Python backend server script.
-    /// Resolves relative to the app bundle or falls back to known dev path.
-    private func pythonServerPath() -> String {
-        // In development, use the path relative to the project
-        let devPath = ProcessInfo.processInfo.environment["FDL_PYTHON_BACKEND"]
-            ?? Bundle.main.path(forResource: "fdl_backend", ofType: nil)
-            ?? "./python_backend"
-        return devPath
+    /// Resolve the path to the Python backend directory.
+    /// Checks: environment variable, app bundle resource, paths relative to executable, fallback.
+    private func pythonServerPath() -> String? {
+        let fm = FileManager.default
+
+        // 1. Explicit environment variable
+        if let envPath = ProcessInfo.processInfo.environment["FDL_PYTHON_BACKEND"],
+           fm.fileExists(atPath: envPath + "/fdl_backend/server.py") {
+            return envPath
+        }
+
+        // 2. App bundle resource
+        if let bundlePath = Bundle.main.path(forResource: "fdl_backend", ofType: nil) {
+            let parent = (bundlePath as NSString).deletingLastPathComponent
+            if fm.fileExists(atPath: parent + "/fdl_backend/server.py") {
+                return parent
+            }
+        }
+
+        // 3. Paths relative to the executable (development builds)
+        if let execURL = Bundle.main.executableURL?.deletingLastPathComponent() {
+            // Try increasingly deep parent traversals to find python_backend as sibling of FDLTool/
+            let relatives = [
+                "../../python_backend",                // .build/debug/FDLTool → FDLTool/.build → FDLTool → project
+                "../../../python_backend",             // one deeper
+                "../../../../python_backend",          // .build/X.app/Contents/MacOS → .build → FDLTool → project
+                "../../../../../python_backend",       // .build/FDLTool.app/Contents/MacOS → project root
+                "../../../../../../python_backend",    // extra depth safety
+                "../Resources/python_backend",         // bundled inside .app
+            ]
+            for relative in relatives {
+                let candidate = execURL.appendingPathComponent(relative).standardized
+                if fm.fileExists(atPath: candidate.path + "/fdl_backend/server.py") {
+                    return candidate.path
+                }
+            }
+        }
+
+        // 3b. Paths relative to the bundle URL (may differ from executable)
+        if let bundleURL = Bundle.main.bundleURL.deletingLastPathComponent() as URL? {
+            let relatives = [
+                "../python_backend",
+                "../../python_backend",
+                "python_backend",
+            ]
+            for relative in relatives {
+                let candidate = bundleURL.appendingPathComponent(relative).standardized
+                if fm.fileExists(atPath: candidate.path + "/fdl_backend/server.py") {
+                    return candidate.path
+                }
+            }
+        }
+
+        // 4. Current working directory
+        let cwd = fm.currentDirectoryPath + "/python_backend"
+        if fm.fileExists(atPath: cwd + "/fdl_backend/server.py") {
+            return cwd
+        }
+
+        return nil
     }
 
     func start() throws {
         guard !isRunning else { return }
+
+        guard let backendPath = pythonServerPath() else {
+            throw PythonBridgeError.notStarted
+        }
 
         let process = Process()
         let stdinPipe = Pipe()
@@ -135,16 +191,15 @@ actor PythonBridge {
 
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["python3", "-m", "fdl_backend.server"]
-
-        let backendPath = pythonServerPath()
         process.currentDirectoryURL = URL(fileURLWithPath: backendPath)
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        // Propagate PATH for finding python3
+        // Propagate PATH for finding python3, add PYTHONPATH so fdl_backend is importable
         var env = ProcessInfo.processInfo.environment
         env["PYTHONUNBUFFERED"] = "1"
+        env["PYTHONPATH"] = backendPath
         process.environment = env
 
         process.terminationHandler = { [weak self] proc in
