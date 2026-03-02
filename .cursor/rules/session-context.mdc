@@ -1,0 +1,52 @@
+---
+description: Session continuity context for ongoing FDL Tool development
+alwaysApply: true
+---
+
+# Current Development State (as of 2026-03-02)
+
+## What Was Done
+Major overhaul of FDL Viewer and Framing Chart Generator across multiple sessions.
+Reference: commit `a7e9102` on main.
+
+### Framing Chart Generator — Completed
+- Fixed critical protection calculation per ASC FDL Spec 7.2.4 and reference C++ (`fdl_framing.cpp`):
+  Protection is the OUTER rectangle (fit of aspect into working area);
+  framing is INNER = protection × (1 − fraction). Previously was backwards.
+- `fitAspectIntoWorkingArea()` helper implements letterbox/pillarbox + anamorphic squeeze
+- `addFramelineFromIntent`, `recalculateFramelinesForIntent`, `effectiveProtection`, `chartParams` all updated
+- Protection slider 0–100%, native preview draws all layers, refresh works
+- Export/Save to Library buttons fixed (SwiftUI observation fix via inner content struct)
+- Safe bounds checking in ForEach Binding closures (crash fix for stale indices)
+
+### FDL Viewer — Completed
+- Ported reference fdl_viewer UI: sidebar modules, tab container (Source/Output/Comparison/Details)
+- Canvas visualization with native SwiftUI rendering
+- Template application via Python backend, presets, import/export JSON
+- Advanced template params: maximum_dimensions, pad_to_maximum, rounding, preserve_from_source_canvas
+- .fdl import fixed (UTType tag-based, not exportedAs)
+- Dedicated drag-and-drop zones for Source FDL and Reference Image
+- Removed redundant "Open FDL" buttons from toolbar and empty state
+
+### Other
+- App icon, build script (`scripts/build_app.sh`), Settings fixes
+- Python backend: geometry_ops, template_ops, enhanced chart_gen
+
+## Known Issues / Next Steps
+- The `.app` bundle built on Desktop is ad-hoc signed; no notarization
+- Python bridge requires system Python 3.10+ with `fdl` package installed
+- The Viewer's canvas rendering is native SwiftUI approximation; Python SVG overlay generation exists but isn't the primary render path
+- Test coverage for new handlers (geometry_ops, template_ops) is minimal
+- User was testing the latest build and may have additional feedback on:
+  - Framing Chart protection behavior after the spec-correct fix
+  - FDL Viewer .fdl import (was a persistent issue, now fixed via UTType tag)
+  - Drag and drop (was broken, now uses dedicated drop zones with extractURL helper)
+
+## Key Spec References
+- ASC FDL v2.0.1: https://github.com/ascmitc/fdl/blob/dev/Specification/ASCFDL_Specification_v2.0.1.md
+- Implementer Guide: https://ascmitc.github.io/fdl/dev/FDL_Template_Implementer_Guide/
+- Reference viewer: https://ascmitc.github.io/fdl/dev/fdl_viewer/
+- Reference source: /Users/dhall/Documents/GitHub/ascmitc/fdl/packages/fdl_viewer
+- Protection formula (Spec 7.2.4): protection_dims = fit rectangle, framing = protection × (1 − fraction)
+- Hierarchy: canvas >= effective >= protection >= framing
+- Protection is NEVER auto-filled from framing (Phase 3 of template pipeline)

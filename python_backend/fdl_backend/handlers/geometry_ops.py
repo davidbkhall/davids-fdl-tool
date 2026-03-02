@@ -91,7 +91,7 @@ def apply_alignment(params: dict) -> dict:
     }
 
     if fd.anchor_point:
-        result["anchor"] = point_to_dict(fd.anchor_point)
+        result["anchor_point"] = point_to_dict(fd.anchor_point)
 
     return result
 
@@ -137,7 +137,7 @@ def apply_protection_alignment(params: dict) -> dict:
     if prot_rect:
         result["protection_rect"] = rect_to_dict(prot_rect)
     if fd.protection_anchor_point:
-        result["protection_anchor"] = point_to_dict(fd.protection_anchor_point)
+        result["protection_anchor_point"] = point_to_dict(fd.protection_anchor_point)
 
     return result
 

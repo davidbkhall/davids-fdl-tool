@@ -1,0 +1,38 @@
+---
+description: ASC FDL specification compliance rules for geometry and template logic
+globs: "**/{ChartGenerator,Viewer}/**/*.swift"
+alwaysApply: false
+---
+
+# ASC FDL Spec Compliance
+
+## Protection Calculation (Spec 7.2.4)
+Protection is calculated INWARD from the canvas, not outward from framing.
+
+Algorithm (from `fdl_framing.cpp`):
+1. Fit intent aspect ratio into working area (effective or canvas)
+   - Letterbox (wider intent): `width = workingW`, `height = (width × squeeze) / intentAspect`
+   - Pillarbox (narrower intent): `height = workingH`, `width = height × intentAspect`
+2. If protection > 0: `protection_dims = round(fit_rect)`, `framing_dims = protection × (1 − fraction)`
+3. If protection == 0: `framing_dims = round(fit_rect)`, no protection
+4. Both centered within full canvas dimensions
+
+## Geometry Hierarchy
+`canvas >= effective >= protection >= framing` — always enforced.
+- Protection is NEVER auto-filled from framing dimensions
+- Protection dimensions must be explicitly provided or absent
+
+## Template Application Pipeline (8 phases)
+1. Derive configuration from template params
+2. Populate source geometry (two-pass: preserve then fit)
+3. Fill hierarchy gaps (protection never filled)
+4. Calculate scale factor (based on normalized/desqueezed dims)
+5. Normalize, scale, round (all geometry uniformly)
+6. Output size + alignment shift (per-axis PAD/CROP/FIT)
+7. Apply offsets to anchors (clamped + theoretical)
+8. Crop to visible (enforce hierarchy containment)
+
+## Field Names (v2.0.1 only)
+Use: `dimensions`, `anchor_point`, `protection_dimensions`, `protection_anchor_point`,
+`effective_dimensions`, `effective_anchor_point`, `framing_intent_id`
+Never use legacy v1 names: `anchor`, `protection_anchor`, `effective_anchor`, `framing_intent`

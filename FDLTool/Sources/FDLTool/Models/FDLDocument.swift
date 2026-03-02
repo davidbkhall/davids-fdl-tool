@@ -46,7 +46,7 @@ struct FDLFramingIntent: Codable, Identifiable {
 }
 
 struct FDLContext: Codable, Identifiable {
-    var id: UUID { UUID() }
+    let id: UUID
     var label: String?
     var contextCreator: String?
     var canvases: [FDLCanvas]
@@ -55,6 +55,21 @@ struct FDLContext: Codable, Identifiable {
         case label
         case contextCreator = "context_creator"
         case canvases
+    }
+
+    init(from decoder: Decoder) throws {
+        self.id = UUID()
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.label = try container.decodeIfPresent(String.self, forKey: .label)
+        self.contextCreator = try container.decodeIfPresent(String.self, forKey: .contextCreator)
+        self.canvases = try container.decode([FDLCanvas].self, forKey: .canvases)
+    }
+
+    init(id: UUID = UUID(), label: String? = nil, contextCreator: String? = nil, canvases: [FDLCanvas]) {
+        self.id = id
+        self.label = label
+        self.contextCreator = contextCreator
+        self.canvases = canvases
     }
 }
 
