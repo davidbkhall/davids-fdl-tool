@@ -218,7 +218,7 @@ class ClipIDViewModel: ObservableObject {
                 // Parse the FDL to extract canvas dimensions
                 if let data = generated.fdlJSON.data(using: .utf8),
                    let fdl = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let contexts = fdl["fdl_contexts"] as? [[String: Any]] {
+                   let contexts = fdl["contexts"] as? [[String: Any]] {
                     for ctx in contexts {
                         for canvas in (ctx["canvases"] as? [[String: Any]]) ?? [] {
                             let dims = canvas["dimensions"] as? [String: Any] ?? [:]

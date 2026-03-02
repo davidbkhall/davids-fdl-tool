@@ -2,8 +2,6 @@ import SwiftUI
 
 struct SidebarView: View {
     @Binding var selectedTool: Tool
-    var bridgeStatus: AppState.BridgeStatus = .stopped
-    var cameraCount: Int = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,41 +13,20 @@ struct SidebarView: View {
 
             Divider()
 
-            // Status footer
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(bridgeStatusColor)
-                        .frame(width: 8, height: 8)
-                    Text("Python: \(bridgeStatus.rawValue)")
-                        .font(.caption2)
+            HStack {
+                Spacer()
+                SettingsLink {
+                    Image(systemName: "gear")
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                 }
-
-                if cameraCount > 0 {
-                    HStack(spacing: 6) {
-                        Image(systemName: "camera")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text("\(cameraCount) cameras")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                .buttonStyle(.plain)
+                .help("Settings")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         .navigationTitle("FDL Tool")
-    }
-
-    private var bridgeStatusColor: Color {
-        switch bridgeStatus {
-        case .stopped: return .gray
-        case .starting: return .orange
-        case .running: return .green
-        case .error: return .red
-        }
     }
 }

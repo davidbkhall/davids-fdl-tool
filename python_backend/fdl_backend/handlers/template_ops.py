@@ -1,6 +1,24 @@
-"""Canvas template operations: validate, apply, preview, export."""
+"""Canvas template operations: validate, apply, preview, export.
+
+Supports both the custom pipeline-based templates (backward compat)
+and the ASC fdl library's CanvasTemplate.apply() for spec-compliant
+template application.
+"""
+
+from __future__ import annotations
 
 import json
+import uuid
+from typing import Any
+
+from fdl_backend.utils.fdl_convert import HAS_FDL
+
+if HAS_FDL:
+    from fdl_backend.utils.fdl_convert import (
+        dict_to_fdl,
+        fdl_to_dict,
+        rect_to_dict,
+    )
 
 
 def validate(params: dict) -> dict:
@@ -33,7 +51,6 @@ def validate(params: dict) -> dict:
         errors.append({"path": "", "message": "Template must be an object", "severity": "error"})
         return {"valid": False, "errors": errors, "warnings": warnings}
 
-    # Check for pipeline steps
     pipeline = template.get("pipeline", [])
     if not isinstance(pipeline, list):
         errors.append({"path": "pipeline", "message": "pipeline must be an array", "severity": "error"})
@@ -62,7 +79,7 @@ def validate(params: dict) -> dict:
 
 
 def apply_template(params: dict) -> dict:
-    """Apply a canvas template to an FDL document.
+    """Apply a custom pipeline template to an FDL document.
 
     Params:
         template_json: str — canvas template JSON
@@ -72,9 +89,8 @@ def apply_template(params: dict) -> dict:
     fdl = json.loads(params.get("fdl_json", "{}"))
 
     pipeline = template.get("pipeline", [])
-    contexts = fdl.get("fdl_contexts", [])
+    contexts = fdl.get("contexts", fdl.get("fdl_contexts", []))
 
-    # Apply pipeline to each canvas in each context
     for ctx in contexts:
         for canvas in ctx.get("canvases", []):
             dims = canvas.get("dimensions", {"width": 0, "height": 0})
@@ -86,6 +102,78 @@ def apply_template(params: dict) -> dict:
             canvas["dimensions"] = {"width": w, "height": h}
 
     return {"fdl": fdl}
+
+
+def apply_fdl_template(params: dict) -> dict:
+    """Apply a canvas template using the ASC fdl library's CanvasTemplate.
+
+    Uses the reference implementation's CanvasTemplate.apply() which handles
+    scale factor computation, content translation, and bounding box calculation
+    per the FDL specification.
+
+    Params:
+        fdl_json: str — source FDL document JSON
+        template_json: str — ASC canvas template JSON
+        context_index: int — which context to use (default 0)
+        canvas_index: int — which canvas to use (default 0)
+        fd_index: int — which framing decision to use (default 0)
+        new_canvas_id: str — ID for the new output canvas (optional)
+        new_fd_name: str — label for the new framing decision (optional)
+    """
+    if not HAS_FDL:
+        raise ImportError(
+            "The ASC fdl library is required for CanvasTemplate.apply(). "
+            "Install from https://github.com/ascmitc/fdl/tree/dev"
+        )
+
+    from fdl import CanvasTemplate
+
+    fdl_json = params.get("fdl_json", "{}")
+    template_json = params.get("template_json", "{}")
+    ctx_idx = params.get("context_index", 0)
+    canvas_idx = params.get("canvas_index", 0)
+    fd_idx = params.get("fd_index", 0)
+    new_canvas_id = params.get("new_canvas_id", str(uuid.uuid4()))
+    new_fd_name = params.get("new_fd_name", "Template Output")
+
+    source_fdl = dict_to_fdl(json.loads(fdl_json))
+    template_data = json.loads(template_json)
+
+    source_ctx = list(source_fdl.contexts)[ctx_idx]
+    source_canvas = list(source_ctx.canvases)[canvas_idx]
+    source_fd = list(source_canvas.framing_decisions)[fd_idx]
+
+    template_obj = CanvasTemplate(**template_data)
+    result = template_obj.apply(
+        source_canvas=source_canvas,
+        source_framing=source_fd,
+        new_canvas_id=new_canvas_id,
+        new_fd_name=new_fd_name,
+    )
+
+    result_dict: dict[str, Any] = {
+        "fdl": fdl_to_dict(result.fdl),
+    }
+
+    if result.canvas:
+        result_dict["canvas"] = {
+            "label": result.canvas.label,
+            "canvas_rect": rect_to_dict(result.canvas.get_rect()),
+        }
+        eff = result.canvas.get_effective_rect()
+        if eff:
+            result_dict["canvas"]["effective_rect"] = rect_to_dict(eff)
+
+    if result.framing_decision:
+        result_dict["framing_decision"] = {
+            "label": result.framing_decision.label,
+            "framing_rect": rect_to_dict(result.framing_decision.get_rect()),
+        }
+        prot = result.framing_decision.get_protection_rect()
+        if prot:
+            result_dict["framing_decision"]["protection_rect"] = rect_to_dict(prot)
+
+    return result_dict
 
 
 def preview(params: dict) -> dict:
@@ -101,8 +189,7 @@ def preview(params: dict) -> dict:
     pipeline = template.get("pipeline", [])
     steps_results: list[dict] = []
 
-    # Use first canvas of first context for preview
-    contexts = fdl.get("fdl_contexts", [])
+    contexts = fdl.get("contexts", fdl.get("fdl_contexts", []))
     if not contexts or not contexts[0].get("canvases"):
         return {"steps": [], "error": "No canvas found in FDL for preview"}
 
@@ -153,7 +240,6 @@ def _apply_step(step: dict, w: float, h: float) -> tuple[float, float]:
     step_type = step.get("type", "")
 
     if step_type == "normalize":
-        # Normalize to unit dimensions based on larger axis
         max_dim = max(w, h) if max(w, h) > 0 else 1
         w, h = w / max_dim, h / max_dim
 

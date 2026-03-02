@@ -8,7 +8,6 @@ struct FDLTreeView: View {
     var body: some View {
         GroupBox("Document Structure") {
             VStack(alignment: .leading, spacing: 0) {
-                // Header node
                 DisclosureGroup {
                     headerDetails
                 } label: {
@@ -17,23 +16,20 @@ struct FDLTreeView: View {
                 }
                 .padding(.vertical, 2)
 
-                // Contexts
                 ForEach(document.contexts) { context in
                     DisclosureGroup {
                         contextDetails(context)
 
-                        // Canvases under this context
                         ForEach(context.canvases) { canvas in
                             DisclosureGroup {
                                 canvasDetails(canvas)
 
-                                // Framing decisions under this canvas
                                 ForEach(canvas.framingDecisions) { fd in
                                     DisclosureGroup {
                                         framingDecisionDetails(fd)
                                     } label: {
                                         Label {
-                                            Text(fd.label ?? fd.fdUUID)
+                                            Text(fd.label ?? fd.id)
                                         } icon: {
                                             Image(systemName: "viewfinder")
                                                 .foregroundStyle(.purple)
@@ -45,7 +41,7 @@ struct FDLTreeView: View {
                             } label: {
                                 Label {
                                     HStack(spacing: 6) {
-                                        Text(canvas.label ?? canvas.canvasUUID)
+                                        Text(canvas.label ?? canvas.id)
                                         if let dims = Optional(canvas.dimensions) {
                                             AspectRatioLabel(width: dims.width, height: dims.height)
                                         }
@@ -60,7 +56,7 @@ struct FDLTreeView: View {
                         }
                     } label: {
                         Label {
-                            Text(context.label ?? context.contextUUID)
+                            Text(context.label ?? "Context")
                         } icon: {
                             Image(systemName: "folder")
                                 .foregroundStyle(.orange)
@@ -78,15 +74,12 @@ struct FDLTreeView: View {
     @ViewBuilder
     private var headerDetails: some View {
         DetailGrid {
-            DetailRow(label: "UUID", value: document.header.uuid)
-            DetailRow(label: "Version", value: document.header.version)
-            if let creator = document.header.fdlCreator {
+            DetailRow(label: "UUID", value: document.id)
+            DetailRow(label: "Version", value: document.versionString)
+            if let creator = document.fdlCreator {
                 DetailRow(label: "Creator", value: creator)
             }
-            if let desc = document.header.description {
-                DetailRow(label: "Description", value: desc)
-            }
-            if let intent = document.header.defaultFramingIntent {
+            if let intent = document.defaultFramingIntent {
                 DetailRow(label: "Default Intent", value: intent)
             }
         }
@@ -95,7 +88,6 @@ struct FDLTreeView: View {
     @ViewBuilder
     private func contextDetails(_ context: FDLContext) -> some View {
         DetailGrid {
-            DetailRow(label: "UUID", value: context.contextUUID)
             if let label = context.label {
                 DetailRow(label: "Label", value: label)
             }
@@ -109,18 +101,21 @@ struct FDLTreeView: View {
     @ViewBuilder
     private func canvasDetails(_ canvas: FDLCanvas) -> some View {
         DetailGrid {
-            DetailRow(label: "UUID", value: canvas.canvasUUID)
+            DetailRow(label: "ID", value: canvas.id)
             DetailRow(label: "Dimensions",
                       value: "\(Int(canvas.dimensions.width)) \u{00D7} \(Int(canvas.dimensions.height))")
             if let eff = canvas.effectiveDimensions {
                 DetailRow(label: "Effective",
                           value: "\(Int(eff.width)) \u{00D7} \(Int(eff.height))")
             }
-            if let anchor = canvas.effectiveAnchor {
+            if let anchor = canvas.effectiveAnchorPoint {
                 DetailRow(label: "Eff. Anchor",
                           value: "(\(Int(anchor.x)), \(Int(anchor.y)))")
             }
-            if let ps = canvas.photosite {
+            if let squeeze = canvas.anamorphicSqueeze, squeeze != 1.0 {
+                DetailRow(label: "Squeeze", value: String(format: "%.2fx", squeeze))
+            }
+            if let ps = canvas.photositeDimensions {
                 DetailRow(label: "Photosites",
                           value: "\(Int(ps.width)) \u{00D7} \(Int(ps.height))")
             }
@@ -131,13 +126,13 @@ struct FDLTreeView: View {
     @ViewBuilder
     private func framingDecisionDetails(_ fd: FDLFramingDecision) -> some View {
         DetailGrid {
-            DetailRow(label: "UUID", value: fd.fdUUID)
+            DetailRow(label: "ID", value: fd.id)
             DetailRow(label: "Dimensions",
                       value: "\(Int(fd.dimensions.width)) \u{00D7} \(Int(fd.dimensions.height))")
-            if let intent = fd.framingIntent {
+            if let intent = fd.framingIntentId, !intent.isEmpty {
                 DetailRow(label: "Intent", value: intent)
             }
-            if let anchor = fd.anchor {
+            if let anchor = fd.anchorPoint {
                 DetailRow(label: "Anchor",
                           value: "(\(Int(anchor.x)), \(Int(anchor.y)))")
             }

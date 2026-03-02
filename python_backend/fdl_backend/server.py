@@ -9,7 +9,7 @@ import sys
 import traceback
 from typing import Any
 
-from fdl_backend.handlers import chart_gen, clip_id, fdl_ops, image_ops, template_ops
+from fdl_backend.handlers import chart_gen, clip_id, fdl_ops, geometry_ops, image_ops, template_ops
 
 # Method dispatch table: "domain.method" -> handler function
 HANDLERS: dict[str, Any] = {}
@@ -26,6 +26,7 @@ def register_handlers() -> None:
     # Canvas template operations
     HANDLERS["template.validate"] = template_ops.validate
     HANDLERS["template.apply"] = template_ops.apply_template
+    HANDLERS["template.apply_fdl"] = template_ops.apply_fdl_template
     HANDLERS["template.preview"] = template_ops.preview
     HANDLERS["template.export"] = template_ops.export_template
 
@@ -43,6 +44,12 @@ def register_handlers() -> None:
     HANDLERS["clip.batch_probe"] = clip_id.batch_probe
     HANDLERS["clip.generate_fdl"] = clip_id.generate_fdl
     HANDLERS["clip.validate_canvas"] = clip_id.validate_canvas
+
+    # Geometry operations
+    HANDLERS["geometry.compute_rects"] = geometry_ops.compute_rects
+    HANDLERS["geometry.apply_alignment"] = geometry_ops.apply_alignment
+    HANDLERS["geometry.apply_protection_alignment"] = geometry_ops.apply_protection_alignment
+    HANDLERS["geometry.compute_protection"] = geometry_ops.compute_protection
 
     # Camera DB
     HANDLERS["camera_db.sync"] = fdl_ops.noop  # Placeholder

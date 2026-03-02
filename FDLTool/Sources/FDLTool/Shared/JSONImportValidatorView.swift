@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Text editor with paste/load JSON support, live validation badge, and error list.
 struct JSONImportValidatorView: View {
@@ -74,9 +75,11 @@ struct JSONImportValidatorView: View {
 
     private func loadFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
+        panel.allowedContentTypes = [.fdl, .json]
+        panel.allowsOtherFileTypes = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
+        panel.message = "Select an FDL or JSON file"
         if panel.runModal() == .OK, let url = panel.url {
             if let data = try? Data(contentsOf: url),
                let string = String(data: data, encoding: .utf8) {

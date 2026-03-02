@@ -26,7 +26,7 @@ def test_validate_empty_pipeline():
     """Validate catches empty pipeline with warning."""
     template = json.dumps({"pipeline": []})
     result = template_ops.validate({"json_string": template})
-    assert result["valid"] is True  # warnings don't invalidate
+    assert result["valid"] is True
     assert len(result["warnings"]) > 0
 
 
@@ -55,13 +55,14 @@ def test_apply_scale_template():
     )
     fdl = json.dumps(
         {
-            "fdl_contexts": [
+            "contexts": [
                 {
-                    "context_uuid": "ctx-1",
                     "canvases": [
                         {
-                            "canvas_uuid": "c-1",
+                            "id": "c1",
+                            "source_canvas_id": "c1",
                             "dimensions": {"width": 4096, "height": 2160},
+                            "anamorphic_squeeze": 1.0,
                             "framing_decisions": [],
                         }
                     ],
@@ -70,7 +71,7 @@ def test_apply_scale_template():
         }
     )
     result = template_ops.apply_template({"template_json": template, "fdl_json": fdl})
-    canvas = result["fdl"]["fdl_contexts"][0]["canvases"][0]
+    canvas = result["fdl"]["contexts"][0]["canvases"][0]
     assert canvas["dimensions"]["width"] == 2048.0
     assert canvas["dimensions"]["height"] == 1080.0
 
@@ -87,13 +88,14 @@ def test_apply_round_template():
     )
     fdl = json.dumps(
         {
-            "fdl_contexts": [
+            "contexts": [
                 {
-                    "context_uuid": "ctx-1",
                     "canvases": [
                         {
-                            "canvas_uuid": "c-1",
+                            "id": "c1",
+                            "source_canvas_id": "c1",
                             "dimensions": {"width": 1920, "height": 1080},
+                            "anamorphic_squeeze": 1.0,
                             "framing_decisions": [],
                         }
                     ],
@@ -102,10 +104,8 @@ def test_apply_round_template():
         }
     )
     result = template_ops.apply_template({"template_json": template, "fdl_json": fdl})
-    canvas = result["fdl"]["fdl_contexts"][0]["canvases"][0]
-    # 1920 * 1.333 = 2559.36 → round to even = 2560
+    canvas = result["fdl"]["contexts"][0]["canvases"][0]
     assert canvas["dimensions"]["width"] == 2560
-    # 1080 * 1.333 = 1439.64 → round to even = 1440
     assert canvas["dimensions"]["height"] == 1440
 
 
@@ -122,13 +122,14 @@ def test_preview_steps():
     )
     fdl = json.dumps(
         {
-            "fdl_contexts": [
+            "contexts": [
                 {
-                    "context_uuid": "ctx-1",
                     "canvases": [
                         {
-                            "canvas_uuid": "c-1",
+                            "id": "c1",
+                            "source_canvas_id": "c1",
                             "dimensions": {"width": 4096, "height": 2160},
+                            "anamorphic_squeeze": 1.0,
                             "framing_decisions": [],
                         }
                     ],
@@ -138,7 +139,6 @@ def test_preview_steps():
     )
     result = template_ops.preview({"template_json": template, "fdl_json": fdl})
     steps = result["steps"]
-    # input + 3 pipeline steps = 4 entries
     assert len(steps) == 4
     assert steps[0]["step"] == "input"
     assert steps[0]["width"] == 4096

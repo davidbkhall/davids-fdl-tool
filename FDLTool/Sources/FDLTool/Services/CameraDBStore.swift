@@ -1,5 +1,21 @@
 import Foundation
 
+/// Represents a conflict between a locally modified recording mode and an incoming API update.
+struct SyncConflict: Identifiable {
+    let id = UUID()
+    let cameraID: String
+    let cameraLabel: String
+    let modeID: String
+    let localMode: RecordingMode
+    let remoteMode: RecordingMode
+}
+
+/// Resolution choices for a single sync conflict.
+enum ConflictResolution {
+    case keepLocal
+    case acceptRemote
+}
+
 @MainActor
 class CameraDBStore: ObservableObject {
     @Published var cameras: [CameraSpec] = []
@@ -7,20 +23,38 @@ class CameraDBStore: ObservableObject {
     @Published var databaseVersion: String = ""
     @Published var lastUpdated: String = ""
     @Published var errorMessage: String?
+    @Published var pendingConflicts: [SyncConflict] = []
 
     /// All unique manufacturers, sorted
     var manufacturers: [String] {
         Array(Set(cameras.map(\.manufacturer))).sorted()
     }
 
+    // MARK: - Persistence Paths
+
+    static let appSupportDir: URL = {
+        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("FDLTool", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    static let localCameraDBURL: URL = {
+        appSupportDir.appendingPathComponent("cameras_local.json")
+    }()
+
     // MARK: - Loading
 
-    /// Load from a JSON file at a given URL.
+    /// Load from a JSON file at a given URL (bundled format).
     func load(from url: URL) {
         do {
             let data = try Data(contentsOf: url)
             let db = try JSONDecoder().decode(CameraDatabase.self, from: data)
-            cameras = db.cameras
+            var bundled = db.cameras
+            for i in bundled.indices {
+                bundled[i].source = .bundled
+            }
+            cameras = bundled
             databaseVersion = db.version
             lastUpdated = db.lastUpdated
             isLoaded = true
@@ -29,46 +63,80 @@ class CameraDBStore: ObservableObject {
         }
     }
 
-    /// Load from the bundled cameras.json in the resources directory.
-    /// Tries several known paths: bundle resource, project resources dir, working directory.
+    /// Load from the bundled cameras.json, then overlay any locally persisted cameras on top.
     func loadBundled() {
         // 1. Try app bundle resource
         if let bundlePath = Bundle.main.url(forResource: "cameras", withExtension: "json") {
             load(from: bundlePath)
-            if isLoaded { return }
         }
 
         // 2. Try known development paths relative to executable
-        let candidatePaths = [
-            "../../../resources/camera_db/cameras.json",   // relative from .build/debug
-            "resources/camera_db/cameras.json",             // from project root
-        ]
-
-        let executableURL = Bundle.main.executableURL?.deletingLastPathComponent()
-        for relative in candidatePaths {
-            if let base = executableURL {
-                let url = base.appendingPathComponent(relative).standardized
-                if FileManager.default.fileExists(atPath: url.path) {
-                    load(from: url)
-                    if isLoaded { return }
+        if !isLoaded {
+            let candidatePaths = [
+                "../../../resources/camera_db/cameras.json",
+                "resources/camera_db/cameras.json",
+            ]
+            let executableURL = Bundle.main.executableURL?.deletingLastPathComponent()
+            for relative in candidatePaths {
+                if let base = executableURL {
+                    let url = base.appendingPathComponent(relative).standardized
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        load(from: url)
+                        if isLoaded { break }
+                    }
                 }
             }
         }
 
         // 3. Try environment variable
-        if let envPath = ProcessInfo.processInfo.environment["FDL_CAMERA_DB"] {
-            let url = URL(fileURLWithPath: envPath)
-            if FileManager.default.fileExists(atPath: url.path) {
-                load(from: url)
-                if isLoaded { return }
+        if !isLoaded {
+            if let envPath = ProcessInfo.processInfo.environment["FDL_CAMERA_DB"] {
+                let url = URL(fileURLWithPath: envPath)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    load(from: url)
+                }
             }
         }
 
-        // 4. If still not loaded, just mark as loaded with empty data (no cameras available)
+        // 4. Even with no bundled data, mark as loaded
         if !isLoaded {
             isLoaded = true
-            errorMessage = "Camera database not found. Set FDL_CAMERA_DB environment variable to the path of cameras.json."
         }
+
+        // 5. Overlay locally persisted cameras (synced + custom)
+        loadLocalCameras()
+    }
+
+    /// Load locally persisted cameras (synced/custom) and merge them in.
+    private func loadLocalCameras() {
+        let url = Self.localCameraDBURL
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            let local = try JSONDecoder().decode([CameraSpec].self, from: data)
+            mergeFromLocal(local)
+        } catch {
+            print("Failed to load local camera DB: \(error)")
+        }
+    }
+
+    /// Save all non-bundled cameras to disk.
+    func saveLocalCameras() {
+        let local = cameras.filter { $0.source != .bundled }
+        do {
+            let data = try JSONEncoder().encode(local)
+            try data.write(to: Self.localCameraDBURL, options: .atomic)
+        } catch {
+            print("Failed to save local camera DB: \(error)")
+        }
+    }
+
+    private func mergeFromLocal(_ localCameras: [CameraSpec]) {
+        var existingByID = Dictionary(uniqueKeysWithValues: cameras.map { ($0.id, $0) })
+        for cam in localCameras {
+            existingByID[cam.id] = cam
+        }
+        cameras = Array(existingByID.values)
     }
 
     // MARK: - Search & Filter
@@ -108,5 +176,161 @@ class CameraDBStore: ObservableObject {
         return camera.recordingModes.filter {
             $0.activePhotosites.width == width && $0.activePhotosites.height == height
         }
+    }
+
+    // MARK: - API Sync
+
+    /// Merge cameras fetched from the API into the store and persist.
+    /// Detects conflicts for locally modified recording modes whose API versions have changed.
+    /// Deduplicates cameras with matching manufacturer+model (case-insensitive).
+    func mergeFromAPI(_ apiCameras: [CameraSpec]) {
+        var existingByID = Dictionary(uniqueKeysWithValues: cameras.map { ($0.id, $0) })
+        var conflicts: [SyncConflict] = []
+
+        // Build a lookup of existing cameras by normalized manufacturer+model for dedup
+        var nameToID: [String: String] = [:]
+        for cam in cameras {
+            let key = "\(cam.manufacturer)|\(cam.model)".lowercased()
+            nameToID[key] = cam.id
+        }
+
+        for var cam in apiCameras {
+            cam.source = .synced
+
+            // Deduplicate: if a bundled camera with the same name exists under a different ID, remove it
+            let key = "\(cam.manufacturer)|\(cam.model)".lowercased()
+            if let existingID = nameToID[key], existingID != cam.id {
+                if let existing = existingByID[existingID], existing.source == .bundled {
+                    existingByID.removeValue(forKey: existingID)
+                }
+            }
+            nameToID[key] = cam.id
+
+            if let existing = existingByID[cam.id] {
+                let modifiedModes = existing.recordingModes.filter { $0.source == .modified }
+                if !modifiedModes.isEmpty {
+                    let remoteByID = Dictionary(uniqueKeysWithValues: cam.recordingModes.map { ($0.id, $0) })
+                    var mergedModes = cam.recordingModes
+                    for localMode in modifiedModes {
+                        if let remoteMode = remoteByID[localMode.id],
+                           let snapshot = localMode.syncedSnapshot,
+                           !snapshot.matches(remoteMode) {
+                            conflicts.append(SyncConflict(
+                                cameraID: cam.id,
+                                cameraLabel: "\(cam.manufacturer) \(cam.model)",
+                                modeID: localMode.id,
+                                localMode: localMode,
+                                remoteMode: remoteMode
+                            ))
+                            if let idx = mergedModes.firstIndex(where: { $0.id == localMode.id }) {
+                                mergedModes[idx] = localMode
+                            }
+                        } else if remoteByID[localMode.id] != nil {
+                            if let idx = mergedModes.firstIndex(where: { $0.id == localMode.id }) {
+                                mergedModes[idx] = localMode
+                            }
+                        } else {
+                            mergedModes.append(localMode)
+                        }
+                    }
+                    cam.recordingModes = mergedModes
+                }
+            }
+            existingByID[cam.id] = cam
+        }
+
+        cameras = Array(existingByID.values)
+        isLoaded = true
+        pendingConflicts = conflicts
+        saveLocalCameras()
+    }
+
+    /// Merge a single camera from the API (for per-camera resync).
+    func mergeSingleFromAPI(_ apiCamera: CameraSpec) {
+        mergeFromAPI([apiCamera])
+    }
+
+    /// Replace a single recording mode from the API for a given camera.
+    func resyncRecordingMode(cameraID: String, remoteMode: RecordingMode) {
+        guard let camIdx = cameras.firstIndex(where: { $0.id == cameraID }) else { return }
+        if let modeIdx = cameras[camIdx].recordingModes.firstIndex(where: { $0.id == remoteMode.id }) {
+            var mode = remoteMode
+            mode.source = .synced
+            mode.syncedSnapshot = nil
+            cameras[camIdx].recordingModes[modeIdx] = mode
+        }
+        saveLocalCameras()
+    }
+
+    // MARK: - Custom Cameras
+
+    /// Add a user-created custom camera and persist.
+    func addCustomCamera(_ camera: CameraSpec) {
+        var cam = camera
+        cam.source = .custom
+        cameras.append(cam)
+        saveLocalCameras()
+    }
+
+    /// Remove a non-bundled camera and persist.
+    func removeCamera(byID id: String) {
+        cameras.removeAll { $0.id == id && $0.source != .bundled }
+        saveLocalCameras()
+    }
+
+    func updateCamera(_ camera: CameraSpec) {
+        if let idx = cameras.firstIndex(where: { $0.id == camera.id }) {
+            cameras[idx] = camera
+            saveLocalCameras()
+        }
+    }
+
+    func addRecordingMode(toCameraID cameraID: String, mode: RecordingMode) {
+        if let idx = cameras.firstIndex(where: { $0.id == cameraID }) {
+            cameras[idx].recordingModes.append(mode)
+            saveLocalCameras()
+        }
+    }
+
+    func removeRecordingMode(fromCameraID cameraID: String, modeID: String) {
+        if let idx = cameras.firstIndex(where: { $0.id == cameraID }) {
+            cameras[idx].recordingModes.removeAll { $0.id == modeID }
+            saveLocalCameras()
+        }
+    }
+
+    // MARK: - Conflict Resolution
+
+    func resolveConflict(_ conflict: SyncConflict, resolution: ConflictResolution) {
+        guard let camIdx = cameras.firstIndex(where: { $0.id == conflict.cameraID }),
+              let modeIdx = cameras[camIdx].recordingModes.firstIndex(where: { $0.id == conflict.modeID }) else { return }
+
+        switch resolution {
+        case .keepLocal:
+            break
+        case .acceptRemote:
+            var accepted = conflict.remoteMode
+            accepted.source = .synced
+            accepted.syncedSnapshot = nil
+            cameras[camIdx].recordingModes[modeIdx] = accepted
+        }
+
+        pendingConflicts.removeAll { $0.id == conflict.id }
+        saveLocalCameras()
+    }
+
+    func resolveAllConflicts(resolution: ConflictResolution) {
+        for conflict in pendingConflicts {
+            guard let camIdx = cameras.firstIndex(where: { $0.id == conflict.cameraID }),
+                  let modeIdx = cameras[camIdx].recordingModes.firstIndex(where: { $0.id == conflict.modeID }) else { continue }
+            if case .acceptRemote = resolution {
+                var accepted = conflict.remoteMode
+                accepted.source = .synced
+                accepted.syncedSnapshot = nil
+                cameras[camIdx].recordingModes[modeIdx] = accepted
+            }
+        }
+        pendingConflicts.removeAll()
+        saveLocalCameras()
     }
 }

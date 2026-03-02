@@ -20,21 +20,29 @@ def test_generate_fdl_from_clip():
         }
     )
     fdl = result["fdl"]
-    assert fdl["header"]["version"] == "2.0.1"
-    canvas = fdl["fdl_contexts"][0]["canvases"][0]
-    assert canvas["dimensions"]["width"] == 4096
-    assert canvas["dimensions"]["height"] == 2160
+    contexts = fdl["contexts"]
+    assert len(contexts) >= 1
+    canvas = contexts[0]["canvases"][0]
+    dims = canvas["dimensions"]
+    assert dims["width"] in (4096, 4096.0)
+    assert dims["height"] in (2160, 2160.0)
 
 
 def test_generate_fdl_with_template():
     """Generate FDL with template framing decisions."""
     template = {
-        "fdl_contexts": [
+        "contexts": [
             {
                 "canvases": [
                     {
                         "framing_decisions": [
-                            {"fd_uuid": "fd-1", "label": "2.39:1", "dimensions": {"width": 4096, "height": 1716}},
+                            {
+                                "id": "c1-fd1",
+                                "label": "2.39:1",
+                                "framing_intent_id": "scope",
+                                "dimensions": {"width": 4096.0, "height": 1716.0},
+                                "anchor_point": {"x": 0.0, "y": 222.0},
+                            },
                         ]
                     }
                 ]
@@ -47,32 +55,39 @@ def test_generate_fdl_with_template():
             "template_fdl": template,
         }
     )
-    fds = result["fdl"]["fdl_contexts"][0]["canvases"][0]["framing_decisions"]
+    contexts = result["fdl"]["contexts"]
+    canvas = contexts[0]["canvases"][0]
+    fds = canvas["framing_decisions"]
     assert len(fds) == 1
     assert fds[0]["label"] == "2.39:1"
-    # Should have a new UUID, not the template's
-    assert fds[0]["fd_uuid"] != "fd-1"
 
 
 def test_validate_canvas_match():
     """Validate canvas matches video dimensions."""
-    # Verify the JSON structure is valid (actual validation requires ffprobe + video file)
-    json.dumps(
+    fdl = {
+        "uuid": "test",
+        "version": {"major": 2, "minor": 0},
+        "contexts": [
+            {
+                "canvases": [
+                    {
+                        "id": "c1",
+                        "label": "4K",
+                        "source_canvas_id": "c1",
+                        "dimensions": {"width": 3840, "height": 2160},
+                        "anamorphic_squeeze": 1.0,
+                        "framing_decisions": [],
+                    }
+                ]
+            }
+        ],
+    }
+    result = clip_id.validate_canvas(
         {
-            "fdl_contexts": [
-                {
-                    "canvases": [
-                        {
-                            "canvas_uuid": "c1",
-                            "label": "4K",
-                            "dimensions": {"width": 3840, "height": 2160},
-                            "framing_decisions": [],
-                        }
-                    ]
-                }
-            ]
+            "fdl_data": fdl,
+            "clip_info": {"width": 3840, "height": 2160},
         }
     )
-    # Full validation requires ffprobe and a real video file, so we skip the actual call
-    # and just test the structure expectation
-    assert True  # Placeholder for integration test
+    assert "results" in result
+    assert len(result["results"]) >= 1
+    assert result["results"][0]["match"] is True

@@ -23,6 +23,13 @@ This is a **macOS-native** desktop application. All code, UI, and platform assum
 ### ASC FDL Core Reference Library
 This project depends on the **ASC Framing Decision List reference implementation** maintained at <https://github.com/ascmitc/fdl/tree/dev>. The `fdl` Python package provides ctypes bindings over the native C library (`libfdl_core`). When working with FDL parsing, validation, geometry, canvas resolution, or template logic, defer to the behavior and API defined by this reference library. Do not reimplement FDL spec logic that already exists in the `fdl` package.
 
+### FDL Schema — v2.0.1
+All FDL documents in this project use the **ASC FDL v2.0.1 schema** (`schema/v2.0.1/ascfdl.schema.json`). Key field names:
+- **Top level:** `uuid`, `version` (`{major, minor}`), `fdl_creator`, `default_framing_intent`, `framing_intents`, `contexts`, `canvas_templates`
+- **Canvas:** `id`, `source_canvas_id`, `dimensions`, `effective_dimensions`, `effective_anchor_point`, `photosite_dimensions`, `anamorphic_squeeze`, `framing_decisions`
+- **Framing Decision:** `id` (format: `canvasId-intentId`), `framing_intent_id`, `dimensions`, `anchor_point`, `protection_dimensions`, `protection_anchor_point`
+- **Do NOT** use legacy field names (`header`, `fdl_contexts`, `canvas_uuid`, `fd_uuid`, `anchor`, `framing_intent`, `effective_anchor`, `protection_anchor`). The `_v1_to_v2()` converter in `fdl_convert.py` exists solely for importing old files.
+
 ## Architecture
 
 ### MVVM (Swift Frontend)

@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
     "Pillow>=10.0",
     "svgwrite>=1.4",
+    "fdl",
 ]
 
 [project.optional-dependencies]
@@ -18,7 +19,6 @@ dev = [
     "pytest-cov>=4.0",
 ]
 full = [
-    "fdl",
     "OpenImageIO",
     "cairosvg>=2.7",
 ]

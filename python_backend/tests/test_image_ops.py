@@ -9,7 +9,6 @@ import pytest
 from fdl_backend.handlers import image_ops
 
 
-# Create a tiny test image for tests
 def _create_test_image(width=100, height=80):
     """Create a minimal PNG test image and return its path."""
     try:
@@ -42,13 +41,12 @@ def test_load_and_overlay_no_framelines():
         result = image_ops.load_and_overlay(
             {
                 "image_path": path,
-                "fdl_data": {"fdl_contexts": []},
+                "fdl_data": {"contexts": []},
             }
         )
         assert "png_base64" in result
         assert result["width"] == 320
         assert result["height"] == 240
-        # Verify it's valid base64 PNG
         data = base64.b64decode(result["png_base64"])
         assert data[:4] == b"\x89PNG"
     finally:
@@ -59,20 +57,28 @@ def test_load_and_overlay_with_framelines():
     """Load image and draw FDL framelines."""
     path = _create_test_image(400, 300)
     fdl_data = {
-        "fdl_contexts": [
+        "contexts": [
             {
                 "canvases": [
                     {
+                        "id": "c1",
+                        "source_canvas_id": "c1",
                         "dimensions": {"width": 400, "height": 300},
+                        "anamorphic_squeeze": 1.0,
                         "framing_decisions": [
                             {
+                                "id": "c1-scope",
                                 "label": "2.39:1",
-                                "dimensions": {"width": 400, "height": 167},
-                                "anchor": {"x": 0, "y": 66},
+                                "framing_intent_id": "scope",
+                                "dimensions": {"width": 400.0, "height": 167.0},
+                                "anchor_point": {"x": 0.0, "y": 66.0},
                             },
                             {
+                                "id": "c1-hd",
                                 "label": "16:9",
-                                "dimensions": {"width": 400, "height": 225},
+                                "framing_intent_id": "hd",
+                                "dimensions": {"width": 400.0, "height": 225.0},
+                                "anchor_point": {"x": 0.0, "y": 37.5},
                             },
                         ],
                     }
@@ -90,7 +96,6 @@ def test_load_and_overlay_with_framelines():
         assert "png_base64" in result
         assert result["width"] == 400
         assert result["height"] == 300
-        # The overlay should produce a larger PNG than the plain image
         data = base64.b64decode(result["png_base64"])
         assert len(data) > 100
     finally:
@@ -101,15 +106,21 @@ def test_load_and_overlay_scaled_canvas():
     """Framelines from a canvas larger than the image should scale correctly."""
     path = _create_test_image(200, 100)
     fdl_data = {
-        "fdl_contexts": [
+        "contexts": [
             {
                 "canvases": [
                     {
+                        "id": "c1",
+                        "source_canvas_id": "c1",
                         "dimensions": {"width": 4000, "height": 2000},
+                        "anamorphic_squeeze": 1.0,
                         "framing_decisions": [
                             {
+                                "id": "c1-crop",
                                 "label": "Center crop",
-                                "dimensions": {"width": 2000, "height": 1000},
+                                "framing_intent_id": "crop",
+                                "dimensions": {"width": 2000.0, "height": 1000.0},
+                                "anchor_point": {"x": 1000.0, "y": 500.0},
                             },
                         ],
                     }

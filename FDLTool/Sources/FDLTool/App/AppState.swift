@@ -7,9 +7,18 @@ class AppState: ObservableObject {
     @Published var currentProject: Project?
     @Published var pythonBridgeStatus: BridgeStatus = .stopped
 
+    /// Surfaced to the user as a blocking alert when the bridge fails.
+    @Published var pythonBridgeError: String?
+
+    /// URL pending open via Cmd+O or system file association; ViewerView observes this.
+    @Published var pendingOpenURL: URL?
+    /// Triggers the file-open panel from the menu bar command.
+    @Published var showOpenFDLPanel = false
+
     let pythonBridge: PythonBridge
     let libraryStore: LibraryStore
     let cameraDBStore: CameraDBStore
+    let cameraDBSyncService = CameraDBSyncService()
 
     // ViewModels (lazy-initialized after services are ready)
     lazy var libraryViewModel: LibraryViewModel = {
@@ -29,11 +38,10 @@ class AppState: ObservableObject {
     }()
 
     enum BridgeStatus: String {
-        case stopped = "Stopped"
-        case starting = "Starting"
-        case running = "Running"
-        case error = "Error"
+        case stopped, starting, running, error
     }
+
+    var isBridgeReady: Bool { pythonBridgeStatus == .running }
 
     init() {
         self.pythonBridge = PythonBridge()
@@ -42,17 +50,29 @@ class AppState: ObservableObject {
     }
 
     func startServices() async {
-        // Load camera database
         cameraDBStore.loadBundled()
 
-        // Start Python bridge
         pythonBridgeStatus = .starting
+        pythonBridgeError = nil
         do {
             try await pythonBridge.start()
             pythonBridgeStatus = .running
         } catch {
             pythonBridgeStatus = .error
-            print("Failed to start Python bridge: \(error)")
+            pythonBridgeError = error.localizedDescription
+        }
+    }
+
+    func restartPythonBridge() async {
+        await pythonBridge.shutdown()
+        pythonBridgeStatus = .stopped
+        pythonBridgeError = nil
+        do {
+            try await pythonBridge.start()
+            pythonBridgeStatus = .running
+        } catch {
+            pythonBridgeStatus = .error
+            pythonBridgeError = error.localizedDescription
         }
     }
 
