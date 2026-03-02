@@ -16,7 +16,10 @@ let package = Package(
             dependencies: [
                 .product(name: "SQLite", package: "SQLite.swift"),
             ],
-            path: "Sources/FDLTool"
+            path: "Sources/FDLTool",
+            resources: [
+                .process("Assets.xcassets"),
+            ]
         ),
         .testTarget(
             name: "FDLToolTests",
