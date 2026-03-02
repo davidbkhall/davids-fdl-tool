@@ -140,7 +140,10 @@ struct ContentView: View {
                 Text("Python Backend Unavailable")
                     .font(.title2.weight(.semibold))
 
-                Text("FDL Tool requires Python 3.10+ with the fdl package installed.\nThe backend failed to start and core features will not work.")
+                Text(
+                    "FDL Tool requires Python 3.10+ with the fdl package.\n"
+                    + "The backend failed to start and core features will not work."
+                )
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -192,7 +195,10 @@ struct SettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Camera sensor data (photosite dimensions, recording modes, sensor measurements) is sourced from the CamDB Camera Database by Matchmove Machine and synced via their public API.")
+                    Text(
+                    "Camera sensor data is sourced from the CamDB Camera Database"
+                    + " by Matchmove Machine and synced via their public API."
+                )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Link("camdb.matchmovemachine.com",

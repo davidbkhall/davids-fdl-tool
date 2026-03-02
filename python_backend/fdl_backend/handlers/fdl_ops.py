@@ -324,9 +324,7 @@ def _validate_fallback(params: dict) -> dict:
             for j, canvas in enumerate(canvases):
                 canvas_path = f"{ctx_path}.canvases[{j}]"
                 if "id" not in canvas:
-                    errors.append(
-                        {"path": f"{canvas_path}.id", "message": "Missing canvas id", "severity": "error"}
-                    )
+                    errors.append({"path": f"{canvas_path}.id", "message": "Missing canvas id", "severity": "error"})
                 if "dimensions" not in canvas:
                     errors.append(
                         {
@@ -358,9 +356,7 @@ def _validate_fallback(params: dict) -> dict:
                 for k, fd in enumerate(fds):
                     fd_path = f"{canvas_path}.framing_decisions[{k}]"
                     if "id" not in fd:
-                        errors.append(
-                            {"path": f"{fd_path}.id", "message": "Missing FD id", "severity": "error"}
-                        )
+                        errors.append({"path": f"{fd_path}.id", "message": "Missing FD id", "severity": "error"})
                     if "dimensions" not in fd:
                         errors.append(
                             {"path": f"{fd_path}.dimensions", "message": "Missing FD dimensions", "severity": "error"}

@@ -14,7 +14,7 @@ class ViewerViewModel: ObservableObject {
     // Selection state (cascading: context -> canvas -> framing)
     @Published var selectedContextIndex: Int = 0
     @Published var selectedCanvasIndex: Int = 0
-    @Published var selectedFramingIndex: Int? = nil
+    @Published var selectedFramingIndex: Int?
 
     // Tab state
     @Published var activeTab: ViewerTab = .source
@@ -55,7 +55,7 @@ class ViewerViewModel: ObservableObject {
 
     // Template state
     @Published var templateConfig = CanvasTemplateConfig()
-    @Published var selectedPresetName: String? = nil
+    @Published var selectedPresetName: String?
     @Published var isApplyingTemplate = false
     @Published var outputDocument: FDLDocument?
     @Published var outputGeometry: ComputedGeometry?

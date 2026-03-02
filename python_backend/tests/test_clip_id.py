@@ -1,7 +1,5 @@
 """Tests for clip ID handler."""
 
-import json
-
 from fdl_backend.handlers import clip_id
 
 

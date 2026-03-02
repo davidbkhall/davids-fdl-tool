@@ -7,7 +7,6 @@ all FDL layers (canvas, effective, protection, framing).
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from fdl_backend.utils.fdl_convert import HAS_FDL, require_fdl

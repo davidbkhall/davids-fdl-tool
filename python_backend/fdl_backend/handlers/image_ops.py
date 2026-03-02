@@ -61,7 +61,18 @@ def load_and_overlay(params: dict) -> dict:
     img_w, img_h = img.size
 
     if HAS_FDL:
-        _draw_overlay_with_library(draw, img_w, img_h, fdl_data, show_canvas, show_effective, show_protection, show_framing, show_labels, show_crosshairs)
+        _draw_overlay_with_library(
+            draw,
+            img_w,
+            img_h,
+            fdl_data,
+            show_canvas,
+            show_effective,
+            show_protection,
+            show_framing,
+            show_labels,
+            show_crosshairs,
+        )
     else:
         _draw_overlay_fallback(draw, img_w, img_h, fdl_data, show_labels)
 

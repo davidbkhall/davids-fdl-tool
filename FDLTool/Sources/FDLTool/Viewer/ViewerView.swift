@@ -218,7 +218,8 @@ struct ViewerView: View {
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
-                                    Text("\(canvas.framingDecisions.count) framing decision\(canvas.framingDecisions.count == 1 ? "" : "s")")
+                                    let fdCount = canvas.framingDecisions.count
+                                    Text("\(fdCount) framing decision\(fdCount == 1 ? "" : "s")")
                                         .font(.caption2)
                                         .foregroundStyle(.tertiary)
                                 }
@@ -954,6 +955,7 @@ struct LibraryEntryMenu: View {
         if entries.isEmpty {
             Text("No FDL entries")
         }
+        // swiftlint:disable:next redundant_discardable_let
         let _ = loadEntries()
     }
 

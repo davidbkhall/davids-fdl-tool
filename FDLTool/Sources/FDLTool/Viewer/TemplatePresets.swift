@@ -10,9 +10,9 @@ struct CanvasTemplateConfig: Equatable {
     var fitMethod: String = "fit_all"
     var alignmentHorizontal: String = "center"
     var alignmentVertical: String = "center"
-    var preserveFromSourceCanvas: String? = nil
-    var maximumWidth: Int? = nil
-    var maximumHeight: Int? = nil
+    var preserveFromSourceCanvas: String?
+    var maximumWidth: Int?
+    var maximumHeight: Int?
     var padToMaximum: Bool = false
     var roundEven: String = "even"
     var roundMode: String = "up"

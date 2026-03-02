@@ -34,12 +34,12 @@ struct FramingIntent: Identifiable {
     }
 }
 
-enum HorizontalAlignment_: String, CaseIterable, Identifiable {
+enum FDLHorizontalAlignment: String, CaseIterable, Identifiable {
     case left, center, right
     var id: String { rawValue }
 }
 
-enum VerticalAlignment_: String, CaseIterable, Identifiable {
+enum FDLVerticalAlignment: String, CaseIterable, Identifiable {
     case top, center, bottom
     var id: String { rawValue }
 }
@@ -56,8 +56,8 @@ struct Frameline: Identifiable {
     var aspectLocked: Bool = true
 
     // Anchor / alignment
-    var hAlign: HorizontalAlignment_ = .center
-    var vAlign: VerticalAlignment_ = .center
+    var hAlign: FDLHorizontalAlignment = .center
+    var vAlign: FDLVerticalAlignment = .center
     var anchorX: Double?
     var anchorY: Double?
 

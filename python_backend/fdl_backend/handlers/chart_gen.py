@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import io
 import uuid
+from typing import Any
 
 from fdl_backend.utils.fdl_convert import HAS_FDL
 
@@ -143,8 +144,19 @@ def generate_svg(params: dict) -> dict:
         v_align = fl.get("v_align", "center")
 
         sx, sy, sw, sh = _compute_frameline_position(
-            cx, cy, cw, ch, fw, fh, canvas_w, canvas_h, scale, h_align, v_align,
-            fl.get("anchor_x"), fl.get("anchor_y"),
+            cx,
+            cy,
+            cw,
+            ch,
+            fw,
+            fh,
+            canvas_w,
+            canvas_h,
+            scale,
+            h_align,
+            v_align,
+            fl.get("anchor_x"),
+            fl.get("anchor_y"),
         )
 
         prot_w = fl.get("protection_width")
@@ -155,9 +167,19 @@ def generate_svg(params: dict) -> dict:
             prot_h_align = fl.get("protection_h_align", h_align)
             prot_v_align = fl.get("protection_v_align", v_align)
             px, py, _, _ = _compute_frameline_position(
-                cx, cy, cw, ch, prot_w, prot_h, canvas_w, canvas_h, scale,
-                prot_h_align, prot_v_align,
-                fl.get("protection_anchor_x"), fl.get("protection_anchor_y"),
+                cx,
+                cy,
+                cw,
+                ch,
+                prot_w,
+                prot_h,
+                canvas_w,
+                canvas_h,
+                scale,
+                prot_h_align,
+                prot_v_align,
+                fl.get("protection_anchor_x"),
+                fl.get("protection_anchor_y"),
             )
             dwg.add(
                 dwg.rect(
@@ -176,8 +198,12 @@ def generate_svg(params: dict) -> dict:
             if show_crosshairs:
                 center_x = sx + sw / 2
                 center_y = sy + sh / 2
-                dwg.add(dwg.line(start=(center_x - 8, center_y), end=(center_x + 8, center_y), stroke=color, stroke_width=1))
-                dwg.add(dwg.line(start=(center_x, center_y - 8), end=(center_x, center_y + 8), stroke=color, stroke_width=1))
+                dwg.add(
+                    dwg.line(start=(center_x - 8, center_y), end=(center_x + 8, center_y), stroke=color, stroke_width=1)
+                )
+                dwg.add(
+                    dwg.line(start=(center_x, center_y - 8), end=(center_x, center_y + 8), stroke=color, stroke_width=1)
+                )
 
             if show_labels and label:
                 dwg.add(
@@ -220,7 +246,9 @@ def generate_svg(params: dict) -> dict:
             dwg.add(dwg.text(show_name, insert=(cx, meta_y), fill="#999", font_size="11px", font_family="sans-serif"))
             meta_y += 16
         if dop:
-            dwg.add(dwg.text(f"DP: {dop}", insert=(cx, meta_y), fill="#999", font_size="11px", font_family="sans-serif"))
+            dwg.add(
+                dwg.text(f"DP: {dop}", insert=(cx, meta_y), fill="#999", font_size="11px", font_family="sans-serif")
+            )
 
     return {"svg": dwg.tostring()}
 
@@ -290,8 +318,19 @@ def generate_png(params: dict) -> dict:
         v_align = fl.get("v_align", "center")
 
         sx, sy, sw, sh = _compute_frameline_position(
-            cx, cy, cw, ch, fw, fh, canvas_w, canvas_h, scale, h_align, v_align,
-            fl.get("anchor_x"), fl.get("anchor_y"),
+            cx,
+            cy,
+            cw,
+            ch,
+            fw,
+            fh,
+            canvas_w,
+            canvas_h,
+            scale,
+            h_align,
+            v_align,
+            fl.get("anchor_x"),
+            fl.get("anchor_y"),
         )
 
         prot_w = fl.get("protection_width")
@@ -302,9 +341,19 @@ def generate_png(params: dict) -> dict:
             prot_h_align = fl.get("protection_h_align", h_align)
             prot_v_align = fl.get("protection_v_align", v_align)
             px, py, _, _ = _compute_frameline_position(
-                cx, cy, cw, ch, prot_w, prot_h, canvas_w, canvas_h, scale,
-                prot_h_align, prot_v_align,
-                fl.get("protection_anchor_x"), fl.get("protection_anchor_y"),
+                cx,
+                cy,
+                cw,
+                ch,
+                prot_w,
+                prot_h,
+                canvas_w,
+                canvas_h,
+                scale,
+                prot_h_align,
+                prot_v_align,
+                fl.get("protection_anchor_x"),
+                fl.get("protection_anchor_y"),
             )
             draw.rectangle([px, py, px + pw, py + ph], outline="#FF9500")
 
@@ -428,8 +477,15 @@ def _compute_frameline_position(
 
 
 def _draw_svg_grid(
-    dwg: Any, cx: int, cy: int, cw: int, ch: int,
-    canvas_w: int, canvas_h: int, grid_spacing: int, scale: float,
+    dwg: Any,
+    cx: int,
+    cy: int,
+    cw: int,
+    ch: int,
+    canvas_w: int,
+    canvas_h: int,
+    grid_spacing: int,
+    scale: float,
 ) -> None:
     """Draw a grid overlay on the SVG canvas."""
     for gx in range(0, canvas_w + 1, grid_spacing):
@@ -443,8 +499,15 @@ def _draw_svg_grid(
 
 
 def _draw_png_grid(
-    draw: Any, cx: int, cy: int, cw: int, ch: int,
-    canvas_w: int, canvas_h: int, grid_spacing: int, scale: float,
+    draw: Any,
+    cx: int,
+    cy: int,
+    cw: int,
+    ch: int,
+    canvas_w: int,
+    canvas_h: int,
+    grid_spacing: int,
+    scale: float,
 ) -> None:
     """Draw a grid overlay on the PNG canvas."""
     for gx in range(0, canvas_w + 1, grid_spacing):
@@ -520,8 +583,12 @@ def _generate_fdl_fallback(
             ax, ay = float(fl["anchor_x"]), float(fl["anchor_y"])
         elif fl.get("h_align") or fl.get("v_align"):
             ax, ay = _compute_anchor_from_alignment(
-                canvas_w, canvas_h, fw, fh,
-                fl.get("h_align", "center"), fl.get("v_align", "center"),
+                canvas_w,
+                canvas_h,
+                fw,
+                fh,
+                fl.get("h_align", "center"),
+                fl.get("v_align", "center"),
             )
         else:
             ax, ay = _compute_anchor_from_alignment(canvas_w, canvas_h, fw, fh, "center", "center")

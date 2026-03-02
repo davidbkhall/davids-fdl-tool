@@ -200,9 +200,7 @@ def _generate_fdl_with_library(
         template_contexts = template.get("contexts", template.get("fdl_contexts", []))
         if template_contexts:
             template_canvas = (
-                template_contexts[0].get("canvases", [{}])[0]
-                if template_contexts[0].get("canvases")
-                else {}
+                template_contexts[0].get("canvases", [{}])[0] if template_contexts[0].get("canvases") else {}
             )
             for fd_def in template_canvas.get("framing_decisions", []):
                 fd_dims = fd_def.get("dimensions", {"width": 0, "height": 0})
@@ -243,14 +241,16 @@ def _validate_canvas_with_library(
             canvas_h = int(rect.height)
 
             match = canvas_w == actual_w and canvas_h == actual_h
-            results.append({
-                "canvas_label": canvas.label,
-                "canvas_width": canvas_w,
-                "canvas_height": canvas_h,
-                "actual_width": actual_w,
-                "actual_height": actual_h,
-                "match": match,
-            })
+            results.append(
+                {
+                    "canvas_label": canvas.label,
+                    "canvas_width": canvas_w,
+                    "canvas_height": canvas_h,
+                    "actual_width": actual_w,
+                    "actual_height": actual_h,
+                    "match": match,
+                }
+            )
 
     all_match = all(r["match"] for r in results) if results else False
     return {"match": all_match, "results": results}
@@ -296,9 +296,7 @@ def _generate_fdl_fallback(
         template_contexts = template.get("contexts", template.get("fdl_contexts", []))
         if template_contexts:
             template_canvas = (
-                template_contexts[0].get("canvases", [{}])[0]
-                if template_contexts[0].get("canvases")
-                else {}
+                template_contexts[0].get("canvases", [{}])[0] if template_contexts[0].get("canvases") else {}
             )
             for fd in template_canvas.get("framing_decisions", []):
                 new_fd = dict(fd)
@@ -323,15 +321,17 @@ def _validate_canvas_fallback(
             canvas_h = dims.get("height", 0)
 
             match = canvas_w == actual_w and canvas_h == actual_h
-            results.append({
-                "canvas_id": canvas.get("id", ""),
-                "canvas_label": canvas.get("label", ""),
-                "canvas_width": canvas_w,
-                "canvas_height": canvas_h,
-                "actual_width": actual_w,
-                "actual_height": actual_h,
-                "match": match,
-            })
+            results.append(
+                {
+                    "canvas_id": canvas.get("id", ""),
+                    "canvas_label": canvas.get("label", ""),
+                    "canvas_width": canvas_w,
+                    "canvas_height": canvas_h,
+                    "actual_width": actual_w,
+                    "actual_height": actual_h,
+                    "match": match,
+                }
+            )
 
     all_match = all(r["match"] for r in results) if results else False
     return {"match": all_match, "results": results}

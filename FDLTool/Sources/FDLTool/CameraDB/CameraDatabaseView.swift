@@ -1083,7 +1083,11 @@ struct AddCameraSheet: View {
             )
             cameraDBStore.addCustomCamera(camera)
         } else {
-            let maxMode = recordingModes.max(by: { $0.activePhotosites.width * $0.activePhotosites.height < $1.activePhotosites.width * $1.activePhotosites.height })!
+            let maxMode = recordingModes.max(by: {
+                let lhs = $0.activePhotosites.width * $0.activePhotosites.height
+                let rhs = $1.activePhotosites.width * $1.activePhotosites.height
+                return lhs < rhs
+            })!
             let camera = CameraSpec(
                 id: "custom-\(UUID().uuidString)",
                 manufacturer: manufacturer,

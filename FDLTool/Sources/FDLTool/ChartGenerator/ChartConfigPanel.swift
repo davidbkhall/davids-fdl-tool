@@ -177,7 +177,9 @@ struct ChartConfigPanel: View {
                         Picker("Squeeze", selection: Binding(
                             get: {
                                 switch squeezeChoice {
-                                case .preset(let v): return viewModel.anamorphicSqueeze == v ? squeezeChoice : (SqueezeChoice.preset(viewModel.anamorphicSqueeze))
+                                case .preset(let v):
+                                    let current = viewModel.anamorphicSqueeze
+                                    return current == v ? squeezeChoice : .preset(current)
                                 case .custom: return .custom
                                 }
                             },
@@ -185,7 +187,8 @@ struct ChartConfigPanel: View {
                                 squeezeChoice = choice
                                 switch choice {
                                 case .preset(let v): viewModel.anamorphicSqueeze = v
-                                case .custom: customSqueezeValue = viewModel.anamorphicSqueeze; viewModel.anamorphicSqueeze = customSqueezeValue
+                                case .custom:
+                                    customSqueezeValue = viewModel.anamorphicSqueeze
                                 }
                             }
                         )) {
@@ -689,7 +692,11 @@ struct FramelineRow: View {
                     .foregroundStyle(frameline.aspectLocked ? .orange : .secondary)
                 }
                 .buttonStyle(.borderless)
-                .help(frameline.aspectLocked ? "Aspect ratio locked to intent. Click to unlock." : "Aspect ratio unlocked. Click to lock to intent.")
+                .help(
+                    frameline.aspectLocked
+                        ? "Aspect ratio locked to intent. Click to unlock."
+                        : "Aspect ratio unlocked. Click to lock to intent."
+                )
 
                 Spacer()
             }
@@ -731,7 +738,7 @@ struct FramelineRow: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Picker("H", selection: $frameline.hAlign) {
-                            ForEach(HorizontalAlignment_.allCases) { a in
+                            ForEach(FDLHorizontalAlignment.allCases) { a in
                                 Text(a.rawValue.capitalized).tag(a)
                             }
                         }
@@ -743,7 +750,7 @@ struct FramelineRow: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Picker("V", selection: $frameline.vAlign) {
-                            ForEach(VerticalAlignment_.allCases) { a in
+                            ForEach(FDLVerticalAlignment.allCases) { a in
                                 Text(a.rawValue.capitalized).tag(a)
                             }
                         }

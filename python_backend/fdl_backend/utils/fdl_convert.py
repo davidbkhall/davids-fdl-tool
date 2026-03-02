@@ -17,17 +17,12 @@ import uuid as _uuid
 from typing import Any
 
 try:
-    import fdl as fdl_lib
     from fdl import (
         FDL,
-        Canvas,
-        Context,
-        FramingDecision,
         read_from_file,
         read_from_string,
-        write_to_string,
     )
-    from fdl.fdl_types import DimensionsFloat, DimensionsInt, PointFloat, Rect
+    from fdl.fdl_types import DimensionsFloat, DimensionsInt, PointFloat
 
     HAS_FDL = True
 except ImportError:
@@ -236,25 +231,31 @@ def extract_all_rects(fdl_obj: Any) -> list[dict]:
                 prot_rect_obj = fd.get_protection_rect()
                 protection_rect = rect_to_dict(prot_rect_obj) if prot_rect_obj else None
 
-                fds_out.append({
-                    "label": fd.label or "",
-                    "framing_intent": fd.framing_intent_id or "",
-                    "framing_rect": fd_rect,
-                    "protection_rect": protection_rect,
-                    "anchor_point": point_to_dict(fd.anchor_point) if fd.anchor_point else None,
-                })
+                fds_out.append(
+                    {
+                        "label": fd.label or "",
+                        "framing_intent": fd.framing_intent_id or "",
+                        "framing_rect": fd_rect,
+                        "protection_rect": protection_rect,
+                        "anchor_point": point_to_dict(fd.anchor_point) if fd.anchor_point else None,
+                    }
+                )
 
-            canvases_out.append({
-                "label": canvas.label,
-                "canvas_rect": canvas_rect,
-                "effective_rect": effective_rect,
-                "framing_decisions": fds_out,
-            })
+            canvases_out.append(
+                {
+                    "label": canvas.label,
+                    "canvas_rect": canvas_rect,
+                    "effective_rect": effective_rect,
+                    "framing_decisions": fds_out,
+                }
+            )
 
-        contexts_out.append({
-            "label": ctx.label,
-            "canvases": canvases_out,
-        })
+        contexts_out.append(
+            {
+                "label": ctx.label,
+                "canvases": canvases_out,
+            }
+        )
 
     return contexts_out
 
