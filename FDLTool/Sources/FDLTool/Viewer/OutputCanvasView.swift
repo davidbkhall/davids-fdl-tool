@@ -4,6 +4,7 @@ import SwiftUI
 /// Mirrors CanvasVisualizationView but uses outputGeometry and outputDocument.
 struct OutputCanvasView: View {
     @ObservedObject var viewModel: ViewerViewModel
+    @GestureState private var pinchMagnification: CGFloat = 1.0
 
     var body: some View {
         GeometryReader { geo in
@@ -15,7 +16,8 @@ struct OutputCanvasView: View {
             }
 
             let fitScale = min(geo.size.width / canvasW, geo.size.height / canvasH) * 0.9
-            let totalScale = fitScale * viewModel.zoomScale
+            let effectiveZoom = viewModel.zoomScale * pinchMagnification
+            let totalScale = fitScale * effectiveZoom
             let scaledW = canvasW * totalScale
             let scaledH = canvasH * totalScale
             let baseX = (geo.size.width - scaledW) / 2 + viewModel.panOffset.width
@@ -24,6 +26,44 @@ struct OutputCanvasView: View {
             return AnyView(
                 ZStack(alignment: .topLeading) {
                     Color.clear
+
+                    // Transformed reference image
+                    if let image = viewModel.referenceImage,
+                       let sourceCanvas = viewModel.selectedCanvas,
+                       let sourceFD = viewModel.selectedFramingDecision ?? sourceCanvas.framingDecisions.first,
+                       let outDoc = viewModel.outputDocument,
+                       let outCtx = outDoc.contexts.last,
+                       let outCanvas = outCtx.canvases.first,
+                       let outFD = outCanvas.framingDecisions.first {
+
+                        let srcCanvasW = sourceCanvas.dimensions.width
+                        let srcCanvasH = sourceCanvas.dimensions.height
+                        let srcAnchor = sourceFD.anchorPoint ?? FDLPoint(x: 0, y: 0)
+                        let srcFDW = sourceFD.dimensions.width
+                        let srcFDH = sourceFD.dimensions.height
+
+                        let outAnchor = outFD.anchorPoint ?? FDLPoint(x: 0, y: 0)
+                        let outFDW = outFD.dimensions.width
+                        let outFDH = outFD.dimensions.height
+
+                        // Scale source image so the source FD maps onto the output FD
+                        let imgScaleX = outFDW / max(srcFDW, 1)
+                        let imgScaleY = outFDH / max(srcFDH, 1)
+
+                        // Source canvas scaled to output coordinates
+                        let imgW = srcCanvasW * imgScaleX * totalScale
+                        let imgH = srcCanvasH * imgScaleY * totalScale
+
+                        // Position: source FD anchor maps to output FD anchor
+                        let imgX = baseX + (outAnchor.x - srcAnchor.x * imgScaleX) * totalScale
+                        let imgY = baseY + (outAnchor.y - srcAnchor.y * imgScaleY) * totalScale
+
+                        Image(nsImage: image)
+                            .resizable()
+                            .frame(width: imgW, height: imgH)
+                            .opacity(viewModel.imageOpacity)
+                            .offset(x: imgX, y: imgY)
+                    }
 
                     if let computedCanvas = viewModel.outputComputedCanvas {
                         outputGeometryOverlay(
@@ -39,6 +79,15 @@ struct OutputCanvasView: View {
                     }
                 }
                 .gesture(
+                    MagnificationGesture()
+                        .updating($pinchMagnification) { value, state, _ in
+                            state = value
+                        }
+                        .onEnded { value in
+                            viewModel.zoomScale = max(0.05, min(20, viewModel.zoomScale * value))
+                        }
+                )
+                .simultaneousGesture(
                     DragGesture()
                         .onChanged { value in
                             viewModel.panOffset = value.translation
@@ -72,9 +121,9 @@ struct OutputCanvasView: View {
             drawRect(cr, scale: totalScale, baseX: baseX, baseY: baseY,
                      color: ViewerColors.canvas, lineWidth: 2, dashed: false, fill: 0.08)
             if viewModel.showDimensionLabels {
-                dimLabel("\(Int(cr.width))\u{00D7}\(Int(cr.height))", rect: cr,
+                dimLabel("Canvas \(Int(cr.width))\u{00D7}\(Int(cr.height))", rect: cr,
                          scale: totalScale, baseX: baseX, baseY: baseY,
-                         color: ViewerColors.canvas, position: .topRight)
+                         color: ViewerColors.canvas, position: .topLeft)
             }
         }
 
@@ -84,7 +133,7 @@ struct OutputCanvasView: View {
             if viewModel.showDimensionLabels {
                 dimLabel("Eff \(Int(eff.width))\u{00D7}\(Int(eff.height))", rect: eff,
                          scale: totalScale, baseX: baseX, baseY: baseY,
-                         color: ViewerColors.effective, position: .bottomLeft)
+                         color: ViewerColors.effective, position: .topRight)
             }
         }
 
@@ -178,13 +227,37 @@ struct OutputCanvasView: View {
     private func anchorMarker(x: Double, y: Double, scale: CGFloat, baseX: CGFloat, baseY: CGFloat) -> some View {
         let px = baseX + CGFloat(x) * scale
         let py = baseY + CGFloat(y) * scale
-        Circle()
-            .fill(ViewerColors.framing)
-            .frame(width: 6, height: 6)
-            .offset(x: px - 3, y: py - 3)
+        let size: CGFloat = 12
+        let half = size / 2
+
+        Path { path in
+            path.move(to: CGPoint(x: px, y: py - half))
+            path.addLine(to: CGPoint(x: px + half, y: py))
+            path.addLine(to: CGPoint(x: px, y: py + half))
+            path.addLine(to: CGPoint(x: px - half, y: py))
+            path.closeSubpath()
+        }
+        .fill(Color.red.opacity(0.8))
+
+        Path { path in
+            path.move(to: CGPoint(x: px, y: py - half))
+            path.addLine(to: CGPoint(x: px + half, y: py))
+            path.addLine(to: CGPoint(x: px, y: py + half))
+            path.addLine(to: CGPoint(x: px - half, y: py))
+            path.closeSubpath()
+        }
+        .stroke(Color.white, lineWidth: 1)
+
+        Text(verbatim: "(\(Int(x)), \(Int(y)))")
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundStyle(.red)
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 3))
+            .offset(x: px + half + 3, y: py - 8)
     }
 
-    private enum LabelPosition { case topRight, bottomLeft, bottomRight }
+    private enum LabelPosition { case topLeft, topRight, bottomLeft, bottomRight }
 
     @ViewBuilder
     private func dimLabel(
@@ -197,21 +270,27 @@ struct OutputCanvasView: View {
         let rw = CGFloat(gr.width) * scale
         let rh = CGFloat(gr.height) * scale
 
-        let offset: CGPoint = {
+        let align: Alignment = {
             switch position {
-            case .topRight: return CGPoint(x: rx + rw - 4, y: ry + 2)
-            case .bottomLeft: return CGPoint(x: rx + 4, y: ry + rh - 16)
-            case .bottomRight: return CGPoint(x: rx + rw - 4, y: ry + rh - 16)
+            case .topLeft: return .topLeading
+            case .topRight: return .topTrailing
+            case .bottomLeft: return .bottomLeading
+            case .bottomRight: return .bottomTrailing
             }
         }()
 
-        Text(text)
-            .font(.system(size: 9, design: .monospaced))
-            .foregroundStyle(color.opacity(0.9))
-            .padding(.horizontal, 3)
-            .padding(.vertical, 1)
-            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 2))
-            .offset(x: offset.x, y: offset.y)
+        Color.clear
+            .frame(width: max(rw, 1), height: max(rh, 1))
+            .overlay(alignment: align) {
+                Text(text)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 3))
+                    .padding(6)
+            }
+            .offset(x: rx, y: ry)
     }
 
     @ViewBuilder
@@ -244,22 +323,26 @@ struct OutputCanvasView: View {
             Text("OUTPUT")
                 .foregroundStyle(.yellow)
 
-            if let info = viewModel.transformInfo {
-                Text("Source: \(info.sourceCanvas)")
-                    .foregroundStyle(ViewerColors.canvas)
-                if let outCanvas = info.outputCanvas {
-                    Text("Output: \(outCanvas)")
+            Text(verbatim: "Canvas: \(Int(canvasW))\u{00D7}\(Int(canvasH))")
+                .foregroundStyle(ViewerColors.canvas)
+
+            if let doc = viewModel.outputDocument,
+               let canvas = doc.contexts.first?.canvases.first {
+                if let eff = canvas.effectiveDimensions {
+                    Text(verbatim: "Effective: \(Int(eff.width))\u{00D7}\(Int(eff.height))")
                         .foregroundStyle(ViewerColors.effective)
                 }
-                if let outFD = info.outputFraming {
-                    Text("Framing: \(outFD)")
+                ForEach(Array(canvas.framingDecisions.enumerated()), id: \.offset) { _, fd in
+                    Text(verbatim: "Framing: \(fd.label ?? "FD") \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
                         .foregroundStyle(ViewerColors.framing)
+                }
+                if let prot = canvas.framingDecisions.first?.protectionDimensions {
+                    Text(verbatim: "Protection: \(Int(prot.width))\u{00D7}\(Int(prot.height))")
+                        .foregroundStyle(ViewerColors.protection)
                 }
             }
 
-            Text("Template: \(viewModel.templateConfig.label)")
-                .foregroundStyle(.white.opacity(0.6))
-            Text(verbatim: "\(viewModel.templateConfig.targetWidth)\u{00D7}\(viewModel.templateConfig.targetHeight)")
+            Text(verbatim: "Template: \(viewModel.templateConfig.label) (\(viewModel.templateConfig.targetWidth)\u{00D7}\(viewModel.templateConfig.targetHeight))")
                 .foregroundStyle(.white.opacity(0.6))
         }
         .font(.system(size: 10, design: .monospaced))

@@ -15,6 +15,7 @@ enum ViewerColors {
 /// Supports zoom (scroll wheel) and pan (drag).
 struct CanvasVisualizationView: View {
     @ObservedObject var viewModel: ViewerViewModel
+    @GestureState private var pinchMagnification: CGFloat = 1.0
 
     var body: some View {
         GeometryReader { geo in
@@ -26,7 +27,8 @@ struct CanvasVisualizationView: View {
             }
 
             let fitScale = min(geo.size.width / canvasW, geo.size.height / canvasH) * 0.9
-            let totalScale = fitScale * viewModel.zoomScale
+            let effectiveZoom = viewModel.zoomScale * pinchMagnification
+            let totalScale = fitScale * effectiveZoom
             let scaledW = canvasW * totalScale
             let scaledH = canvasH * totalScale
             let baseX = (geo.size.width - scaledW) / 2 + viewModel.panOffset.width
@@ -36,7 +38,6 @@ struct CanvasVisualizationView: View {
                 ZStack(alignment: .topLeading) {
                     Color.clear
 
-                    // Image underlay
                     if let image = viewModel.referenceImage {
                         Image(nsImage: image)
                             .resizable()
@@ -45,7 +46,6 @@ struct CanvasVisualizationView: View {
                             .offset(x: baseX, y: baseY)
                     }
 
-                    // Geometry layers
                     if let computedCanvas = viewModel.selectedComputedCanvas {
                         geometryOverlay(
                             canvas: computedCanvas,
@@ -55,7 +55,6 @@ struct CanvasVisualizationView: View {
                         )
                     }
 
-                    // Anamorphic squeeze indicator
                     if let squeeze = viewModel.selectedCanvas?.anamorphicSqueeze, squeeze != 1.0 {
                         anamorphicIndicator(
                             squeeze: squeeze,
@@ -65,18 +64,20 @@ struct CanvasVisualizationView: View {
                         )
                     }
 
-                    // HUD
                     if viewModel.showHUD {
                         hudOverlay(canvasW: canvasW, canvasH: canvasH)
                     }
                 }
                 .gesture(
                     MagnificationGesture()
-                        .onChanged { value in
-                            viewModel.zoomScale = max(0.1, min(10, value))
+                        .updating($pinchMagnification) { value, state, _ in
+                            state = value
+                        }
+                        .onEnded { value in
+                            viewModel.zoomScale = max(0.05, min(20, viewModel.zoomScale * value))
                         }
                 )
-                .gesture(
+                .simultaneousGesture(
                     DragGesture()
                         .onChanged { value in
                             viewModel.panOffset = value.translation
@@ -114,9 +115,9 @@ struct CanvasVisualizationView: View {
             drawRect(cr, scale: totalScale, baseX: baseX, baseY: baseY,
                      color: ViewerColors.canvas, lineWidth: 2, dashed: false, fill: 0.08)
             if viewModel.showDimensionLabels {
-                dimLabel("\(Int(cr.width))\u{00D7}\(Int(cr.height))", rect: cr,
+                dimLabel("Canvas \(Int(cr.width))\u{00D7}\(Int(cr.height))", rect: cr,
                          scale: totalScale, baseX: baseX, baseY: baseY,
-                         color: ViewerColors.canvas, position: .topRight)
+                         color: ViewerColors.canvas, position: .topLeft)
             }
         }
 
@@ -127,7 +128,7 @@ struct CanvasVisualizationView: View {
             if viewModel.showDimensionLabels {
                 dimLabel("Eff \(Int(eff.width))\u{00D7}\(Int(eff.height))", rect: eff,
                          scale: totalScale, baseX: baseX, baseY: baseY,
-                         color: ViewerColors.effective, position: .bottomLeft)
+                         color: ViewerColors.effective, position: .topRight)
             }
             if viewModel.showAnchorPoints {
                 anchorMarker(x: eff.x, y: eff.y, scale: totalScale, baseX: baseX, baseY: baseY)
@@ -266,17 +267,16 @@ struct CanvasVisualizationView: View {
         }
         .stroke(Color.white, lineWidth: 1)
 
-        // Coordinate label
-        Text(verbatim: "(\(Int(x)),\(Int(y)))")
-            .font(.system(size: 8, design: .monospaced))
-            .foregroundStyle(.red.opacity(0.9))
-            .padding(.horizontal, 2)
+        Text(verbatim: "(\(Int(x)), \(Int(y)))")
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundStyle(.red)
+            .padding(.horizontal, 3)
             .padding(.vertical, 1)
-            .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 2))
-            .offset(x: px + half + 2, y: py - 6)
+            .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 3))
+            .offset(x: px + half + 3, y: py - 8)
     }
 
-    private enum LabelPosition { case topRight, bottomLeft, bottomRight }
+    private enum LabelPosition { case topLeft, topRight, bottomLeft, bottomRight }
 
     @ViewBuilder
     private func dimLabel(
@@ -290,21 +290,27 @@ struct CanvasVisualizationView: View {
         let rw = CGFloat(gr.width) * scale
         let rh = CGFloat(gr.height) * scale
 
-        let offset: CGPoint = {
+        let align: Alignment = {
             switch position {
-            case .topRight: return CGPoint(x: rx + rw - 4, y: ry + 2)
-            case .bottomLeft: return CGPoint(x: rx + 4, y: ry + rh - 16)
-            case .bottomRight: return CGPoint(x: rx + rw - 4, y: ry + rh - 16)
+            case .topLeft: return .topLeading
+            case .topRight: return .topTrailing
+            case .bottomLeft: return .bottomLeading
+            case .bottomRight: return .bottomTrailing
             }
         }()
 
-        Text(text)
-            .font(.system(size: 9, design: .monospaced))
-            .foregroundStyle(color.opacity(0.9))
-            .padding(.horizontal, 3)
-            .padding(.vertical, 1)
-            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 2))
-            .offset(x: offset.x, y: offset.y)
+        Color.clear
+            .frame(width: max(rw, 1), height: max(rh, 1))
+            .overlay(alignment: align) {
+                Text(text)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 3))
+                    .padding(6)
+            }
+            .offset(x: rx, y: ry)
     }
 
     @ViewBuilder
@@ -334,6 +340,9 @@ struct CanvasVisualizationView: View {
     @ViewBuilder
     private func hudOverlay(canvasW: Double, canvasH: Double) -> some View {
         VStack(alignment: .leading, spacing: 3) {
+            Text("SOURCE")
+                .foregroundStyle(.cyan)
+
             if let canvas = viewModel.selectedCanvas {
                 Text(verbatim: "Canvas: \(Int(canvasW))\u{00D7}\(Int(canvasH))")
                     .foregroundStyle(ViewerColors.canvas)
@@ -343,10 +352,15 @@ struct CanvasVisualizationView: View {
                 }
                 if let squeeze = canvas.anamorphicSqueeze, squeeze != 1.0 {
                     Text(verbatim: "Squeeze: \(String(format: "%.2f\u{00D7}", squeeze))")
+                        .foregroundStyle(.white.opacity(0.6))
                 }
                 ForEach(Array(canvas.framingDecisions.enumerated()), id: \.offset) { _, fd in
-                    Text(verbatim: "\(fd.label ?? "FD"): \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
+                    Text(verbatim: "Framing: \(fd.label ?? "FD") \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
                         .foregroundStyle(ViewerColors.framing)
+                }
+                if let prot = canvas.framingDecisions.first?.protectionDimensions {
+                    Text(verbatim: "Protection: \(Int(prot.width))\u{00D7}\(Int(prot.height))")
+                        .foregroundStyle(ViewerColors.protection)
                 }
             }
         }
@@ -369,7 +383,7 @@ struct CanvasVisualizationView: View {
         let cx = baseX + canvasW * totalScale / 2
         let cy = baseY + canvasH * totalScale / 2
         let radius = min(canvasW, canvasH) * totalScale * 0.3
-        let rx = radius * squeeze
+        let rx = radius / squeeze
         let ry = radius
 
         Ellipse()

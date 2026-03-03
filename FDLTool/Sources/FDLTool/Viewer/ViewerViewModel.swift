@@ -2,24 +2,6 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
-private func withTimeout<T: Sendable>(
-    seconds: Double,
-    operation: @Sendable @escaping () async throws -> T
-) async throws -> T {
-    try await withThrowingTaskGroup(of: T.self) { group in
-        group.addTask { try await operation() }
-        group.addTask {
-            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            throw CancellationError()
-        }
-        guard let result = try await group.next() else {
-            throw CancellationError()
-        }
-        group.cancelAll()
-        return result
-    }
-}
-
 @MainActor
 class ViewerViewModel: ObservableObject {
     // Document state
@@ -211,6 +193,8 @@ class ViewerViewModel: ObservableObject {
             if let w = target["width"] as? Int { config.targetWidth = w }
             if let h = target["height"] as? Int { config.targetHeight = h }
         }
+        if let tas = dict["target_anamorphic_squeeze"] as? Double { config.targetAnamorphicSqueeze = tas }
+        else if let tas = dict["target_anamorphic_squeeze"] as? Int { config.targetAnamorphicSqueeze = Double(tas) }
         if let fs = dict["fit_source"] as? String { config.fitSource = fs }
         if let fm = dict["fit_method"] as? String { config.fitMethod = fm }
         if let ah = dict["alignment_method_horizontal"] as? String {
@@ -331,28 +315,38 @@ class ViewerViewModel: ObservableObject {
                 return
             }
 
+            // Support both bare template objects and FDL-wrapped canvas_templates arrays
+            let templateDict: [String: Any]
+            if let templates = dict["canvas_templates"] as? [[String: Any]], let first = templates.first {
+                templateDict = first
+            } else {
+                templateDict = dict
+            }
+
             var config = CanvasTemplateConfig()
 
-            if let id = dict["id"] as? String { config.id = id }
-            if let label = dict["label"] as? String { config.label = label }
+            if let id = templateDict["id"] as? String { config.id = id }
+            if let label = templateDict["label"] as? String { config.label = label }
 
-            if let target = dict["target_dimensions"] as? [String: Any] {
+            if let target = templateDict["target_dimensions"] as? [String: Any] {
                 if let w = target["width"] as? Int { config.targetWidth = w }
                 if let h = target["height"] as? Int { config.targetHeight = h }
             }
-            if let fitSrc = dict["fit_source"] as? String { config.fitSource = fitSrc }
-            if let fitMeth = dict["fit_method"] as? String { config.fitMethod = fitMeth }
-            if let ah = dict["alignment_method_horizontal"] as? String { config.alignmentHorizontal = ah }
-            if let av = dict["alignment_method_vertical"] as? String { config.alignmentVertical = av }
-            if let preserve = dict["preserve_from_source_canvas"] as? String { config.preserveFromSourceCanvas = preserve }
-            if let padMax = dict["pad_to_maximum"] as? Bool { config.padToMaximum = padMax }
+            if let tas = templateDict["target_anamorphic_squeeze"] as? Double { config.targetAnamorphicSqueeze = tas }
+            else if let tas = templateDict["target_anamorphic_squeeze"] as? Int { config.targetAnamorphicSqueeze = Double(tas) }
+            if let fitSrc = templateDict["fit_source"] as? String { config.fitSource = fitSrc }
+            if let fitMeth = templateDict["fit_method"] as? String { config.fitMethod = fitMeth }
+            if let ah = templateDict["alignment_method_horizontal"] as? String { config.alignmentHorizontal = ah }
+            if let av = templateDict["alignment_method_vertical"] as? String { config.alignmentVertical = av }
+            if let preserve = templateDict["preserve_from_source_canvas"] as? String { config.preserveFromSourceCanvas = preserve }
+            if let padMax = templateDict["pad_to_maximum"] as? Bool { config.padToMaximum = padMax }
 
-            if let maxDims = dict["maximum_dimensions"] as? [String: Any] {
+            if let maxDims = templateDict["maximum_dimensions"] as? [String: Any] {
                 config.maximumWidth = maxDims["width"] as? Int
                 config.maximumHeight = maxDims["height"] as? Int
             }
 
-            if let rounding = dict["round"] as? [String: Any] {
+            if let rounding = templateDict["round"] as? [String: Any] {
                 if let re = rounding["even"] as? String { config.roundEven = re }
                 if let rm = rounding["mode"] as? String { config.roundMode = rm }
             }
@@ -387,84 +381,27 @@ class ViewerViewModel: ObservableObject {
         }
 
         isApplyingTemplate = true
-        let ctxIndex = selectedContextIndex
-        let canvasIndex = selectedCanvasIndex
-        let fdIndex = selectedFramingIndex ?? 0
 
-        Task {
-            defer {
-                isApplyingTemplate = false
-            }
-
-            var usedPython = false
-
-            if let rawJSON,
-               let fdlDict = try? JSONSerialization.jsonObject(
-                   with: Data(rawJSON.utf8)
-               ) as? [String: Any],
-               let templateJSON = try? JSONSerialization.data(
-                   withJSONObject: templateConfig.toDict()
-               ),
-               let templateStr = String(data: templateJSON, encoding: .utf8),
-               let fdlData = try? JSONSerialization.data(withJSONObject: fdlDict),
-               let fdlStr = String(data: fdlData, encoding: .utf8) {
-                do {
-                    let response = try await withTimeout(seconds: 8) {
-                        try await pythonBridge.callForResult(
-                            "template.apply_fdl",
-                            params: [
-                                "fdl_json": fdlStr,
-                                "template_json": templateStr,
-                                "context_index": ctxIndex,
-                                "canvas_index": canvasIndex,
-                                "fd_index": fdIndex,
-                            ]
-                        )
-                    }
-
-                    if let resultFdl = response["fdl"] as? [String: Any] {
-                        let data = try JSONSerialization.data(
-                            withJSONObject: resultFdl,
-                            options: .prettyPrinted
-                        )
-                        outputDocument = try JSONDecoder().decode(
-                            FDLDocument.self, from: data
-                        )
-                        outputRawJSON = String(data: data, encoding: .utf8)
-
-                        let geoResponse = try await withTimeout(seconds: 5) {
-                            try await pythonBridge.callForResult(
-                                "geometry.compute_rects",
-                                params: ["fdl_data": resultFdl]
-                            )
-                        }
-                        let geoData = try JSONSerialization.data(
-                            withJSONObject: geoResponse
-                        )
-                        outputGeometry = try JSONDecoder().decode(
-                            ComputedGeometry.self, from: geoData
-                        )
-                    }
-                    usedPython = true
-                } catch {
-                    print("Python bridge template failed, using local: \(error)")
-                }
-            }
-
-            if !usedPython {
-                applyTemplateLocally(
-                    ctxIndex: ctxIndex,
-                    canvasIndex: canvasIndex,
-                    fdIndex: fdIndex
-                )
-            }
-
-            buildTransformInfo()
-            activeTab = .output
-        }
+        applyTemplateLocally(
+            ctxIndex: selectedContextIndex,
+            canvasIndex: selectedCanvasIndex,
+            fdIndex: selectedFramingIndex ?? 0
+        )
+        buildTransformInfo()
+        activeTab = .output
+        isApplyingTemplate = false
     }
 
-    /// Local Swift-only template application following ASC FDL spec.
+    // MARK: - ASC FDL Template Application (10-step pipeline)
+
+    private struct GeoLayer {
+        var w: Double = 0, h: Double = 0
+        var ax: Double = 0, ay: Double = 0
+        var populated: Bool = false
+    }
+
+    /// Full ASC FDL spec template application (10-step pipeline).
+    /// Reference: https://ascmitc.github.io/fdl/dev/FDL_Apply_Template_Logic/
     private func applyTemplateLocally(
         ctxIndex: Int, canvasIndex: Int, fdIndex: Int
     ) {
@@ -472,148 +409,318 @@ class ViewerViewModel: ObservableObject {
               ctxIndex < doc.contexts.count else { return }
         let ctx = doc.contexts[ctxIndex]
         guard canvasIndex < ctx.canvases.count else { return }
-        let canvas = ctx.canvases[canvasIndex]
-        guard fdIndex < canvas.framingDecisions.count else { return }
-        let fd = canvas.framingDecisions[fdIndex]
-        let template = templateConfig
+        let srcCanvas = ctx.canvases[canvasIndex]
+        guard fdIndex < srcCanvas.framingDecisions.count else { return }
+        let srcFD = srcCanvas.framingDecisions[fdIndex]
+        let tmpl = templateConfig
 
-        let sourceDims: (w: Double, h: Double) = {
-            switch template.fitSource {
-            case "framing_decision.protection_dimensions":
-                if let p = fd.protectionDimensions {
-                    return (p.width, p.height)
-                }
-                return (fd.dimensions.width, fd.dimensions.height)
-            case "canvas.effective_dimensions":
-                if let e = canvas.effectiveDimensions {
-                    return (e.width, e.height)
-                }
-                return (canvas.dimensions.width, canvas.dimensions.height)
-            case "canvas.dimensions":
-                return (canvas.dimensions.width, canvas.dimensions.height)
-            default:
-                return (fd.dimensions.width, fd.dimensions.height)
+        // ── Step 1: Derive Configuration ──
+        let inputSqueeze = srcCanvas.anamorphicSqueeze ?? 1.0
+        let targetSqueeze = tmpl.targetAnamorphicSqueeze
+        let targetW = Double(tmpl.targetWidth)
+        let targetH = Double(tmpl.targetHeight)
+        let preservePath = tmpl.preserveFromSourceCanvas
+        let fitSource = tmpl.fitSource
+        let hasMax = tmpl.maximumWidth != nil && tmpl.maximumHeight != nil
+        let maxW = Double(tmpl.maximumWidth ?? 0)
+        let maxH = Double(tmpl.maximumHeight ?? 0)
+        let padToMax = tmpl.padToMaximum
+
+        let hAlignFactor: Double = {
+            switch tmpl.alignmentHorizontal {
+            case "left": return 0.0
+            case "right": return 1.0
+            default: return 0.5
+            }
+        }()
+        let vAlignFactor: Double = {
+            switch tmpl.alignmentVertical {
+            case "top": return 0.0
+            case "bottom": return 1.0
+            default: return 0.5
             }
         }()
 
-        let tw = Double(template.targetWidth)
-        let th = Double(template.targetHeight)
+        // Rounding helper per spec: round(val / base) * base
+        func specRound(_ val: Double) -> Double {
+            let base: Double = tmpl.roundEven == "even" ? 2.0 : 1.0
+            switch tmpl.roundMode {
+            case "down": return floor(val / base) * base
+            case "round": return (val / base).rounded() * base
+            default: return ceil(val / base) * base
+            }
+        }
+
+        // ── Step 2: Populate Source Geometry ──
+        // Hierarchy: canvas(0) >= effective(1) >= protection(2) >= framing(3)
+        func layerLevel(_ path: String) -> Int {
+            switch path {
+            case "canvas.dimensions": return 0
+            case "canvas.effective_dimensions": return 1
+            case "framing_decision.protection_dimensions": return 2
+            case "framing_decision.dimensions": return 3
+            default: return 3
+            }
+        }
+
+        func sourceLayer(for path: String) -> GeoLayer? {
+            switch path {
+            case "canvas.dimensions":
+                return GeoLayer(w: srcCanvas.dimensions.width, h: srcCanvas.dimensions.height,
+                                ax: 0, ay: 0, populated: true)
+            case "canvas.effective_dimensions":
+                if let e = srcCanvas.effectiveDimensions {
+                    let a = srcCanvas.effectiveAnchorPoint ?? FDLPoint(x: 0, y: 0)
+                    return GeoLayer(w: e.width, h: e.height, ax: a.x, ay: a.y, populated: true)
+                }
+                return nil
+            case "framing_decision.protection_dimensions":
+                if let p = srcFD.protectionDimensions {
+                    let a = srcFD.protectionAnchorPoint ?? FDLPoint(x: 0, y: 0)
+                    return GeoLayer(w: p.width, h: p.height, ax: a.x, ay: a.y, populated: true)
+                }
+                return nil
+            case "framing_decision.dimensions":
+                let a = srcFD.anchorPoint ?? FDLPoint(x: 0, y: 0)
+                return GeoLayer(w: srcFD.dimensions.width, h: srcFD.dimensions.height,
+                                ax: a.x, ay: a.y, populated: true)
+            default:
+                return nil
+            }
+        }
+
+        // Build geometry: 4 layers [canvas, effective, protection, framing]
+        var geo: [GeoLayer] = Array(repeating: GeoLayer(), count: 4)
+
+        // Populate from preserve path downward (if specified)
+        if let pp = preservePath {
+            let startLevel = layerLevel(pp)
+            let paths = ["canvas.dimensions", "canvas.effective_dimensions",
+                         "framing_decision.protection_dimensions", "framing_decision.dimensions"]
+            for level in startLevel...3 {
+                if let layer = sourceLayer(for: paths[level]) {
+                    geo[level] = layer
+                }
+            }
+        }
+
+        // Populate from fit_source downward (overwrites overlap)
+        let fitLevel = layerLevel(fitSource)
+        let paths = ["canvas.dimensions", "canvas.effective_dimensions",
+                     "framing_decision.protection_dimensions", "framing_decision.dimensions"]
+        for level in fitLevel...3 {
+            if let layer = sourceLayer(for: paths[level]) {
+                geo[level] = layer
+            }
+        }
+
+        // ── Step 3: Fill Hierarchy Gaps ──
+        // Reference: fdl_geometry.cpp geometry_fill_hierarchy_gaps()
+        let outermostPop = geo.firstIndex(where: { $0.populated }) ?? 3
+
+        // Fill canvas(0) and effective(1) from outermost populated layer
+        if !geo[0].populated {
+            geo[0] = GeoLayer(w: geo[outermostPop].w, h: geo[outermostPop].h,
+                              ax: 0, ay: 0, populated: true)
+        }
+        if !geo[1].populated {
+            geo[1] = GeoLayer(w: geo[outermostPop].w, h: geo[outermostPop].h,
+                              ax: geo[outermostPop].ax, ay: geo[outermostPop].ay, populated: true)
+        }
+        // Protection(2) is NEVER filled from framing - stays absent unless explicitly populated
+
+        // Anchor offset: from preserve anchor if set, else fit_source anchor
+        let refLevel = preservePath != nil ? layerLevel(preservePath!) : fitLevel
+        let anchorOffsetX = geo[refLevel].ax
+        let anchorOffsetY = geo[refLevel].ay
+
+        // Subtract anchor offset from effective, protection, framing anchors (not canvas)
+        // Then clamp to >= 0 per reference
+        for i in 1...3 {
+            geo[i].ax = max(geo[i].ax - anchorOffsetX, 0)
+            geo[i].ay = max(geo[i].ay - anchorOffsetY, 0)
+        }
+
+        let fitDims = geo[fitLevel]
+
+        // ── Step 4: Compute Scale Factor ──
+        let fitNormW = fitDims.w * inputSqueeze
+        let fitNormH = fitDims.h
+        let targetNormW = targetW * targetSqueeze
+        let targetNormH = targetH
+
+        let wRatio = targetNormW / max(fitNormW, 0.001)
+        let hRatio = targetNormH / max(fitNormH, 0.001)
 
         let scale: Double = {
-            let sx = tw / max(sourceDims.w, 1)
-            let sy = th / max(sourceDims.h, 1)
-            switch template.fitMethod {
-            case "fill": return max(sx, sy)
-            case "width": return sx
-            case "height": return sy
-            default: return min(sx, sy)
+            switch tmpl.fitMethod {
+            case "fill": return max(wRatio, hRatio)
+            case "width": return wRatio
+            case "height": return hRatio
+            default: return min(wRatio, hRatio)
             }
         }()
 
-        func applyRound(_ val: Double) -> Double {
-            let rounded: Double
-            switch template.roundMode {
-            case "down": rounded = floor(val)
-            case "round": rounded = (val).rounded()
-            default: rounded = ceil(val)
+        // ── Step 5: Scale and Round ──
+        // Widths/x-anchors: (value * inputSqueeze * scale) / targetSqueeze
+        // Heights/y-anchors: value * scale
+        func scaleW(_ v: Double) -> Double { specRound((v * inputSqueeze * scale) / max(targetSqueeze, 0.001)) }
+        func scaleH(_ v: Double) -> Double { specRound(v * scale) }
+        func scaleAx(_ v: Double) -> Double { specRound((v * inputSqueeze * scale) / max(targetSqueeze, 0.001)) }
+        func scaleAy(_ v: Double) -> Double { specRound(v * scale) }
+
+        for i in 0...3 where geo[i].populated {
+            geo[i].w = scaleW(geo[i].w)
+            geo[i].h = scaleH(geo[i].h)
+            geo[i].ax = scaleAx(geo[i].ax)
+            geo[i].ay = scaleAy(geo[i].ay)
+        }
+
+        let scaledFitW = geo[fitLevel].w
+        let scaledFitH = geo[fitLevel].h
+        let scaledFitAx = geo[fitLevel].ax
+        let scaledFitAy = geo[fitLevel].ay
+        let scaledCanvasW = geo[0].w
+        let scaledCanvasH = geo[0].h
+
+        // ── Step 6: Determine Output Size (per axis) ──
+        func outputSize(canvasSize: Double, maxSize: Double) -> Double {
+            if hasMax && padToMax { return maxSize }
+            if hasMax && canvasSize > maxSize { return maxSize }
+            return canvasSize
+        }
+
+        let outputW = outputSize(canvasSize: scaledCanvasW, maxSize: maxW)
+        let outputH = outputSize(canvasSize: scaledCanvasH, maxSize: maxH)
+
+        // ── Step 7: Calculate Alignment Shift (per axis) ──
+        func alignmentShift(
+            outputSize: Double, canvasSize: Double, targetSize: Double,
+            fitSize: Double, fitAnchor: Double, alignFactor: Double
+        ) -> Double {
+            let overflow = canvasSize - outputSize
+            if overflow == 0 && !padToMax { return 0 }
+
+            let isCenter = alignFactor == 0.5
+            let centerTarget = padToMax || isCenter
+            let targetOffset = centerTarget ? (outputSize - targetSize) * 0.5 : 0
+            let gap = targetSize - fitSize
+            let alignment = gap * alignFactor
+            var shift = targetOffset + alignment - fitAnchor
+
+            if !padToMax && overflow > 0 {
+                shift = max(min(shift, 0), -overflow)
             }
-            if template.roundEven == "even" {
-                let r = Int(rounded)
-                return Double(r % 2 == 0 ? r : r + 1)
-            }
-            return rounded
+            return shift
         }
 
-        let newFW = applyRound(fd.dimensions.width * scale)
-        let newFH = applyRound(fd.dimensions.height * scale)
-        var newCW = tw
-        var newCH = th
+        let shiftX = alignmentShift(
+            outputSize: outputW, canvasSize: scaledCanvasW, targetSize: targetW,
+            fitSize: scaledFitW, fitAnchor: scaledFitAx, alignFactor: hAlignFactor)
+        let shiftY = alignmentShift(
+            outputSize: outputH, canvasSize: scaledCanvasH, targetSize: targetH,
+            fitSize: scaledFitH, fitAnchor: scaledFitAy, alignFactor: vAlignFactor)
 
-        var newProtW: Double?
-        var newProtH: Double?
-        if let p = fd.protectionDimensions {
-            newProtW = applyRound(p.width * scale)
-            newProtH = applyRound(p.height * scale)
+        // ── Step 8: Apply Offsets to Anchors ──
+        // Theoretical (unclamped) and clamped anchors
+        struct AnchorPair { var clamped: (x: Double, y: Double); var theoretical: (x: Double, y: Double) }
+        var anchors: [AnchorPair] = []
+        for i in 0...3 {
+            let tx = geo[i].ax + shiftX
+            let ty = geo[i].ay + shiftY
+            anchors.append(AnchorPair(
+                clamped: (max(tx, 0), max(ty, 0)),
+                theoretical: (tx, ty)
+            ))
         }
 
-        var newEffW: Double?
-        var newEffH: Double?
-        if let e = canvas.effectiveDimensions {
-            newEffW = applyRound(e.width * scale)
-            newEffH = applyRound(e.height * scale)
+        // ── Step 9: Crop to Visible ──
+        for i in 0...3 where geo[i].populated {
+            let clipLeft = max(0, -anchors[i].theoretical.x)
+            let clipTop = max(0, -anchors[i].theoretical.y)
+            var visW = geo[i].w - clipLeft
+            var visH = geo[i].h - clipTop
+            visW = min(visW, outputW - anchors[i].clamped.x)
+            visH = min(visH, outputH - anchors[i].clamped.y)
+            geo[i].w = max(visW, 0)
+            geo[i].h = max(visH, 0)
         }
 
-        if let mw = template.maximumWidth, let mh = template.maximumHeight {
-            newCW = min(newCW, Double(mw))
-            newCH = min(newCH, Double(mh))
-            if template.padToMaximum {
-                newCW = Double(mw)
-                newCH = Double(mh)
-            }
+        // Enforce hierarchy: effective <= canvas, protection <= effective, framing <= protection/effective
+        geo[1].w = min(geo[1].w, geo[0].w); geo[1].h = min(geo[1].h, geo[0].h)
+        if geo[2].populated {
+            geo[2].w = min(geo[2].w, geo[1].w); geo[2].h = min(geo[2].h, geo[1].h)
+            geo[3].w = min(geo[3].w, geo[2].w); geo[3].h = min(geo[3].h, geo[2].h)
+        } else {
+            geo[3].w = min(geo[3].w, geo[1].w); geo[3].h = min(geo[3].h, geo[1].h)
         }
 
-        func anchor(
-            _ objW: Double, _ objH: Double,
-            in containerW: Double, _ containerH: Double
-        ) -> FDLPoint {
-            let x: Double
-            switch template.alignmentHorizontal {
-            case "left": x = 0
-            case "right": x = containerW - objW
-            default: x = (containerW - objW) / 2
-            }
-            let y: Double
-            switch template.alignmentVertical {
-            case "top": y = 0
-            case "bottom": y = containerH - objH
-            default: y = (containerH - objH) / 2
-            }
-            return FDLPoint(x: x, y: y)
+        // ── Step 10: Create Output FDL ──
+        let canvasId = String((0..<8).map { _ in "abcdefghijklmnopqrstuvwxyz0123456789".randomElement()! })
+
+        var newFD = FDLFramingDecision(
+            id: "\(canvasId)-1",
+            label: srcFD.label,
+            framingIntentId: srcFD.framingIntentId,
+            dimensions: FDLDimensions(width: geo[3].w, height: geo[3].h),
+            anchorPoint: FDLPoint(x: anchors[3].clamped.x, y: anchors[3].clamped.y),
+            protectionDimensions: nil,
+            protectionAnchorPoint: nil
+        )
+
+        if geo[2].populated {
+            newFD.protectionDimensions = FDLDimensions(width: geo[2].w, height: geo[2].h)
+            newFD.protectionAnchorPoint = FDLPoint(x: anchors[2].clamped.x, y: anchors[2].clamped.y)
         }
 
-        let framingAnchor = anchor(newFW, newFH, in: newCW, newCH)
-        let protAnchor: FDLPoint? = {
-            guard let pw = newProtW, let ph = newProtH else { return nil }
-            return anchor(pw, ph, in: newCW, newCH)
-        }()
-        let effAnchor: FDLPoint? = {
-            guard let ew = newEffW, let eh = newEffH else { return nil }
-            return anchor(ew, eh, in: newCW, newCH)
-        }()
+        let canvasLabel = "\(tmpl.label): \(ctx.label ?? "Context") \(srcCanvas.label ?? srcCanvas.id)"
+        let newCanvas = FDLCanvas(
+            id: canvasId,
+            label: canvasLabel,
+            sourceCanvasId: srcCanvas.id,
+            dimensions: FDLDimensions(width: outputW, height: outputH),
+            effectiveDimensions: FDLDimensions(width: geo[1].w, height: geo[1].h),
+            effectiveAnchorPoint: FDLPoint(x: anchors[1].clamped.x, y: anchors[1].clamped.y),
+            photositeDimensions: nil,
+            physicalDimensions: nil,
+            anamorphicSqueeze: targetSqueeze,
+            framingDecisions: [newFD]
+        )
 
-        var newFD = fd
-        newFD.dimensions = FDLDimensions(width: newFW, height: newFH)
-        newFD.anchorPoint = framingAnchor
-        if let pw = newProtW, let ph = newProtH {
-            newFD.protectionDimensions = FDLDimensions(width: pw, height: ph)
-            newFD.protectionAnchorPoint = protAnchor
+        let newCtx = FDLContext(
+            id: UUID(),
+            label: tmpl.label,
+            contextCreator: doc.fdlCreator,
+            canvases: [newCanvas]
+        )
+
+        var canvasTemplateModel = FDLCanvasTemplate(
+            id: tmpl.id,
+            label: tmpl.label,
+            targetDimensions: FDLDimensions(width: targetW, height: targetH),
+            targetAnamorphicSqueeze: targetSqueeze,
+            fitSource: tmpl.fitSource,
+            fitMethod: tmpl.fitMethod,
+            alignmentMethodVertical: tmpl.alignmentVertical,
+            alignmentMethodHorizontal: tmpl.alignmentHorizontal
+        )
+        if hasMax {
+            canvasTemplateModel.maximumDimensions = FDLDimensions(width: maxW, height: maxH)
         }
-
-        var newCanvas = canvas
-        newCanvas.dimensions = FDLDimensions(width: newCW, height: newCH)
-        if let ew = newEffW, let eh = newEffH {
-            newCanvas.effectiveDimensions = FDLDimensions(width: ew, height: eh)
-            newCanvas.effectiveAnchorPoint = effAnchor
+        canvasTemplateModel.padToMaximum = padToMax
+        canvasTemplateModel.round = FDLRoundConfig(even: tmpl.roundEven, mode: tmpl.roundMode)
+        if let preserve = preservePath {
+            canvasTemplateModel.preserveFromSourceCanvas = preserve
         }
-        var fds = newCanvas.framingDecisions
-        if fdIndex < fds.count { fds[fdIndex] = newFD }
-        newCanvas.framingDecisions = fds
-
-        var newCtx = ctx
-        var canvases = newCtx.canvases
-        if canvasIndex < canvases.count { canvases[canvasIndex] = newCanvas }
-        newCtx.canvases = canvases
 
         var newDoc = doc
-        var contexts = newDoc.contexts
-        if ctxIndex < contexts.count { contexts[ctxIndex] = newCtx }
-        newDoc.contexts = contexts
+        newDoc.contexts.append(newCtx)
+        newDoc.canvasTemplates = [canvasTemplateModel]
 
         outputDocument = newDoc
         outputGeometry = computeGeometryLocally(from: newDoc)
 
-        if let data = try? JSONEncoder().encode(newDoc),
-           let json = String(data: data, encoding: .utf8) {
+        if let json = FDLJSONSerializer.string(from: newDoc) {
             outputRawJSON = json
         }
     }
@@ -633,7 +740,7 @@ class ViewerViewModel: ObservableObject {
         )
 
         if let outDoc = outputDocument,
-           let outCtx = outDoc.contexts.first,
+           let outCtx = outDoc.contexts.last,
            let outCanvas = outCtx.canvases.first
         {
             info.outputCanvas = formatDims(
@@ -657,14 +764,14 @@ class ViewerViewModel: ObservableObject {
     /// The first computed canvas from the output geometry.
     var outputComputedCanvas: ComputedCanvas? {
         guard let geo = outputGeometry,
-              let ctx = geo.contexts.first,
+              let ctx = geo.contexts.last,
               let canvas = ctx.canvases.first else { return nil }
         return canvas
     }
 
     var outputCanvasDimensions: (width: Double, height: Double)? {
         if let doc = outputDocument,
-           let ctx = doc.contexts.first,
+           let ctx = doc.contexts.last,
            let canvas = ctx.canvases.first {
             return (canvas.dimensions.width, canvas.dimensions.height)
         }
@@ -894,8 +1001,7 @@ class ViewerViewModel: ObservableObject {
         loadedDocument = doc
         computedGeometry = computeGeometryLocally(from: doc)
 
-        if let data = try? JSONEncoder().encode(doc),
-           let json = String(data: data, encoding: .utf8) {
+        if let json = FDLJSONSerializer.string(from: doc) {
             rawJSON = json
         }
     }

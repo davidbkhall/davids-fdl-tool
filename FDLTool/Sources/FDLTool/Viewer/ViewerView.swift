@@ -113,15 +113,24 @@ struct ViewerView: View {
                             if let doc = viewModel.loadedDocument {
                                 Divider()
                                 sourceDocumentSummary(doc)
-                            }
 
-                            if let val = viewModel.validationResult {
-                                HStack(spacing: 4) {
-                                    Image(systemName: val.valid ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                        .foregroundStyle(val.valid ? .green : .orange)
-                                    Text(val.valid ? "Valid" : "\(val.errors.count) issue(s)")
-                                        .font(.caption2)
-                                        .foregroundStyle(val.valid ? .green : .orange)
+                                if let val = viewModel.validationResult {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: val.valid ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                            .foregroundStyle(val.valid ? .green : .orange)
+                                        Text(val.valid ? "Valid" : "\(val.errors.count) issue(s)")
+                                            .font(.caption2)
+                                            .foregroundStyle(val.valid ? .green : .orange)
+                                    }
+                                }
+
+                                Divider()
+                                DisclosureGroup {
+                                    FDLTreeView(document: doc)
+                                } label: {
+                                    Text("Document Structure")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         } else {
@@ -155,7 +164,7 @@ struct ViewerView: View {
 
                 // Selection pickers (shown when document loaded)
                 if viewModel.loadedDocument != nil {
-                    GroupBox("Selection") {
+                    GroupBox("Choose Framing Decision") {
                         VStack(alignment: .leading, spacing: 8) {
                             if viewModel.contextLabels.count > 1 {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -321,10 +330,6 @@ struct ViewerView: View {
                     .padding(.vertical, 4)
                 }
 
-                // Document tree (when loaded)
-                if let doc = viewModel.loadedDocument {
-                    FDLTreeView(document: doc)
-                }
             }
             .padding(10)
         }
@@ -458,184 +463,291 @@ struct ViewerView: View {
 
     @ViewBuilder
     private var detailsTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if let doc = viewModel.loadedDocument {
-                    GroupBox("Document") {
-                        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                            GridRow {
-                                Text("UUID").foregroundStyle(.secondary)
-                                Text(doc.id).textSelection(.enabled)
-                            }
-                            GridRow {
-                                Text("Version").foregroundStyle(.secondary)
-                                Text(doc.versionString)
-                            }
-                            if let creator = doc.fdlCreator {
-                                GridRow {
-                                    Text("Creator").foregroundStyle(.secondary)
-                                    Text(creator)
+        if let doc = viewModel.loadedDocument {
+            VStack(spacing: 0) {
+                // Top section: document structure trees
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Document structure panels side by side
+                        HStack(alignment: .top, spacing: 12) {
+                            // Source Document Structure
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    detailsDocSummary(doc, title: "Source FDL")
+                                    Divider()
+                                    FDLTreeView(document: doc)
                                 }
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            } label: {
+                                Label("Source Document", systemImage: "doc.text")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.cyan)
                             }
-                            GridRow {
-                                Text("Contexts").foregroundStyle(.secondary)
-                                Text("\(doc.contexts.count)")
-                            }
-                            GridRow {
-                                Text("Canvases").foregroundStyle(.secondary)
-                                Text("\(doc.contexts.flatMap(\.canvases).count)")
-                            }
-                            GridRow {
-                                Text("Framing Decisions").foregroundStyle(.secondary)
-                                Text("\(doc.contexts.flatMap(\.canvases).flatMap(\.framingDecisions).count)")
-                            }
-                        }
-                        .font(.caption)
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
 
-                    if let result = viewModel.validationResult {
-                        ValidationReportView(result: result)
-                    }
+                            // Output Document Structure (if available)
+                            if let outDoc = viewModel.outputDocument {
+                                GroupBox {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        detailsDocSummary(outDoc, title: "Output FDL")
 
-                    if let canvas = viewModel.selectedCanvas {
-                        GroupBox("Selected Canvas") {
-                            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                                GridRow {
-                                    Text("ID").foregroundStyle(.secondary)
-                                    Text(canvas.id).textSelection(.enabled)
-                                }
-                                GridRow {
-                                    Text("Dimensions").foregroundStyle(.secondary)
-                                    Text(verbatim: "\(Int(canvas.dimensions.width)) \u{00D7} \(Int(canvas.dimensions.height))")
-                                }
-                                if let eff = canvas.effectiveDimensions {
-                                    GridRow {
-                                        Text("Effective").foregroundStyle(.secondary)
-                                        Text(verbatim: "\(Int(eff.width)) \u{00D7} \(Int(eff.height))")
+                                        if let templates = outDoc.canvasTemplates, !templates.isEmpty {
+                                            Divider()
+                                            Text("Applied Template")
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(.purple)
+                                            detailsTemplateSummary
+                                        }
+
+                                        Divider()
+                                        FDLTreeView(document: outDoc)
                                     }
+                                    .padding(.vertical, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                } label: {
+                                    Label("Output Document", systemImage: "doc.text.fill")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.yellow)
                                 }
-                                if let squeeze = canvas.anamorphicSqueeze, squeeze != 1.0 {
+                            }
+                        }
+
+                        // Template info (if configured)
+                        if viewModel.templateIsConfigured {
+                            GroupBox {
+                                detailsTemplateSummary
+                            } label: {
+                                Label("Template: \(viewModel.templateConfig.label)", systemImage: "rectangle.on.rectangle.angled")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.purple)
+                            }
+                        }
+
+                        // Transform result summary
+                        if let info = viewModel.transformInfo {
+                            GroupBox {
+                                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                                     GridRow {
-                                        Text("Squeeze").foregroundStyle(.secondary)
-                                        Text(String(format: "%.2f\u{00D7}", squeeze))
+                                        Text("Source Canvas").foregroundStyle(.secondary)
+                                        Text(info.sourceCanvas)
                                     }
-                                }
-                            }
-                            .font(.caption)
-                            .padding(.vertical, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-
-                    if let info = viewModel.transformInfo {
-                        GroupBox("Transform Result") {
-                            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                                GridRow {
-                                    Text("Source Canvas").foregroundStyle(.secondary)
-                                    Text(info.sourceCanvas)
-                                }
-                                GridRow {
-                                    Text("Source Framing").foregroundStyle(.secondary)
-                                    Text(info.sourceFraming)
-                                }
-                                if let outCanvas = info.outputCanvas {
                                     GridRow {
-                                        Text("Output Canvas").foregroundStyle(.secondary)
-                                        Text(outCanvas)
+                                        Text("Source Framing").foregroundStyle(.secondary)
+                                        Text(info.sourceFraming)
                                     }
-                                }
-                                if let outFD = info.outputFraming {
-                                    GridRow {
-                                        Text("Output Framing").foregroundStyle(.secondary)
-                                        Text(outFD)
+                                    if let outCanvas = info.outputCanvas {
+                                        GridRow {
+                                            Text("Output Canvas").foregroundStyle(.secondary)
+                                            Text(outCanvas)
+                                        }
                                     }
-                                }
-                                GridRow {
-                                    Text("Template").foregroundStyle(.secondary)
-                                    Text(viewModel.templateConfig.label)
-                                }
-                                GridRow {
-                                    Text("Target").foregroundStyle(.secondary)
-                                    Text(verbatim: "\(viewModel.templateConfig.targetWidth)\u{00D7}\(viewModel.templateConfig.targetHeight)")
-                                }
-                            }
-                            .font(.caption)
-                            .padding(.vertical, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-
-                    GroupBox("Source JSON") {
-                        if let raw = viewModel.rawJSON {
-                            ScrollView(.horizontal) {
-                                Text(raw)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .textSelection(.enabled)
-                            }
-                            .frame(maxHeight: 300)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        HStack {
-                            Button("Copy JSON") {
-                                if let raw = viewModel.rawJSON {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(raw, forType: .string)
-                                }
-                            }
-                            .font(.caption)
-                        }
-                        .padding(.top, 4)
-                    }
-
-                    if let outJSON = viewModel.outputRawJSON {
-                        GroupBox("Output JSON") {
-                            ScrollView(.horizontal) {
-                                Text(outJSON)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .textSelection(.enabled)
-                            }
-                            .frame(maxHeight: 300)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                            HStack {
-                                Button("Copy Output JSON") {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(outJSON, forType: .string)
-                                }
-                                .font(.caption)
-
-                                Button("Export Output FDL...") {
-                                    let panel = NSSavePanel()
-                                    panel.allowedContentTypes = [.json]
-                                    panel.nameFieldStringValue = "output.fdl.json"
-                                    if panel.runModal() == .OK, let dest = panel.url {
-                                        try? outJSON.write(to: dest, atomically: true, encoding: .utf8)
+                                    if let outFD = info.outputFraming {
+                                        GridRow {
+                                            Text("Output Framing").foregroundStyle(.secondary)
+                                            Text(outFD)
+                                        }
                                     }
                                 }
                                 .font(.caption)
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            } label: {
+                                Label("Transform Result", systemImage: "arrow.right.square")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.green)
                             }
-                            .padding(.top, 4)
+                        }
+
+                        if let result = viewModel.validationResult {
+                            ValidationReportView(result: result)
+                        }
+
+                        // JSON panels side by side
+                        HStack(alignment: .top, spacing: 12) {
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if let raw = viewModel.rawJSON {
+                                        ScrollView([.horizontal, .vertical]) {
+                                            Text(raw)
+                                                .font(.system(.caption2, design: .monospaced))
+                                                .textSelection(.enabled)
+                                        }
+                                        .frame(maxHeight: 400)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                        Button("Copy") {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(raw, forType: .string)
+                                        }
+                                        .font(.caption)
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                    } else {
+                                        Text("No source loaded")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            } label: {
+                                Label("Source JSON", systemImage: "curlybraces")
+                                    .font(.caption.weight(.semibold))
+                            }
+
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if let outJSON = viewModel.outputRawJSON {
+                                        ScrollView([.horizontal, .vertical]) {
+                                            Text(outJSON)
+                                                .font(.system(.caption2, design: .monospaced))
+                                                .textSelection(.enabled)
+                                        }
+                                        .frame(maxHeight: 400)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                        HStack(spacing: 6) {
+                                            Button("Copy") {
+                                                NSPasteboard.general.clearContents()
+                                                NSPasteboard.general.setString(outJSON, forType: .string)
+                                            }
+                                            .font(.caption)
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+
+                                            Button("Export...") {
+                                                let panel = NSSavePanel()
+                                                panel.allowedContentTypes = [.json]
+                                                panel.nameFieldStringValue = "output.fdl.json"
+                                                if panel.runModal() == .OK, let dest = panel.url {
+                                                    try? outJSON.write(to: dest, atomically: true, encoding: .utf8)
+                                                }
+                                            }
+                                            .font(.caption)
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                    } else {
+                                        Text("Apply a template to see output")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            } label: {
+                                Label("Output JSON", systemImage: "curlybraces")
+                                    .font(.caption.weight(.semibold))
+                            }
                         }
                     }
-                } else {
-                    VStack(spacing: 8) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.tertiary)
-                        Text("Open an FDL to see document details")
-                            .font(.callout)
-                            .foregroundStyle(.tertiary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, 80)
+                    .padding()
                 }
             }
-            .padding()
+            .background(Color(nsColor: .controlBackgroundColor))
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.tertiary)
+                Text("Open an FDL to see document details")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .controlBackgroundColor))
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    @ViewBuilder
+    private func detailsDocSummary(_ doc: FDLDocument, title: String) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
+            GridRow {
+                Text("UUID").foregroundStyle(.secondary)
+                Text(doc.id).textSelection(.enabled)
+            }
+            GridRow {
+                Text("Version").foregroundStyle(.secondary)
+                Text(doc.versionString)
+            }
+            if let creator = doc.fdlCreator {
+                GridRow {
+                    Text("Creator").foregroundStyle(.secondary)
+                    Text(creator)
+                }
+            }
+            GridRow {
+                Text("Contexts").foregroundStyle(.secondary)
+                Text(verbatim: "\(doc.contexts.count)")
+            }
+            GridRow {
+                Text("Canvases").foregroundStyle(.secondary)
+                Text(verbatim: "\(doc.contexts.flatMap(\.canvases).count)")
+            }
+            GridRow {
+                Text("Framing Decisions").foregroundStyle(.secondary)
+                Text(verbatim: "\(doc.contexts.flatMap(\.canvases).flatMap(\.framingDecisions).count)")
+            }
+        }
+        .font(.caption)
+    }
+
+    @ViewBuilder
+    private var detailsTemplateSummary: some View {
+        let tc = viewModel.templateConfig
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+            GridRow {
+                Text("Label").foregroundStyle(.secondary)
+                Text(tc.label)
+            }
+            GridRow {
+                Text("ID").foregroundStyle(.secondary)
+                Text(tc.id).textSelection(.enabled)
+            }
+            GridRow {
+                Text("Target").foregroundStyle(.secondary)
+                Text(verbatim: "\(tc.targetWidth) \u{00D7} \(tc.targetHeight)")
+            }
+            if tc.targetAnamorphicSqueeze != 1.0 {
+                GridRow {
+                    Text("Target Squeeze").foregroundStyle(.secondary)
+                    Text(verbatim: String(format: "%.1fx", tc.targetAnamorphicSqueeze))
+                }
+            }
+            GridRow {
+                Text("Fit Source").foregroundStyle(.secondary)
+                Text(tc.fitSource)
+            }
+            GridRow {
+                Text("Fit Method").foregroundStyle(.secondary)
+                Text(tc.fitMethod)
+            }
+            GridRow {
+                Text("Alignment").foregroundStyle(.secondary)
+                Text(verbatim: "\(tc.alignmentHorizontal) / \(tc.alignmentVertical)")
+            }
+            GridRow {
+                Text("Rounding").foregroundStyle(.secondary)
+                Text(verbatim: "\(tc.roundMode) to \(tc.roundEven)")
+            }
+            if let mw = tc.maximumWidth, let mh = tc.maximumHeight {
+                GridRow {
+                    Text("Maximum").foregroundStyle(.secondary)
+                    Text(verbatim: "\(mw) \u{00D7} \(mh)")
+                }
+                GridRow {
+                    Text("Pad to Max").foregroundStyle(.secondary)
+                    Text(tc.padToMaximum ? "Yes" : "No")
+                }
+            }
+            if let preserve = tc.preserveFromSourceCanvas {
+                GridRow {
+                    Text("Preserve").foregroundStyle(.secondary)
+                    Text(preserve)
+                }
+            }
+        }
+        .font(.caption)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Layer Toggle Menu
@@ -679,14 +791,15 @@ struct ViewerView: View {
             }
             .font(.caption2)
 
+            let totalCtx = doc.contexts.count
             let totalCanvases = doc.contexts.flatMap(\.canvases).count
             let totalFDs = doc.contexts.flatMap(\.canvases).flatMap(\.framingDecisions).count
             HStack(spacing: 4) {
-                Text("\(doc.contexts.count) ctx").foregroundStyle(.secondary)
+                Text(verbatim: "\(totalCtx) Context\(totalCtx == 1 ? "" : "s")").foregroundStyle(.secondary)
                 Text("\u{00B7}").foregroundStyle(.quaternary)
-                Text("\(totalCanvases) canvas").foregroundStyle(.secondary)
+                Text(verbatim: "\(totalCanvases) Canvas\(totalCanvases == 1 ? "" : "es")").foregroundStyle(.secondary)
                 Text("\u{00B7}").foregroundStyle(.quaternary)
-                Text("\(totalFDs) FD").foregroundStyle(.secondary)
+                Text(verbatim: "\(totalFDs) Framing Decision\(totalFDs == 1 ? "" : "s")").foregroundStyle(.secondary)
             }
             .font(.caption2)
 
@@ -754,7 +867,7 @@ struct ViewerView: View {
                     }
                 }
                 Divider()
-                Button("Import JSON...") {
+                Button("Import Template...") {
                     viewModel.importTemplateJSON()
                 }
                 if !appState.libraryViewModel.canvasTemplates.isEmpty {
@@ -899,7 +1012,7 @@ struct ViewerView: View {
                 }
             }
             Divider()
-            Button("Import JSON...") {
+            Button("Import Template...") {
                 viewModel.importTemplateJSON()
             }
             if !appState.libraryViewModel.canvasTemplates.isEmpty {
@@ -974,6 +1087,20 @@ struct ViewerView: View {
                     .font(.caption)
                     .frame(width: 70)
                 }
+            }
+
+            HStack(spacing: 4) {
+                Text("Anamorphic Squeeze")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                TextField(
+                    "Squeeze",
+                    value: $viewModel.templateConfig.targetAnamorphicSqueeze,
+                    format: .number
+                )
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
+                .frame(width: 60)
             }
 
             Picker(

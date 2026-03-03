@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
@@ -172,11 +173,39 @@ class ChartGeneratorViewModel: ObservableObject {
     private let pythonBridge: PythonBridge
     private let cameraDBStore: CameraDBStore
     private let libraryStore: LibraryStore
+    private var cancellables = Set<AnyCancellable>()
 
     init(pythonBridge: PythonBridge, cameraDBStore: CameraDBStore, libraryStore: LibraryStore) {
         self.pythonBridge = pythonBridge
         self.cameraDBStore = cameraDBStore
         self.libraryStore = libraryStore
+        setupRecalculationSubscribers()
+    }
+
+    /// Recalculate all intent-linked framelines (e.g. after squeeze or canvas changes).
+    func recalculateAllIntentFramelines() {
+        for intent in framingIntents {
+            recalculateFramelinesForIntent(intent.id)
+        }
+    }
+
+    private func setupRecalculationSubscribers() {
+        let squeeze = $anamorphicSqueeze.removeDuplicates().map { _ in () }
+        let camera = $selectedCameraID.map { _ in () }
+        let mode = $selectedModeID.map { _ in () }
+        let customW = $customCanvasWidth.removeDuplicates().map { _ in () }
+        let customH = $customCanvasHeight.removeDuplicates().map { _ in () }
+        let effToggle = $showEffectiveDimensions.map { _ in () }
+        let effW = $canvasEffectiveWidth.removeDuplicates().map { _ in () }
+        let effH = $canvasEffectiveHeight.removeDuplicates().map { _ in () }
+
+        squeeze.merge(with: camera, mode, customW, customH, effToggle, effW, effH)
+            .dropFirst()
+            .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+            .sink { [weak self] in
+                self?.recalculateAllIntentFramelines()
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Canvas Dimensions
@@ -265,11 +294,11 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     func addPreset(_ preset: FramelinePreset) {
-        let dims = preset.dimensions(forCanvasWidth: framingBoundsWidth)
-        let cw = min(roundToEven(dims.width), framingBoundsWidth)
-        let ch = min(roundToEven(dims.height), framingBoundsHeight)
+        let aspect = preset.aspectWidth / preset.aspectHeight
+        guard aspect > 0 else { return }
+        let (fitW, fitH) = fitAspectIntoWorkingArea(aspect)
         let color = framlineColors[framelines.count % framlineColors.count]
-        framelines.append(Frameline(label: preset.label, width: cw, height: ch, color: color))
+        framelines.append(Frameline(label: preset.label, width: roundToEven(fitW), height: roundToEven(fitH), color: color))
     }
 
     /// Recalculate all framelines linked to a given intent after aspect ratio or protection changes.
@@ -336,22 +365,26 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     /// Fit an intent aspect ratio into the working area (effective or canvas).
-    /// Matches the algorithm from fdl_framing.cpp: letterbox or pillarbox.
+    /// Uses the desqueezed (display) aspect ratio for letterbox/pillarbox determination
+    /// so that anamorphic sensors produce geometrically correct results.
+    /// Verified against Scen_10 source FDL (4320x3456, 2x, 2.387:1 → protection 4124x3456).
     private func fitAspectIntoWorkingArea(_ intentAspect: Double) -> (width: Double, height: Double) {
         let workingW = framingBoundsWidth
         let workingH = framingBoundsHeight
         guard workingH > 0 else { return (0, 0) }
 
-        let workingAspect = workingW / workingH
         let squeeze = anamorphicSqueeze
+        let desqueezedAspect = (workingW * squeeze) / workingH
 
-        if intentAspect >= workingAspect {
+        if intentAspect >= desqueezedAspect {
+            // Letterbox: intent is wider than desqueezed canvas
             let w = workingW
             let h = (w * squeeze) / intentAspect
             return (w, h)
         } else {
+            // Pillarbox: intent is narrower than desqueezed canvas
             let h = workingH
-            let w = h * intentAspect
+            let w = (h * intentAspect) / squeeze
             return (w, h)
         }
     }
@@ -488,13 +521,34 @@ class ChartGeneratorViewModel: ObservableObject {
 
     // MARK: - Open in FDL Viewer
 
+    /// Build a spec-compliant ASC FDL v2.0 document from the current chart config.
+    /// Reference: ASC FDL Specification v2.0.1 §7
     func buildLocalFDLDocument(creator: String = "FDL Tool") -> FDLDocument {
         let cw = canvasWidth
         let ch = canvasHeight
 
-        let fds = framelines.map { fl -> FDLFramingDecision in
+        // Build framing_intents array (top-level, referenced by FDs via ID)
+        var fdlIntents: [FDLFramingIntent] = []
+        var intentIDMap: [UUID: String] = [:]
+        for (i, intent) in framingIntents.enumerated() {
+            let intentId = "\(i + 1)"
+            intentIDMap[intent.id] = intentId
+            fdlIntents.append(FDLFramingIntent(
+                id: intentId,
+                label: intent.label,
+                aspectRatio: FDLDimensions(width: intent.aspectWidth, height: intent.aspectHeight),
+                protection: intent.protectionPercent > 0 ? intent.protectionPercent / 100.0 : nil
+            ))
+        }
+
+        let canvasId = "1"
+
+        let fds: [FDLFramingDecision] = framelines.enumerated().map { (i, fl) in
             let fw = fl.width
             let fh = fl.height
+
+            // Anchor point: explicit or computed from alignment
+            // Per spec: anchors are relative to canvas origin (always full canvas, not effective)
             let ax: Double
             let ay: Double
             if let cx = fl.anchorX, let cy = fl.anchorY {
@@ -521,10 +575,18 @@ class ChartGeneratorViewModel: ObservableObject {
                 protAnchor = FDLPoint(x: px, y: py)
             }
 
+            // Link to framing intent via its document-level ID
+            let intentRef: String? = {
+                if let linkedID = fl.linkedIntentID, let ref = intentIDMap[linkedID] {
+                    return ref
+                }
+                return fl.framingIntent.isEmpty ? nil : fl.framingIntent
+            }()
+
             return FDLFramingDecision(
-                id: UUID().uuidString,
+                id: "\(canvasId)-\(i + 1)",
                 label: fl.label,
-                framingIntentId: fl.framingIntent.isEmpty ? nil : fl.framingIntent,
+                framingIntentId: intentRef,
                 dimensions: FDLDimensions(width: fw, height: fh),
                 anchorPoint: FDLPoint(x: ax, y: ay),
                 protectionDimensions: protDims,
@@ -541,12 +603,13 @@ class ChartGeneratorViewModel: ObservableObject {
         }
 
         let canvas = FDLCanvas(
-            id: UUID().uuidString,
+            id: canvasId,
             label: chartTitle,
+            sourceCanvasId: canvasId,
             dimensions: FDLDimensions(width: cw, height: ch),
             effectiveDimensions: effDims,
             effectiveAnchorPoint: effAnchor,
-            anamorphicSqueeze: anamorphicSqueeze != 1.0 ? anamorphicSqueeze : nil,
+            anamorphicSqueeze: anamorphicSqueeze,
             framingDecisions: fds
         )
 
@@ -560,7 +623,8 @@ class ChartGeneratorViewModel: ObservableObject {
             id: UUID().uuidString,
             version: FDLVersion(major: 2, minor: 0),
             fdlCreator: creator,
-            defaultFramingIntent: nil,
+            defaultFramingIntent: fdlIntents.first?.id,
+            framingIntents: fdlIntents.isEmpty ? nil : fdlIntents,
             contexts: [context]
         )
     }

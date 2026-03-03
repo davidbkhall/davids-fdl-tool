@@ -6,69 +6,84 @@ struct FDLTreeView: View {
     let document: FDLDocument
 
     var body: some View {
-        GroupBox("Document Structure") {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup {
+                headerDetails
+            } label: {
+                Label("Header", systemImage: "doc.text")
+                    .font(.caption.weight(.medium))
+            }
+            .padding(.vertical, 2)
+
+            ForEach(document.contexts) { context in
                 DisclosureGroup {
-                    headerDetails
+                    contextDetails(context)
+
+                    ForEach(context.canvases) { canvas in
+                        DisclosureGroup {
+                            canvasDetails(canvas)
+
+                            ForEach(canvas.framingDecisions) { fd in
+                                DisclosureGroup {
+                                    framingDecisionDetails(fd)
+                                } label: {
+                                    Label {
+                                        Text(fd.label ?? fd.id)
+                                    } icon: {
+                                        Image(systemName: "viewfinder")
+                                            .foregroundStyle(.purple)
+                                    }
+                                }
+                                .padding(.leading, 16)
+                                .padding(.vertical, 1)
+                            }
+                        } label: {
+                            Label {
+                                HStack(spacing: 6) {
+                                    Text(canvas.label ?? canvas.id)
+                                    if let dims = Optional(canvas.dimensions) {
+                                        AspectRatioLabel(width: dims.width, height: dims.height)
+                                    }
+                                }
+                            } icon: {
+                                Image(systemName: "rectangle.on.rectangle")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                        .padding(.leading, 8)
+                        .padding(.vertical, 1)
+                    }
                 } label: {
-                    Label("Header", systemImage: "doc.text")
-                        .font(.body.weight(.medium))
+                    Label {
+                        Text(context.label ?? "Context")
+                    } icon: {
+                        Image(systemName: "folder")
+                            .foregroundStyle(.orange)
+                    }
+                    .font(.caption.weight(.medium))
                 }
                 .padding(.vertical, 2)
+            }
 
-                ForEach(document.contexts) { context in
+            if let templates = document.canvasTemplates, !templates.isEmpty {
+                ForEach(templates) { tmpl in
                     DisclosureGroup {
-                        contextDetails(context)
-
-                        ForEach(context.canvases) { canvas in
-                            DisclosureGroup {
-                                canvasDetails(canvas)
-
-                                ForEach(canvas.framingDecisions) { fd in
-                                    DisclosureGroup {
-                                        framingDecisionDetails(fd)
-                                    } label: {
-                                        Label {
-                                            Text(fd.label ?? fd.id)
-                                        } icon: {
-                                            Image(systemName: "viewfinder")
-                                                .foregroundStyle(.purple)
-                                        }
-                                    }
-                                    .padding(.leading, 16)
-                                    .padding(.vertical, 1)
-                                }
-                            } label: {
-                                Label {
-                                    HStack(spacing: 6) {
-                                        Text(canvas.label ?? canvas.id)
-                                        if let dims = Optional(canvas.dimensions) {
-                                            AspectRatioLabel(width: dims.width, height: dims.height)
-                                        }
-                                    }
-                                } icon: {
-                                    Image(systemName: "rectangle.on.rectangle")
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                            .padding(.leading, 8)
-                            .padding(.vertical, 1)
-                        }
+                        canvasTemplateDetails(tmpl)
                     } label: {
                         Label {
-                            Text(context.label ?? "Context")
+                            Text(tmpl.label ?? tmpl.id)
                         } icon: {
-                            Image(systemName: "folder")
-                                .foregroundStyle(.orange)
+                            Image(systemName: "rectangle.on.rectangle.angled")
+                                .foregroundStyle(.purple)
                         }
-                        .font(.body.weight(.medium))
+                        .font(.caption.weight(.medium))
                     }
                     .padding(.vertical, 2)
                 }
             }
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -139,6 +154,47 @@ struct FDLTreeView: View {
             if let protDims = fd.protectionDimensions {
                 DetailRow(label: "Protection",
                           value: "\(Int(protDims.width)) \u{00D7} \(Int(protDims.height))")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func canvasTemplateDetails(_ tmpl: FDLCanvasTemplate) -> some View {
+        DetailGrid {
+            DetailRow(label: "ID", value: tmpl.id)
+            if let label = tmpl.label {
+                DetailRow(label: "Label", value: label)
+            }
+            if let dims = tmpl.targetDimensions {
+                DetailRow(label: "Target", value: "\(Int(dims.width)) \u{00D7} \(Int(dims.height))")
+            }
+            if let squeeze = tmpl.targetAnamorphicSqueeze {
+                DetailRow(label: "Target Squeeze", value: String(format: "%.1fx", squeeze))
+            }
+            if let src = tmpl.fitSource {
+                DetailRow(label: "Fit Source", value: src)
+            }
+            if let method = tmpl.fitMethod {
+                DetailRow(label: "Fit Method", value: method)
+            }
+            if let h = tmpl.alignmentMethodHorizontal {
+                DetailRow(label: "H Alignment", value: h)
+            }
+            if let v = tmpl.alignmentMethodVertical {
+                DetailRow(label: "V Alignment", value: v)
+            }
+            if let preserve = tmpl.preserveFromSourceCanvas {
+                DetailRow(label: "Preserve", value: preserve)
+            }
+            if let maxDims = tmpl.maximumDimensions {
+                DetailRow(label: "Maximum", value: "\(Int(maxDims.width)) \u{00D7} \(Int(maxDims.height))")
+            }
+            if let pad = tmpl.padToMaximum {
+                DetailRow(label: "Pad to Max", value: pad ? "Yes" : "No")
+            }
+            if let rnd = tmpl.round {
+                let roundStr = [rnd.mode, rnd.even.map { "(\($0))" }].compactMap { $0 }.joined(separator: " ")
+                DetailRow(label: "Rounding", value: roundStr)
             }
         }
     }

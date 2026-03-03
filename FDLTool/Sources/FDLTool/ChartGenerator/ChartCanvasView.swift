@@ -107,8 +107,8 @@ struct ChartCanvasView: View {
                        let eh = viewModel.canvasEffectiveHeight {
                         let esw = ew * scale
                         let esh = eh * scale
-                        let ex = originX + (scaledW - esw) / 2
-                        let ey = originY + (scaledH - esh) / 2
+                        let ex = originX + viewModel.canvasEffectiveAnchorX * scale
+                        let ey = originY + viewModel.canvasEffectiveAnchorY * scale
 
                         Rectangle()
                             .stroke(Color.teal, lineWidth: 1.5)
@@ -135,8 +135,8 @@ struct ChartCanvasView: View {
                            let prot = viewModel.effectiveProtection(for: fl) {
                             let psw = prot.width * scale
                             let psh = prot.height * scale
-                            let px = originX + (scaledW - psw) / 2
-                            let py = originY + (scaledH - psh) / 2
+                            let px = originX + (fl.protectionAnchorX.map { $0 * scale } ?? (scaledW - psw) / 2)
+                            let py = originY + (fl.protectionAnchorY.map { $0 * scale } ?? (scaledH - psh) / 2)
 
                             Rectangle()
                                 .stroke(Color.orange, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))

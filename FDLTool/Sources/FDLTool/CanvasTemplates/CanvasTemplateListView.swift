@@ -23,7 +23,7 @@ struct CanvasTemplateListView: View {
                         }
                     }
                     Divider()
-                    Button("Import JSON...") {
+                    Button("Import Template...") {
                         viewModel.showImportSheet = true
                     }
                 } label: {

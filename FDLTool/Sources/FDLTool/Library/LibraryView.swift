@@ -173,6 +173,7 @@ struct LibraryView: View {
                 viewModel: tvm,
                 libraryViewModel: appState.libraryViewModel
             )
+            .id(template.id)
         } else {
             VStack(spacing: 8) {
                 Image(systemName: "rectangle.3.group")
@@ -386,6 +387,20 @@ struct TemplateDetailView: View {
                             verbatim: "\(editConfig.targetWidth)"
                                 + " \u{00D7} \(editConfig.targetHeight)"
                         )
+                    }
+                }
+
+                paramRow("Anamorphic Squeeze") {
+                    if isEditingEnabled {
+                        TextField(
+                            "Squeeze",
+                            value: $editConfig.targetAnamorphicSqueeze,
+                            format: .number
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                    } else {
+                        Text(verbatim: "\(String(format: "%.1f", editConfig.targetAnamorphicSqueeze))\u{00D7}")
                     }
                 }
 
@@ -695,12 +710,13 @@ struct TemplateDetailView: View {
     @ViewBuilder
     private var jsonDisclosure: some View {
         DisclosureGroup {
-            ScrollView(.horizontal) {
+            ScrollView([.horizontal, .vertical]) {
                 Text(formattedJSON)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxHeight: 200)
+            .frame(maxHeight: 400)
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
             Text("Template JSON")
@@ -726,6 +742,8 @@ struct TemplateDetailView: View {
             if let w = t["width"] as? Int { c.targetWidth = w }
             if let h = t["height"] as? Int { c.targetHeight = h }
         }
+        if let v = d["target_anamorphic_squeeze"] as? Double { c.targetAnamorphicSqueeze = v }
+        else if let v = d["target_anamorphic_squeeze"] as? Int { c.targetAnamorphicSqueeze = Double(v) }
         if let v = d["fit_source"] as? String { c.fitSource = v }
         if let v = d["fit_method"] as? String { c.fitMethod = v }
         if let v = d["alignment_method_horizontal"] as? String {

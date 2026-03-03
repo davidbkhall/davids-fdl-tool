@@ -6,6 +6,7 @@ struct CanvasTemplateConfig: Equatable {
     var label: String = "Custom"
     var targetWidth: Int = 1920
     var targetHeight: Int = 1080
+    var targetAnamorphicSqueeze: Double = 1.0
     var fitSource: String = "framing_decision.dimensions"
     var fitMethod: String = "fit_all"
     var alignmentHorizontal: String = "center"
@@ -22,6 +23,7 @@ struct CanvasTemplateConfig: Equatable {
             "id": id,
             "label": label,
             "target_dimensions": ["width": targetWidth, "height": targetHeight],
+            "target_anamorphic_squeeze": targetAnamorphicSqueeze,
             "fit_source": fitSource,
             "fit_method": fitMethod,
             "alignment_method_horizontal": alignmentHorizontal,

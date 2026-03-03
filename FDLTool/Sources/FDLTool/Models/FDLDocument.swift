@@ -143,6 +143,10 @@ struct FDLCanvasTemplate: Codable, Identifiable {
     var fitMethod: String?
     var alignmentMethodVertical: String?
     var alignmentMethodHorizontal: String?
+    var preserveFromSourceCanvas: String?
+    var maximumDimensions: FDLDimensions?
+    var padToMaximum: Bool?
+    var round: FDLRoundConfig?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -153,5 +157,117 @@ struct FDLCanvasTemplate: Codable, Identifiable {
         case fitMethod = "fit_method"
         case alignmentMethodVertical = "alignment_method_vertical"
         case alignmentMethodHorizontal = "alignment_method_horizontal"
+        case preserveFromSourceCanvas = "preserve_from_source_canvas"
+        case maximumDimensions = "maximum_dimensions"
+        case padToMaximum = "pad_to_maximum"
+        case round
+    }
+}
+
+struct FDLRoundConfig: Codable {
+    var even: String?
+    var mode: String?
+}
+
+// MARK: - Ordered JSON Serializer
+
+/// Produces JSON strings with keys ordered to match the ASC FDL reference format.
+/// JSONEncoder uses dictionary-backed containers that don't preserve insertion order,
+/// so we encode → parse → re-serialize with explicit key ordering.
+enum FDLJSONSerializer {
+
+    static func string(from document: FDLDocument) -> String? {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(document),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return serialize(obj, indent: 0)
+    }
+
+    private static let keyOrders: [[String]] = [
+        // FDLDocument
+        ["version", "uuid", "fdl_creator", "default_framing_intent",
+         "framing_intents", "contexts", "canvas_templates"],
+        // FDLContext
+        ["label", "context_creator", "canvases"],
+        // FDLCanvas
+        ["label", "id", "source_canvas_id", "dimensions", "anamorphic_squeeze",
+         "framing_decisions", "effective_dimensions", "effective_anchor_point",
+         "photosite_dimensions", "physical_dimensions"],
+        // FDLFramingDecision
+        ["label", "id", "framing_intent_id", "dimensions", "anchor_point",
+         "protection_dimensions", "protection_anchor_point"],
+        // FDLCanvasTemplate
+        ["label", "id", "target_dimensions", "target_anamorphic_squeeze",
+         "fit_source", "fit_method", "alignment_method_vertical",
+         "alignment_method_horizontal", "preserve_from_source_canvas",
+         "maximum_dimensions", "pad_to_maximum", "round"],
+        // FDLFramingIntent
+        ["label", "id", "aspect_ratio", "protection"],
+    ]
+
+    private static func orderedKeys(for keys: [String]) -> [String] {
+        for order in keyOrders {
+            let matched = order.filter { keys.contains($0) }
+            if matched.count * 2 >= keys.count {
+                let remaining = keys.filter { !order.contains($0) }.sorted()
+                return matched + remaining
+            }
+        }
+        return keys.sorted()
+    }
+
+    private static func serialize(_ value: Any, indent: Int) -> String {
+        let pad = String(repeating: "  ", count: indent)
+        let inner = String(repeating: "  ", count: indent + 1)
+
+        if let dict = value as? [String: Any] {
+            let keys = orderedKeys(for: Array(dict.keys))
+            var lines: [String] = []
+            for key in keys {
+                guard let val = dict[key] else { continue }
+                lines.append("\(inner)\(escapeString(key)): \(serialize(val, indent: indent + 1))")
+            }
+            return lines.isEmpty ? "{}" : "{\n\(lines.joined(separator: ",\n"))\n\(pad)}"
+        }
+
+        if let arr = value as? [Any] {
+            if arr.isEmpty { return "[]" }
+            let items = arr.map { "\(inner)\(serialize($0, indent: indent + 1))" }
+            return "[\n\(items.joined(separator: ",\n"))\n\(pad)]"
+        }
+
+        if let str = value as? String { return escapeString(str) }
+
+        if let num = value as? NSNumber {
+            if CFBooleanGetTypeID() == CFGetTypeID(num) {
+                return num.boolValue ? "true" : "false"
+            }
+            let d = num.doubleValue
+            if d == d.rounded(.towardZero) && !d.isInfinite && abs(d) < 1e15 {
+                return "\(Int64(d))"
+            }
+            return "\(d)"
+        }
+
+        if value is NSNull { return "null" }
+        return "\(value)"
+    }
+
+    private static func escapeString(_ s: String) -> String {
+        var out = "\""
+        for ch in s {
+            switch ch {
+            case "\"": out += "\\\""
+            case "\\": out += "\\\\"
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            case "\t": out += "\\t"
+            default: out.append(ch)
+            }
+        }
+        out += "\""
+        return out
     }
 }
