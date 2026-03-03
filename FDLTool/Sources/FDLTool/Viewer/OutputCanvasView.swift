@@ -259,7 +259,7 @@ struct OutputCanvasView: View {
 
             Text("Template: \(viewModel.templateConfig.label)")
                 .foregroundStyle(.white.opacity(0.6))
-            Text("\(viewModel.templateConfig.targetWidth)\u{00D7}\(viewModel.templateConfig.targetHeight)")
+            Text(verbatim: "\(viewModel.templateConfig.targetWidth)\u{00D7}\(viewModel.templateConfig.targetHeight)")
                 .foregroundStyle(.white.opacity(0.6))
         }
         .font(.system(size: 10, design: .monospaced))

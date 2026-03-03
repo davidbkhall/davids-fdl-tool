@@ -7,11 +7,19 @@ class AppState: ObservableObject {
     @Published var currentProject: Project?
     @Published var pythonBridgeStatus: BridgeStatus = .stopped
 
+    /// Default creator name used when generating new FDLs (persisted to UserDefaults).
+    @Published var defaultCreator: String {
+        didSet { UserDefaults.standard.set(defaultCreator, forKey: "defaultCreator") }
+    }
+
     /// Surfaced to the user as a blocking alert when the bridge fails.
     @Published var pythonBridgeError: String?
 
     /// URL pending open via Cmd+O or system file association; ViewerView observes this.
     @Published var pendingOpenURL: URL?
+    /// In-memory FDL document pending load in the Viewer (e.g. from Chart Generator).
+    @Published var pendingFDLDocument: FDLDocument?
+    @Published var pendingFDLFileName: String?
     /// Triggers the file-open panel from the menu bar command.
     @Published var showOpenFDLPanel = false
 
@@ -47,6 +55,7 @@ class AppState: ObservableObject {
         self.pythonBridge = PythonBridge()
         self.libraryStore = LibraryStore()
         self.cameraDBStore = CameraDBStore()
+        self.defaultCreator = UserDefaults.standard.string(forKey: "defaultCreator") ?? "FDL Tool"
     }
 
     func startServices() async {

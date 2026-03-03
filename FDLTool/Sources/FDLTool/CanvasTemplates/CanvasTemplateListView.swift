@@ -12,15 +12,25 @@ struct CanvasTemplateListView: View {
                     .font(.headline)
                 Spacer()
 
-                Button(action: { viewModel.showImportSheet = true }) {
-                    Label("Import", systemImage: "square.and.arrow.down")
-                }
-                .buttonStyle(.borderless)
-
-                Button(action: { viewModel.beginNewTemplate() }) {
+                Menu {
+                    Button("Custom") {
+                        viewModel.beginNewASCTemplate(config: CanvasTemplateConfig())
+                    }
+                    Divider()
+                    ForEach(TemplatePresets.all, id: \.name) { preset in
+                        Button(preset.name) {
+                            viewModel.beginNewASCTemplate(config: preset.config)
+                        }
+                    }
+                    Divider()
+                    Button("Import JSON...") {
+                        viewModel.showImportSheet = true
+                    }
+                } label: {
                     Label("New", systemImage: "plus")
                 }
-                .buttonStyle(.borderless)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -51,7 +61,7 @@ struct CanvasTemplateListView: View {
                             .tag(template.id)
                             .contextMenu {
                                 Button("Edit") {
-                                    viewModel.beginEditing(template)
+                                    viewModel.beginEditingASC(template)
                                 }
                                 Button("Export") {
                                     viewModel.exportTemplate(template)
@@ -66,8 +76,8 @@ struct CanvasTemplateListView: View {
                 .listStyle(.inset)
             }
         }
-        .sheet(isPresented: $viewModel.showEditor) {
-            CanvasTemplateEditorView(viewModel: viewModel)
+        .sheet(isPresented: $viewModel.showASCEditor) {
+            ASCCanvasTemplateEditorSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $viewModel.showImportSheet) {
             CanvasTemplateImportSheet(viewModel: viewModel)
@@ -115,7 +125,7 @@ struct CanvasTemplateRow: View {
                         .background(.blue.opacity(0.1), in: Capsule())
                 }
 
-                Text(pipelineSummary)
+                Text(verbatim: templateDimsSummary)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -123,13 +133,15 @@ struct CanvasTemplateRow: View {
         .padding(.vertical, 2)
     }
 
-    private var pipelineSummary: String {
+    private var templateDimsSummary: String {
         guard let data = template.templateJSON.data(using: .utf8),
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let pipeline = dict["pipeline"] as? [[String: Any]] else {
+              let target = dict["target_dimensions"] as? [String: Any],
+              let w = target["width"] as? Int,
+              let h = target["height"] as? Int else {
             return ""
         }
-        let steps = pipeline.compactMap { $0["type"] as? String }
-        return steps.isEmpty ? "No pipeline steps" : steps.joined(separator: " \u{2192} ")
+        let fit = (dict["fit_method"] as? String) ?? ""
+        return "\(w)\u{00D7}\(h) \(fit)"
     }
 }

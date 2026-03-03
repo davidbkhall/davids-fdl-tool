@@ -10,12 +10,12 @@ struct DimensionsField: View {
     var body: some View {
         LabeledContent(label) {
             HStack(spacing: 4) {
-                TextField("W", value: $width, format: .number)
+                TextField("W", value: $width, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
                 Text("\u{00D7}")
                     .foregroundStyle(.secondary)
-                TextField("H", value: $height, format: .number)
+                TextField("H", value: $height, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
                 Text(unit)

@@ -184,6 +184,23 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("General") {
+                LabeledContent("Default Creator") {
+                    TextField(
+                        "Creator name",
+                        text: $appState.defaultCreator
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+                }
+                Text(
+                    "Used as the fdl_creator when generating new FDL documents"
+                    + " (e.g. from the Framing Chart Generator)."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             Section("Camera Database") {
                 LabeledContent("Cameras Loaded") {
                     Text("\(appState.cameraDBStore.cameras.count)")
@@ -242,6 +259,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 380)
+        .frame(width: 480, height: 480)
     }
 }

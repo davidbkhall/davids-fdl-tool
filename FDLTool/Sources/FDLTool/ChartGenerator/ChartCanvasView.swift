@@ -94,7 +94,7 @@ struct ChartCanvasView: View {
                             .offset(x: originX, y: originY)
 
                         if viewModel.showDimensionLabels {
-                            Text("\(Int(cw))\u{00D7}\(Int(ch))")
+                            Text(verbatim: "\(Int(cw))\u{00D7}\(Int(ch))")
                                 .font(.system(size: 9, design: .monospaced))
                                 .foregroundStyle(.gray)
                                 .offset(x: originX + scaledW - 80, y: originY + scaledH - 16)
@@ -116,7 +116,7 @@ struct ChartCanvasView: View {
                             .offset(x: ex, y: ey)
 
                         if viewModel.showDimensionLabels {
-                            Text("Eff \(Int(ew))\u{00D7}\(Int(eh))")
+                            Text(verbatim: "Eff \(Int(ew))\u{00D7}\(Int(eh))")
                                 .font(.system(size: 8, design: .monospaced))
                                 .foregroundStyle(.teal.opacity(0.8))
                                 .padding(.horizontal, 2)
@@ -144,7 +144,7 @@ struct ChartCanvasView: View {
                                 .offset(x: px, y: py)
 
                             if viewModel.showDimensionLabels {
-                                Text("Prot \(Int(prot.width))\u{00D7}\(Int(prot.height))")
+                                Text(verbatim: "Prot \(Int(prot.width))\u{00D7}\(Int(prot.height))")
                                     .font(.system(size: 8, design: .monospaced))
                                     .foregroundStyle(.orange.opacity(0.7))
                                     .padding(.horizontal, 2)
@@ -181,7 +181,7 @@ struct ChartCanvasView: View {
                             }
 
                             if viewModel.showDimensionLabels {
-                                Text("\(Int(fl.width))\u{00D7}\(Int(fl.height))")
+                                Text(verbatim: "\(Int(fl.width))\u{00D7}\(Int(fl.height))")
                                     .font(.system(size: 8, design: .monospaced))
                                     .foregroundStyle(color.opacity(0.7))
                                     .padding(.horizontal, 2)

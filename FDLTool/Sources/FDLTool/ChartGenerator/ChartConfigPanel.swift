@@ -129,7 +129,7 @@ struct ChartConfigPanel: View {
                                     Text("Width")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
-                                    TextField("W", value: $viewModel.canvasEffectiveWidth, format: .number)
+                                    TextField("W", value: $viewModel.canvasEffectiveWidth, format: .number.grouping(.never))
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 80)
                                 }
@@ -139,7 +139,7 @@ struct ChartConfigPanel: View {
                                     Text("Height")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
-                                    TextField("H", value: $viewModel.canvasEffectiveHeight, format: .number)
+                                    TextField("H", value: $viewModel.canvasEffectiveHeight, format: .number.grouping(.never))
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 80)
                                 }
@@ -151,7 +151,7 @@ struct ChartConfigPanel: View {
                                         Text("Anchor X")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
-                                        TextField("X", value: $viewModel.canvasEffectiveAnchorX, format: .number)
+                                        TextField("X", value: $viewModel.canvasEffectiveAnchorX, format: .number.grouping(.never))
                                             .textFieldStyle(.roundedBorder)
                                             .frame(width: 80)
                                     }
@@ -159,7 +159,7 @@ struct ChartConfigPanel: View {
                                         Text("Anchor Y")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
-                                        TextField("Y", value: $viewModel.canvasEffectiveAnchorY, format: .number)
+                                        TextField("Y", value: $viewModel.canvasEffectiveAnchorY, format: .number.grouping(.never))
                                             .textFieldStyle(.roundedBorder)
                                             .frame(width: 80)
                                     }
@@ -208,7 +208,7 @@ struct ChartConfigPanel: View {
                                 TextField("Squeeze", value: Binding(
                                     get: { customSqueezeValue },
                                     set: { customSqueezeValue = $0; viewModel.anamorphicSqueeze = $0 }
-                                ), format: .number)
+                                ), format: .number.grouping(.never))
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 80)
                             }
@@ -326,7 +326,7 @@ struct ChartConfigPanel: View {
                     )) {
                         Text("Select mode...").tag("")
                         ForEach(camera.recordingModes) { mode in
-                            Text("\(mode.name) (\(mode.activePhotosites.width)\u{00D7}\(mode.activePhotosites.height))")
+                            Text(verbatim: "\(mode.name) (\(mode.activePhotosites.width)\u{00D7}\(mode.activePhotosites.height))")
                                 .tag(mode.id)
                         }
                     }
@@ -335,7 +335,7 @@ struct ChartConfigPanel: View {
 
                 if let mode = viewModel.selectedRecordingMode {
                     HStack(spacing: 8) {
-                        Text("\(mode.activePhotosites.width) \u{00D7} \(mode.activePhotosites.height)")
+                        Text(verbatim: "\(mode.activePhotosites.width) \u{00D7} \(mode.activePhotosites.height)")
                             .font(.system(.caption, design: .monospaced))
                         AspectRatioLabel(width: Double(mode.activePhotosites.width),
                                          height: Double(mode.activePhotosites.height))
@@ -359,7 +359,7 @@ struct ChartConfigPanel: View {
                 Text("Width")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                TextField("W", value: $viewModel.customCanvasWidth, format: .number)
+                TextField("W", value: $viewModel.customCanvasWidth, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
             }
@@ -369,7 +369,7 @@ struct ChartConfigPanel: View {
                 Text("Height")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                TextField("H", value: $viewModel.customCanvasHeight, format: .number)
+                TextField("H", value: $viewModel.customCanvasHeight, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 80)
             }
@@ -385,7 +385,7 @@ struct ChartConfigPanel: View {
                 Text("Canvas:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("\(Int(w)) \u{00D7} \(Int(h))")
+                Text(verbatim: "\(Int(w)) \u{00D7} \(Int(h))")
                     .font(.system(.caption, design: .monospaced))
                 AspectRatioLabel(width: w, height: h)
             }
@@ -478,7 +478,7 @@ struct FramingIntentRow: View {
                 TextField("W", value: Binding(
                     get: { intent.aspectWidth },
                     set: { var i = intent; i.aspectWidth = $0; intent = i }
-                ), format: .number)
+                ), format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 55)
                     .font(.caption)
@@ -488,7 +488,7 @@ struct FramingIntentRow: View {
                 TextField("H", value: Binding(
                     get: { intent.aspectHeight },
                     set: { var i = intent; i.aspectHeight = $0; intent = i }
-                ), format: .number)
+                ), format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 55)
                     .font(.caption)
@@ -506,7 +506,7 @@ struct FramingIntentRow: View {
                 TextField("", value: Binding(
                     get: { intent.protectionPercent },
                     set: { var i = intent; i.protectionPercent = max(0, $0); intent = i }
-                ), format: .number.precision(.fractionLength(1)))
+                ), format: .number.grouping(.never).precision(.fractionLength(1)))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 50)
                     .font(.caption)
@@ -660,7 +660,7 @@ struct FramelineRow: View {
                 Text("W")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                TextField("W", value: widthBinding, format: .number)
+                TextField("W", value: widthBinding, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 70)
                     .font(.caption)
@@ -670,7 +670,7 @@ struct FramelineRow: View {
                 Text("H")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                TextField("H", value: heightBinding, format: .number)
+                TextField("H", value: heightBinding, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 70)
                     .font(.caption)
@@ -720,7 +720,7 @@ struct FramelineRow: View {
                     Text("Protection:")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text("\(Int(prot.width)) \u{00D7} \(Int(prot.height)) px")
+                    Text(verbatim: "\(Int(prot.width)) \u{00D7} \(Int(prot.height)) px")
                         .font(.system(.caption2, design: .monospaced))
                     if let intent = linkedIntent {
                         Text("(\(String(format: "%.1f", intent.protectionPercent))% from intent)")
@@ -761,10 +761,10 @@ struct FramelineRow: View {
                         Text("Manual:")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                        TextField("X", value: $frameline.anchorX, format: .number)
+                        TextField("X", value: $frameline.anchorX, format: .number.grouping(.never))
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 60)
-                        TextField("Y", value: $frameline.anchorY, format: .number)
+                        TextField("Y", value: $frameline.anchorY, format: .number.grouping(.never))
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 60)
                     }
@@ -778,22 +778,22 @@ struct FramelineRow: View {
                 DisclosureGroup("Manual Protection") {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 4) {
-                            TextField("W", value: $frameline.protectionWidth, format: .number)
+                            TextField("W", value: $frameline.protectionWidth, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 70)
                             Text("\u{00D7}")
                                 .foregroundStyle(.secondary)
-                            TextField("H", value: $frameline.protectionHeight, format: .number)
+                            TextField("H", value: $frameline.protectionHeight, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 70)
                         }
                         HStack(spacing: 4) {
                             Text("Anchor:")
                                 .foregroundStyle(.secondary)
-                            TextField("X", value: $frameline.protectionAnchorX, format: .number)
+                            TextField("X", value: $frameline.protectionAnchorX, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 60)
-                            TextField("Y", value: $frameline.protectionAnchorY, format: .number)
+                            TextField("Y", value: $frameline.protectionAnchorY, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 60)
                         }

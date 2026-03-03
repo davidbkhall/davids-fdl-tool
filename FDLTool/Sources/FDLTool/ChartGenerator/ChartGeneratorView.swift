@@ -29,6 +29,18 @@ private struct ChartGeneratorContent: View {
                 HStack {
                     Spacer()
 
+                    Button(action: {
+                        let doc = viewModel.buildLocalFDLDocument(
+                            creator: appState.defaultCreator
+                        )
+                        appState.pendingFDLDocument = doc
+                        appState.pendingFDLFileName = "\(viewModel.chartTitle).fdl"
+                        appState.selectedTool = .viewer
+                    }) {
+                        Label("Open in Viewer", systemImage: "eye")
+                    }
+                    .disabled(viewModel.framelines.isEmpty)
+
                     Button(action: { viewModel.showExportSheet = true }) {
                         Label("Export", systemImage: "square.and.arrow.up")
                     }

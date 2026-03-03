@@ -26,7 +26,7 @@ struct SidebarView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         .navigationTitle("FDL Tool")
     }
 }

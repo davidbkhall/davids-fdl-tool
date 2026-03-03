@@ -75,7 +75,7 @@ struct JSONImportValidatorView: View {
 
     private func loadFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.fdl, .json]
+        panel.allowedContentTypes = [.json, .data]
         panel.allowsOtherFileTypes = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false

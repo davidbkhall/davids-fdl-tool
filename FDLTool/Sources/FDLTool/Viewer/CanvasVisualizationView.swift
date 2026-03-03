@@ -129,6 +129,9 @@ struct CanvasVisualizationView: View {
                          scale: totalScale, baseX: baseX, baseY: baseY,
                          color: ViewerColors.effective, position: .bottomLeft)
             }
+            if viewModel.showAnchorPoints {
+                anchorMarker(x: eff.x, y: eff.y, scale: totalScale, baseX: baseX, baseY: baseY)
+            }
         }
 
         // Framing decisions + protection
@@ -138,6 +141,9 @@ struct CanvasVisualizationView: View {
             if viewModel.showProtectionLayer, let prot = fd.protectionRect {
                 drawRect(prot, scale: totalScale, baseX: baseX, baseY: baseY,
                          color: ViewerColors.protection, lineWidth: 1.5, dashed: true, fill: 0.05)
+                if viewModel.showAnchorPoints {
+                    anchorMarker(x: prot.x, y: prot.y, scale: totalScale, baseX: baseX, baseY: baseY)
+                }
             }
 
             // Framing rect
@@ -238,11 +244,36 @@ struct CanvasVisualizationView: View {
     private func anchorMarker(x: Double, y: Double, scale: CGFloat, baseX: CGFloat, baseY: CGFloat) -> some View {
         let px = baseX + CGFloat(x) * scale
         let py = baseY + CGFloat(y) * scale
+        let size: CGFloat = 12
+        let half = size / 2
 
-        Circle()
-            .fill(ViewerColors.framing)
-            .frame(width: 6, height: 6)
-            .offset(x: px - 3, y: py - 3)
+        // Diamond shape
+        Path { path in
+            path.move(to: CGPoint(x: px, y: py - half))
+            path.addLine(to: CGPoint(x: px + half, y: py))
+            path.addLine(to: CGPoint(x: px, y: py + half))
+            path.addLine(to: CGPoint(x: px - half, y: py))
+            path.closeSubpath()
+        }
+        .fill(Color.red.opacity(0.8))
+
+        Path { path in
+            path.move(to: CGPoint(x: px, y: py - half))
+            path.addLine(to: CGPoint(x: px + half, y: py))
+            path.addLine(to: CGPoint(x: px, y: py + half))
+            path.addLine(to: CGPoint(x: px - half, y: py))
+            path.closeSubpath()
+        }
+        .stroke(Color.white, lineWidth: 1)
+
+        // Coordinate label
+        Text(verbatim: "(\(Int(x)),\(Int(y)))")
+            .font(.system(size: 8, design: .monospaced))
+            .foregroundStyle(.red.opacity(0.9))
+            .padding(.horizontal, 2)
+            .padding(.vertical, 1)
+            .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 2))
+            .offset(x: px + half + 2, y: py - 6)
     }
 
     private enum LabelPosition { case topRight, bottomLeft, bottomRight }
@@ -304,17 +335,17 @@ struct CanvasVisualizationView: View {
     private func hudOverlay(canvasW: Double, canvasH: Double) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             if let canvas = viewModel.selectedCanvas {
-                Text("Canvas: \(Int(canvasW))\u{00D7}\(Int(canvasH))")
+                Text(verbatim: "Canvas: \(Int(canvasW))\u{00D7}\(Int(canvasH))")
                     .foregroundStyle(ViewerColors.canvas)
                 if let eff = canvas.effectiveDimensions {
-                    Text("Effective: \(Int(eff.width))\u{00D7}\(Int(eff.height))")
+                    Text(verbatim: "Effective: \(Int(eff.width))\u{00D7}\(Int(eff.height))")
                         .foregroundStyle(ViewerColors.effective)
                 }
                 if let squeeze = canvas.anamorphicSqueeze, squeeze != 1.0 {
-                    Text("Squeeze: \(String(format: "%.2f\u{00D7}", squeeze))")
+                    Text(verbatim: "Squeeze: \(String(format: "%.2f\u{00D7}", squeeze))")
                 }
                 ForEach(Array(canvas.framingDecisions.enumerated()), id: \.offset) { _, fd in
-                    Text("\(fd.label ?? "FD"): \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
+                    Text(verbatim: "\(fd.label ?? "FD"): \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
                         .foregroundStyle(ViewerColors.framing)
                 }
             }
@@ -346,7 +377,7 @@ struct CanvasVisualizationView: View {
             .frame(width: rx * 2, height: ry * 2)
             .offset(x: cx - rx, y: cy - ry)
 
-        Text("\(String(format: "%.1f", squeeze))\u{00D7} squeeze")
+        Text(verbatim: "\(String(format: "%.1f", squeeze))\u{00D7} squeeze")
             .font(.system(size: 10, design: .monospaced))
             .foregroundStyle(.yellow.opacity(0.6))
             .padding(.horizontal, 4)

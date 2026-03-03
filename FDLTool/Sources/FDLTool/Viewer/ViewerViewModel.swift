@@ -2,6 +2,24 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
+private func withTimeout<T: Sendable>(
+    seconds: Double,
+    operation: @Sendable @escaping () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { try await operation() }
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw CancellationError()
+        }
+        guard let result = try await group.next() else {
+            throw CancellationError()
+        }
+        group.cancelAll()
+        return result
+    }
+}
+
 @MainActor
 class ViewerViewModel: ObservableObject {
     // Document state
@@ -124,9 +142,16 @@ class ViewerViewModel: ObservableObject {
     }
 
     /// Canvas dimensions for the current selection.
+    /// Falls back to reference image size if no FDL is loaded.
     var canvasDimensions: (width: Double, height: Double)? {
         if let canvas = selectedCanvas {
             return (canvas.dimensions.width, canvas.dimensions.height)
+        }
+        if let image = referenceImage {
+            let size = image.size
+            if size.width > 0 && size.height > 0 {
+                return (Double(size.width), Double(size.height))
+            }
         }
         return nil
     }
@@ -151,15 +176,147 @@ class ViewerViewModel: ObservableObject {
 
     // MARK: - Template
 
+    var templateIsConfigured: Bool {
+        selectedPresetName != nil || templateConfig != CanvasTemplateConfig()
+    }
+
     func applyPreset(_ name: String) {
         guard let preset = TemplatePresets.all.first(where: { $0.name == name }) else { return }
         selectedPresetName = name
         templateConfig = preset.config
     }
 
+    func startCustomTemplate() {
+        templateConfig = CanvasTemplateConfig(
+            id: UUID().uuidString,
+            label: "Custom"
+        )
+        selectedPresetName = nil
+    }
+
+    func loadLibraryTemplate(_ template: CanvasTemplate) {
+        guard let data = template.templateJSON.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(
+                  with: data
+              ) as? [String: Any]
+        else {
+            errorMessage = "Failed to parse library template JSON"
+            return
+        }
+
+        var config = CanvasTemplateConfig()
+        if let id = dict["id"] as? String { config.id = id }
+        if let label = dict["label"] as? String { config.label = label }
+        if let target = dict["target_dimensions"] as? [String: Any] {
+            if let w = target["width"] as? Int { config.targetWidth = w }
+            if let h = target["height"] as? Int { config.targetHeight = h }
+        }
+        if let fs = dict["fit_source"] as? String { config.fitSource = fs }
+        if let fm = dict["fit_method"] as? String { config.fitMethod = fm }
+        if let ah = dict["alignment_method_horizontal"] as? String {
+            config.alignmentHorizontal = ah
+        }
+        if let av = dict["alignment_method_vertical"] as? String {
+            config.alignmentVertical = av
+        }
+        if let p = dict["preserve_from_source_canvas"] as? String {
+            config.preserveFromSourceCanvas = p
+        }
+        if let pm = dict["pad_to_maximum"] as? Bool {
+            config.padToMaximum = pm
+        }
+        if let maxDims = dict["maximum_dimensions"] as? [String: Any] {
+            config.maximumWidth = maxDims["width"] as? Int
+            config.maximumHeight = maxDims["height"] as? Int
+        }
+        if let rounding = dict["round"] as? [String: Any] {
+            if let re = rounding["even"] as? String { config.roundEven = re }
+            if let rm = rounding["mode"] as? String { config.roundMode = rm }
+        }
+
+        templateConfig = config
+        selectedPresetName = template.name
+    }
+
+    func saveTemplateToLibrary(
+        libraryStore: LibraryStore,
+        libraryViewModel: LibraryViewModel
+    ) {
+        let dict = templateConfig.toDict()
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: dict, options: [.prettyPrinted, .sortedKeys]
+        ),
+              let jsonStr = String(data: data, encoding: .utf8)
+        else {
+            errorMessage = "Failed to serialize template"
+            return
+        }
+
+        let template = CanvasTemplate(
+            name: templateConfig.label,
+            description: nil,
+            templateJSON: jsonStr,
+            source: "FDL Viewer"
+        )
+        do {
+            try libraryStore.saveCanvasTemplate(template)
+            libraryViewModel.refreshCanvasTemplates()
+        } catch {
+            errorMessage = "Save failed: \(error.localizedDescription)"
+        }
+    }
+
+    func assignTemplateToProject(
+        projectID: String,
+        libraryStore: LibraryStore,
+        libraryViewModel: LibraryViewModel
+    ) {
+        let dict = templateConfig.toDict()
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: dict, options: [.prettyPrinted, .sortedKeys]
+        ),
+              let jsonStr = String(data: data, encoding: .utf8)
+        else {
+            errorMessage = "Failed to serialize template"
+            return
+        }
+
+        let template = CanvasTemplate(
+            name: templateConfig.label,
+            description: nil,
+            templateJSON: jsonStr,
+            source: "FDL Viewer"
+        )
+        do {
+            try libraryStore.saveCanvasTemplate(template)
+            try libraryStore.assignTemplate(
+                templateID: template.id, toProject: projectID
+            )
+            libraryViewModel.refreshCanvasTemplates()
+        } catch {
+            errorMessage = "Assign failed: \(error.localizedDescription)"
+        }
+    }
+
+    func resetTemplateValues() {
+        let label = templateConfig.label
+        templateConfig = CanvasTemplateConfig()
+        templateConfig.label = label
+        selectedPresetName = nil
+    }
+
+    func resetTemplate() {
+        templateConfig = CanvasTemplateConfig()
+        selectedPresetName = nil
+        outputDocument = nil
+        outputGeometry = nil
+        outputRawJSON = nil
+        transformInfo = nil
+    }
+
     func importTemplateJSON() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.fdl, .json]
+        panel.allowedContentTypes = [.json, .data]
         panel.allowsOtherFileTypes = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -224,14 +381,10 @@ class ViewerViewModel: ObservableObject {
     }
 
     func applyTemplate(pythonBridge: PythonBridge) {
-        guard let rawJSON else { return }
-        guard let fdlDict = try? JSONSerialization.jsonObject(with: Data(rawJSON.utf8)) as? [String: Any] else { return }
-
-        let templateDict = templateConfig.toDict()
-        guard let templateJSON = try? JSONSerialization.data(withJSONObject: templateDict),
-              let templateStr = String(data: templateJSON, encoding: .utf8) else { return }
-        guard let fdlJSON = try? JSONSerialization.data(withJSONObject: fdlDict),
-              let fdlStr = String(data: fdlJSON, encoding: .utf8) else { return }
+        guard loadedDocument != nil else {
+            errorMessage = "No source FDL loaded"
+            return
+        }
 
         isApplyingTemplate = true
         let ctxIndex = selectedContextIndex
@@ -239,53 +392,266 @@ class ViewerViewModel: ObservableObject {
         let fdIndex = selectedFramingIndex ?? 0
 
         Task {
-            do {
-                let response = try await pythonBridge.callForResult("template.apply_fdl", params: [
-                    "fdl_json": fdlStr,
-                    "template_json": templateStr,
-                    "context_index": ctxIndex,
-                    "canvas_index": canvasIndex,
-                    "fd_index": fdIndex,
-                ])
-
-                if let fdlDict = response["fdl"] as? [String: Any] {
-                    let data = try JSONSerialization.data(withJSONObject: fdlDict, options: .prettyPrinted)
-                    outputDocument = try JSONDecoder().decode(FDLDocument.self, from: data)
-                    outputRawJSON = String(data: data, encoding: .utf8)
-
-                    // Compute output geometry
-                    let geoResponse = try await pythonBridge.callForResult("geometry.compute_rects", params: [
-                        "fdl_data": fdlDict,
-                    ])
-                    let geoData = try JSONSerialization.data(withJSONObject: geoResponse)
-                    outputGeometry = try JSONDecoder().decode(ComputedGeometry.self, from: geoData)
-                }
-
-                // Build transform info
-                let srcCanvas = selectedCanvas
-                let srcFD = selectedFramingDecision ?? selectedCanvas?.framingDecisions.first
-                transformInfo = TransformInfo(
-                    sourceCanvas: "\(Int(srcCanvas?.dimensions.width ?? 0))\u{00D7}\(Int(srcCanvas?.dimensions.height ?? 0))",
-                    sourceFraming: "\(Int(srcFD?.dimensions.width ?? 0))\u{00D7}\(Int(srcFD?.dimensions.height ?? 0))",
-                    outputCanvas: nil,
-                    outputFraming: nil
-                )
-
-                if let outDoc = outputDocument, let outCtx = outDoc.contexts.first {
-                    if let outCanvas = outCtx.canvases.first {
-                        transformInfo?.outputCanvas = "\(Int(outCanvas.dimensions.width))\u{00D7}\(Int(outCanvas.dimensions.height))"
-                        if let outFD = outCanvas.framingDecisions.first {
-                            transformInfo?.outputFraming = "\(Int(outFD.dimensions.width))\u{00D7}\(Int(outFD.dimensions.height))"
-                        }
-                    }
-                }
-
-                activeTab = .output
-            } catch {
-                errorMessage = "Template application failed: \(error.localizedDescription)"
+            defer {
+                isApplyingTemplate = false
             }
-            isApplyingTemplate = false
+
+            var usedPython = false
+
+            if let rawJSON,
+               let fdlDict = try? JSONSerialization.jsonObject(
+                   with: Data(rawJSON.utf8)
+               ) as? [String: Any],
+               let templateJSON = try? JSONSerialization.data(
+                   withJSONObject: templateConfig.toDict()
+               ),
+               let templateStr = String(data: templateJSON, encoding: .utf8),
+               let fdlData = try? JSONSerialization.data(withJSONObject: fdlDict),
+               let fdlStr = String(data: fdlData, encoding: .utf8) {
+                do {
+                    let response = try await withTimeout(seconds: 8) {
+                        try await pythonBridge.callForResult(
+                            "template.apply_fdl",
+                            params: [
+                                "fdl_json": fdlStr,
+                                "template_json": templateStr,
+                                "context_index": ctxIndex,
+                                "canvas_index": canvasIndex,
+                                "fd_index": fdIndex,
+                            ]
+                        )
+                    }
+
+                    if let resultFdl = response["fdl"] as? [String: Any] {
+                        let data = try JSONSerialization.data(
+                            withJSONObject: resultFdl,
+                            options: .prettyPrinted
+                        )
+                        outputDocument = try JSONDecoder().decode(
+                            FDLDocument.self, from: data
+                        )
+                        outputRawJSON = String(data: data, encoding: .utf8)
+
+                        let geoResponse = try await withTimeout(seconds: 5) {
+                            try await pythonBridge.callForResult(
+                                "geometry.compute_rects",
+                                params: ["fdl_data": resultFdl]
+                            )
+                        }
+                        let geoData = try JSONSerialization.data(
+                            withJSONObject: geoResponse
+                        )
+                        outputGeometry = try JSONDecoder().decode(
+                            ComputedGeometry.self, from: geoData
+                        )
+                    }
+                    usedPython = true
+                } catch {
+                    print("Python bridge template failed, using local: \(error)")
+                }
+            }
+
+            if !usedPython {
+                applyTemplateLocally(
+                    ctxIndex: ctxIndex,
+                    canvasIndex: canvasIndex,
+                    fdIndex: fdIndex
+                )
+            }
+
+            buildTransformInfo()
+            activeTab = .output
         }
+    }
+
+    /// Local Swift-only template application following ASC FDL spec.
+    private func applyTemplateLocally(
+        ctxIndex: Int, canvasIndex: Int, fdIndex: Int
+    ) {
+        guard let doc = loadedDocument,
+              ctxIndex < doc.contexts.count else { return }
+        let ctx = doc.contexts[ctxIndex]
+        guard canvasIndex < ctx.canvases.count else { return }
+        let canvas = ctx.canvases[canvasIndex]
+        guard fdIndex < canvas.framingDecisions.count else { return }
+        let fd = canvas.framingDecisions[fdIndex]
+        let template = templateConfig
+
+        let sourceDims: (w: Double, h: Double) = {
+            switch template.fitSource {
+            case "framing_decision.protection_dimensions":
+                if let p = fd.protectionDimensions {
+                    return (p.width, p.height)
+                }
+                return (fd.dimensions.width, fd.dimensions.height)
+            case "canvas.effective_dimensions":
+                if let e = canvas.effectiveDimensions {
+                    return (e.width, e.height)
+                }
+                return (canvas.dimensions.width, canvas.dimensions.height)
+            case "canvas.dimensions":
+                return (canvas.dimensions.width, canvas.dimensions.height)
+            default:
+                return (fd.dimensions.width, fd.dimensions.height)
+            }
+        }()
+
+        let tw = Double(template.targetWidth)
+        let th = Double(template.targetHeight)
+
+        let scale: Double = {
+            let sx = tw / max(sourceDims.w, 1)
+            let sy = th / max(sourceDims.h, 1)
+            switch template.fitMethod {
+            case "fill": return max(sx, sy)
+            case "width": return sx
+            case "height": return sy
+            default: return min(sx, sy)
+            }
+        }()
+
+        func applyRound(_ val: Double) -> Double {
+            let rounded: Double
+            switch template.roundMode {
+            case "down": rounded = floor(val)
+            case "round": rounded = (val).rounded()
+            default: rounded = ceil(val)
+            }
+            if template.roundEven == "even" {
+                let r = Int(rounded)
+                return Double(r % 2 == 0 ? r : r + 1)
+            }
+            return rounded
+        }
+
+        let newFW = applyRound(fd.dimensions.width * scale)
+        let newFH = applyRound(fd.dimensions.height * scale)
+        var newCW = tw
+        var newCH = th
+
+        var newProtW: Double?
+        var newProtH: Double?
+        if let p = fd.protectionDimensions {
+            newProtW = applyRound(p.width * scale)
+            newProtH = applyRound(p.height * scale)
+        }
+
+        var newEffW: Double?
+        var newEffH: Double?
+        if let e = canvas.effectiveDimensions {
+            newEffW = applyRound(e.width * scale)
+            newEffH = applyRound(e.height * scale)
+        }
+
+        if let mw = template.maximumWidth, let mh = template.maximumHeight {
+            newCW = min(newCW, Double(mw))
+            newCH = min(newCH, Double(mh))
+            if template.padToMaximum {
+                newCW = Double(mw)
+                newCH = Double(mh)
+            }
+        }
+
+        func anchor(
+            _ objW: Double, _ objH: Double,
+            in containerW: Double, _ containerH: Double
+        ) -> FDLPoint {
+            let x: Double
+            switch template.alignmentHorizontal {
+            case "left": x = 0
+            case "right": x = containerW - objW
+            default: x = (containerW - objW) / 2
+            }
+            let y: Double
+            switch template.alignmentVertical {
+            case "top": y = 0
+            case "bottom": y = containerH - objH
+            default: y = (containerH - objH) / 2
+            }
+            return FDLPoint(x: x, y: y)
+        }
+
+        let framingAnchor = anchor(newFW, newFH, in: newCW, newCH)
+        let protAnchor: FDLPoint? = {
+            guard let pw = newProtW, let ph = newProtH else { return nil }
+            return anchor(pw, ph, in: newCW, newCH)
+        }()
+        let effAnchor: FDLPoint? = {
+            guard let ew = newEffW, let eh = newEffH else { return nil }
+            return anchor(ew, eh, in: newCW, newCH)
+        }()
+
+        var newFD = fd
+        newFD.dimensions = FDLDimensions(width: newFW, height: newFH)
+        newFD.anchorPoint = framingAnchor
+        if let pw = newProtW, let ph = newProtH {
+            newFD.protectionDimensions = FDLDimensions(width: pw, height: ph)
+            newFD.protectionAnchorPoint = protAnchor
+        }
+
+        var newCanvas = canvas
+        newCanvas.dimensions = FDLDimensions(width: newCW, height: newCH)
+        if let ew = newEffW, let eh = newEffH {
+            newCanvas.effectiveDimensions = FDLDimensions(width: ew, height: eh)
+            newCanvas.effectiveAnchorPoint = effAnchor
+        }
+        var fds = newCanvas.framingDecisions
+        if fdIndex < fds.count { fds[fdIndex] = newFD }
+        newCanvas.framingDecisions = fds
+
+        var newCtx = ctx
+        var canvases = newCtx.canvases
+        if canvasIndex < canvases.count { canvases[canvasIndex] = newCanvas }
+        newCtx.canvases = canvases
+
+        var newDoc = doc
+        var contexts = newDoc.contexts
+        if ctxIndex < contexts.count { contexts[ctxIndex] = newCtx }
+        newDoc.contexts = contexts
+
+        outputDocument = newDoc
+        outputGeometry = computeGeometryLocally(from: newDoc)
+
+        if let data = try? JSONEncoder().encode(newDoc),
+           let json = String(data: data, encoding: .utf8) {
+            outputRawJSON = json
+        }
+    }
+
+    private func buildTransformInfo() {
+        let srcCanvas = selectedCanvas
+        let srcFD = selectedFramingDecision
+            ?? selectedCanvas?.framingDecisions.first
+        var info = TransformInfo(
+            sourceCanvas: formatDims(
+                srcCanvas?.dimensions.width,
+                srcCanvas?.dimensions.height
+            ),
+            sourceFraming: formatDims(
+                srcFD?.dimensions.width, srcFD?.dimensions.height
+            )
+        )
+
+        if let outDoc = outputDocument,
+           let outCtx = outDoc.contexts.first,
+           let outCanvas = outCtx.canvases.first
+        {
+            info.outputCanvas = formatDims(
+                outCanvas.dimensions.width,
+                outCanvas.dimensions.height
+            )
+            if let outFD = outCanvas.framingDecisions.first {
+                info.outputFraming = formatDims(
+                    outFD.dimensions.width, outFD.dimensions.height
+                )
+            }
+        }
+
+        transformInfo = info
+    }
+
+    private func formatDims(_ w: Double?, _ h: Double?) -> String {
+        "\(Int(w ?? 0))\u{00D7}\(Int(h ?? 0))"
     }
 
     /// The first computed canvas from the output geometry.
@@ -309,7 +675,7 @@ class ViewerViewModel: ObservableObject {
 
     func openFile(pythonBridge: PythonBridge) {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.fdl, .json]
+        panel.allowedContentTypes = [.json, .data]
         panel.allowsOtherFileTypes = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -326,6 +692,7 @@ class ViewerViewModel: ObservableObject {
 
         loadedFileName = url.lastPathComponent
         loadedFilePath = url.path
+        activeTab = .source
 
         referenceImage = nil
         referenceImagePath = nil
@@ -335,66 +702,201 @@ class ViewerViewModel: ObservableObject {
         outputRawJSON = nil
         transformInfo = nil
 
+        let data: Data
         do {
-            let data = try Data(contentsOf: url)
+            data = try Data(contentsOf: url)
             guard let jsonString = String(data: data, encoding: .utf8) else {
                 errorMessage = "File is not valid UTF-8 text"
                 return
             }
             rawJSON = jsonString
-
-            guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                errorMessage = "Invalid FDL: expected a JSON object"
-                loadedDocument = nil
-                return
-            }
-
-            guard dict["uuid"] != nil || dict["contexts"] != nil else {
-                errorMessage = "Invalid FDL: missing required 'uuid' or 'contexts' fields"
-                loadedDocument = nil
-                return
-            }
         } catch {
             errorMessage = "Failed to read file: \(error.localizedDescription)"
             return
         }
 
+        // Parse locally first so the UI is immediately populated
+        do {
+            loadedDocument = try JSONDecoder().decode(
+                FDLDocument.self, from: data
+            )
+            computedGeometry = computeGeometryLocally(from: loadedDocument!)
+        } catch {
+            errorMessage = "Invalid FDL: \(error.localizedDescription)"
+            loadedDocument = nil
+            return
+        }
+
+        // Enhance with Python bridge (validation, normalized parse) in background
         Task {
-            do {
-                let parseResponse = try await pythonBridge.callForResult("fdl.parse", params: [
-                    "path": url.path,
-                ])
-                if let fdlDict = parseResponse["fdl"] as? [String: Any] {
-                    let data = try JSONSerialization.data(withJSONObject: fdlDict)
-                    loadedDocument = try JSONDecoder().decode(FDLDocument.self, from: data)
-                }
-
-                let valResponse = try await pythonBridge.callForResult("fdl.validate", params: [
-                    "path": url.path,
-                ])
-                let valData = try JSONSerialization.data(withJSONObject: valResponse)
-                validationResult = try JSONDecoder().decode(ValidationResult.self, from: valData)
-
-                await computeGeometry(pythonBridge: pythonBridge)
-            } catch {
-                errorMessage = "Failed to process FDL: \(error.localizedDescription)"
-            }
+            await enhanceWithPythonBridge(url: url, pythonBridge: pythonBridge)
         }
     }
 
-    func computeGeometry(pythonBridge: PythonBridge) async {
+    private func enhanceWithPythonBridge(
+        url: URL, pythonBridge: PythonBridge
+    ) async {
         guard let rawJSON else { return }
-        guard let fdlDict = try? JSONSerialization.jsonObject(with: Data(rawJSON.utf8)) as? [String: Any] else { return }
 
         do {
-            let response = try await pythonBridge.callForResult("geometry.compute_rects", params: [
-                "fdl_data": fdlDict,
-            ])
-            let data = try JSONSerialization.data(withJSONObject: response)
-            computedGeometry = try JSONDecoder().decode(ComputedGeometry.self, from: data)
+            let parseResponse = try await pythonBridge.callForResult(
+                "fdl.parse", params: ["path": url.path]
+            )
+            if let fdlDict = parseResponse["fdl"] as? [String: Any] {
+                let data = try JSONSerialization.data(
+                    withJSONObject: fdlDict
+                )
+                let bridgeDoc = try JSONDecoder().decode(
+                    FDLDocument.self, from: data
+                )
+                loadedDocument = bridgeDoc
+            }
+
+            let valResponse = try await pythonBridge.callForResult(
+                "fdl.validate", params: ["path": url.path]
+            )
+            let valData = try JSONSerialization.data(
+                withJSONObject: valResponse
+            )
+            validationResult = try JSONDecoder().decode(
+                ValidationResult.self, from: valData
+            )
+
+            guard let fdlDict = try? JSONSerialization.jsonObject(
+                with: Data(rawJSON.utf8)
+            ) as? [String: Any] else { return }
+
+            let geoResponse = try await pythonBridge.callForResult(
+                "geometry.compute_rects", params: ["fdl_data": fdlDict]
+            )
+            let geoData = try JSONSerialization.data(
+                withJSONObject: geoResponse
+            )
+            computedGeometry = try JSONDecoder().decode(
+                ComputedGeometry.self, from: geoData
+            )
         } catch {
-            // Geometry computation is non-critical; just log and continue
-            print("Geometry computation failed: \(error)")
+            // Python bridge enhancement is non-critical;
+            // local parsing already succeeded
+            print("Python bridge enhancement failed: \(error)")
+        }
+    }
+
+    /// Compute geometry rectangles locally from an FDLDocument.
+    /// Used as immediate fallback when Python bridge is unavailable.
+    func computeGeometryLocally(
+        from doc: FDLDocument
+    ) -> ComputedGeometry {
+        let contexts = doc.contexts.map { ctx -> ComputedContext in
+            let canvases = ctx.canvases.map { canvas -> ComputedCanvas in
+                let cw = canvas.dimensions.width
+                let ch = canvas.dimensions.height
+                let canvasRect = GeometryRect(
+                    x: 0, y: 0, width: cw, height: ch
+                )
+
+                var effectiveRect: GeometryRect?
+                if let eff = canvas.effectiveDimensions {
+                    let ex: Double
+                    let ey: Double
+                    if let anchor = canvas.effectiveAnchorPoint {
+                        ex = anchor.x
+                        ey = anchor.y
+                    } else {
+                        ex = (cw - eff.width) / 2
+                        ey = (ch - eff.height) / 2
+                    }
+                    effectiveRect = GeometryRect(
+                        x: ex, y: ey,
+                        width: eff.width, height: eff.height
+                    )
+                }
+
+                let fds = canvas.framingDecisions.map { fd
+                    -> ComputedFramingDecision in
+                    let fw = fd.dimensions.width
+                    let fh = fd.dimensions.height
+                    let fx: Double
+                    let fy: Double
+                    if let anchor = fd.anchorPoint {
+                        fx = anchor.x
+                        fy = anchor.y
+                    } else {
+                        fx = (cw - fw) / 2
+                        fy = (ch - fh) / 2
+                    }
+                    let framingRect = GeometryRect(
+                        x: fx, y: fy, width: fw, height: fh
+                    )
+
+                    var protectionRect: GeometryRect?
+                    if let prot = fd.protectionDimensions {
+                        let px: Double
+                        let py: Double
+                        if let pa = fd.protectionAnchorPoint {
+                            px = pa.x
+                            py = pa.y
+                        } else {
+                            px = (cw - prot.width) / 2
+                            py = (ch - prot.height) / 2
+                        }
+                        protectionRect = GeometryRect(
+                            x: px, y: py,
+                            width: prot.width, height: prot.height
+                        )
+                    }
+
+                    var anchorPoint: GeometryPoint?
+                    if let ap = fd.anchorPoint {
+                        anchorPoint = GeometryPoint(x: ap.x, y: ap.y)
+                    }
+
+                    return ComputedFramingDecision(
+                        label: fd.label ?? fd.id,
+                        framingIntent: fd.framingIntentId ?? "",
+                        framingRect: framingRect,
+                        protectionRect: protectionRect,
+                        anchorPoint: anchorPoint
+                    )
+                }
+
+                return ComputedCanvas(
+                    label: canvas.label,
+                    canvasRect: canvasRect,
+                    effectiveRect: effectiveRect,
+                    framingDecisions: fds
+                )
+            }
+
+            return ComputedContext(
+                label: ctx.label, canvases: canvases
+            )
+        }
+
+        return ComputedGeometry(contexts: contexts)
+    }
+
+    // MARK: - Load from In-Memory Document
+
+    func loadDocument(_ doc: FDLDocument, fileName: String) {
+        loadedFileName = fileName
+        loadedFilePath = nil
+        activeTab = .source
+
+        referenceImage = nil
+        referenceImagePath = nil
+        overlayPNGBase64 = nil
+        outputDocument = nil
+        outputGeometry = nil
+        outputRawJSON = nil
+        transformInfo = nil
+
+        loadedDocument = doc
+        computedGeometry = computeGeometryLocally(from: doc)
+
+        if let data = try? JSONEncoder().encode(doc),
+           let json = String(data: data, encoding: .utf8) {
+            rawJSON = json
         }
     }
 
@@ -428,6 +930,7 @@ class ViewerViewModel: ObservableObject {
         referenceImage = image
         referenceImagePath = url.path
         overlayPNGBase64 = nil
+        activeTab = .source
     }
 
     func clearReferenceImage() {

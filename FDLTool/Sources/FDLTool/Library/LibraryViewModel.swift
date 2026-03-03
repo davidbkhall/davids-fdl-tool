@@ -10,6 +10,7 @@ class LibraryViewModel: ObservableObject {
     @Published var selectedEntry: FDLEntry?
     @Published var parsedDocument: FDLDocument?
     @Published var validationResult: ValidationResult?
+    @Published var canvasTemplates: [CanvasTemplate] = []
 
     // Import state
     @Published var showImportSheet = false
@@ -38,19 +39,24 @@ class LibraryViewModel: ObservableObject {
     // Error state
     @Published var errorMessage: String?
 
-    private let libraryStore: LibraryStore
+    let libraryStore: LibraryStore
     private let pythonBridge: PythonBridge
 
     init(libraryStore: LibraryStore, pythonBridge: PythonBridge) {
         self.libraryStore = libraryStore
         self.pythonBridge = pythonBridge
         self.projects = libraryStore.projects
+        refreshCanvasTemplates()
     }
 
     // MARK: - Project Operations
 
     func refreshProjects() {
         projects = libraryStore.projects
+    }
+
+    func refreshCanvasTemplates() {
+        canvasTemplates = (try? libraryStore.allCanvasTemplates()) ?? []
     }
 
     func createProject(name: String, description: String?) {

@@ -347,6 +347,25 @@ class LibraryStore: ObservableObject {
             return (template, role)
         }
     }
+
+    func projectIDsForTemplate(_ templateID: String) throws -> Set<String> {
+        guard let db = db else { throw LibraryStoreError.databaseNotOpen }
+        let query = projectTemplatesTable
+            .filter(colTemplateID == templateID)
+            .select(colProjectID)
+        return Set(try db.prepare(query).map { $0[colProjectID] })
+    }
+
+    func removeTemplateFromProject(
+        templateID: String, projectID: String
+    ) throws {
+        guard let db = db else { throw LibraryStoreError.databaseNotOpen }
+        try db.run(
+            projectTemplatesTable
+                .filter(colTemplateID == templateID && colProjectID == projectID)
+                .delete()
+        )
+    }
 }
 
 enum LibraryStoreError: Error, LocalizedError {

@@ -224,14 +224,14 @@ struct CameraDatabaseView: View {
     private var resolutionSearchBar: some View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
-                TextField("W", value: $resWidth, format: .number)
+                TextField("W", value: $resWidth, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 70)
                     .font(.caption)
                 Text("\u{00D7}")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("H", value: $resHeight, format: .number)
+                TextField("H", value: $resHeight, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 70)
                     .font(.caption)
@@ -272,7 +272,7 @@ struct CameraDatabaseView: View {
                             Text(match.modeName)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text("\(match.resWidth)\u{00D7}\(match.resHeight)")
+                            Text(verbatim: "\(match.resWidth)\u{00D7}\(match.resHeight)")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                             Text(match.formatAspect)
@@ -390,7 +390,7 @@ struct CameraListRow: View {
                 HStack(spacing: 3) {
                     Text("Res:")
                         .foregroundStyle(.tertiary)
-                    Text("\(camera.sensor.photositeDimensions.width)\u{00D7}\(camera.sensor.photositeDimensions.height)")
+                    Text(verbatim: "\(camera.sensor.photositeDimensions.width)\u{00D7}\(camera.sensor.photositeDimensions.height)")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -597,7 +597,7 @@ struct CameraDetailView: View {
             }
             GridRow {
                 Text("Photosites").foregroundStyle(.secondary)
-                Text("\(camera.sensor.photositeDimensions.width) \u{00D7} \(camera.sensor.photositeDimensions.height)")
+                Text(verbatim: "\(camera.sensor.photositeDimensions.width) \u{00D7} \(camera.sensor.photositeDimensions.height)")
             }
             GridRow {
                 Text("Physical Size").foregroundStyle(.secondary)
@@ -629,22 +629,22 @@ struct CameraDetailView: View {
             }
             GridRow {
                 Text("Width (px)").foregroundStyle(.secondary)
-                TextField("W", value: $camera.sensor.photositeDimensions.width, format: .number)
+                TextField("W", value: $camera.sensor.photositeDimensions.width, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 100)
             }
             GridRow {
                 Text("Height (px)").foregroundStyle(.secondary)
-                TextField("H", value: $camera.sensor.photositeDimensions.height, format: .number)
+                TextField("H", value: $camera.sensor.photositeDimensions.height, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 100)
             }
             GridRow {
                 Text("Width (mm)").foregroundStyle(.secondary)
-                TextField("W", value: $camera.sensor.physicalDimensionsMM.width, format: .number)
+                TextField("W", value: $camera.sensor.physicalDimensionsMM.width, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 100)
             }
             GridRow {
                 Text("Height (mm)").foregroundStyle(.secondary)
-                TextField("H", value: $camera.sensor.physicalDimensionsMM.height, format: .number)
+                TextField("H", value: $camera.sensor.physicalDimensionsMM.height, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 100)
             }
         }
@@ -714,7 +714,7 @@ struct RecordingModeRow: View {
                     Text("Active Area")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(mode.activePhotosites.width) \u{00D7} \(mode.activePhotosites.height) px")
+                    Text(verbatim: "\(mode.activePhotosites.width) \u{00D7} \(mode.activePhotosites.height) px")
                         .font(.caption)
                     AspectRatioLabel(width: Double(mode.activePhotosites.width),
                                      height: Double(mode.activePhotosites.height))
@@ -931,18 +931,18 @@ struct AddCameraSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 TextField("Mode Name", text: $name)
                 HStack {
-                    TextField("W px", value: $widthPx, format: .number)
+                    TextField("W px", value: $widthPx, format: .number.grouping(.never))
                         .frame(width: 70)
-                    TextField("H px", value: $heightPx, format: .number)
+                    TextField("H px", value: $heightPx, format: .number.grouping(.never))
                         .frame(width: 70)
                 }
                 HStack {
-                    TextField("W mm", value: $widthMM, format: .number)
+                    TextField("W mm", value: $widthMM, format: .number.grouping(.never))
                         .frame(width: 70)
-                    TextField("H mm", value: $heightMM, format: .number)
+                    TextField("H mm", value: $heightMM, format: .number.grouping(.never))
                         .frame(width: 70)
                 }
-                TextField("Max FPS", value: $maxFPS, format: .number)
+                TextField("Max FPS", value: $maxFPS, format: .number.grouping(.never))
                     .frame(width: 80)
             }
             .padding(.vertical, 4)
@@ -964,12 +964,12 @@ struct AddCameraSheet: View {
                 Section("Sensor") {
                     TextField("Sensor Name", text: $sensorName)
                     HStack {
-                        TextField("Width (px)", value: $sensorWidthPx, format: .number)
-                        TextField("Height (px)", value: $sensorHeightPx, format: .number)
+                        TextField("Width (px)", value: $sensorWidthPx, format: .number.grouping(.never))
+                        TextField("Height (px)", value: $sensorHeightPx, format: .number.grouping(.never))
                     }
                     HStack {
-                        TextField("Width (mm)", value: $sensorWidthMM, format: .number)
-                        TextField("Height (mm)", value: $sensorHeightMM, format: .number)
+                        TextField("Width (mm)", value: $sensorWidthMM, format: .number.grouping(.never))
+                        TextField("Height (mm)", value: $sensorHeightMM, format: .number.grouping(.never))
                     }
                 }
 
@@ -985,30 +985,30 @@ struct AddCameraSheet: View {
                                     TextField("W px", value: Binding(
                                         get: { modes[idx].widthPx },
                                         set: { modes[idx].widthPx = $0 }
-                                    ), format: .number)
+                                    ), format: .number.grouping(.never))
                                         .frame(width: 70)
                                     TextField("H px", value: Binding(
                                         get: { modes[idx].heightPx },
                                         set: { modes[idx].heightPx = $0 }
-                                    ), format: .number)
+                                    ), format: .number.grouping(.never))
                                         .frame(width: 70)
                                 }
                                 HStack {
                                     TextField("W mm", value: Binding(
                                         get: { modes[idx].widthMM },
                                         set: { modes[idx].widthMM = $0 }
-                                    ), format: .number)
+                                    ), format: .number.grouping(.never))
                                         .frame(width: 70)
                                     TextField("H mm", value: Binding(
                                         get: { modes[idx].heightMM },
                                         set: { modes[idx].heightMM = $0 }
-                                    ), format: .number)
+                                    ), format: .number.grouping(.never))
                                         .frame(width: 70)
                                 }
                                 TextField("Max FPS", value: Binding(
                                     get: { modes[idx].maxFPS },
                                     set: { modes[idx].maxFPS = $0 }
-                                ), format: .number)
+                                ), format: .number.grouping(.never))
                                     .frame(width: 80)
                             }
                             .padding(.vertical, 4)
@@ -1145,11 +1145,11 @@ struct EditRecordingModeSheet: View {
                     }
                     LabeledContent("Resolution") {
                         HStack(spacing: 8) {
-                            TextField("W", value: $widthPx, format: .number)
+                            TextField("W", value: $widthPx, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 80)
                             Text("\u{00D7}").foregroundStyle(.secondary)
-                            TextField("H", value: $heightPx, format: .number)
+                            TextField("H", value: $heightPx, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 80)
                             Text("px").font(.caption).foregroundStyle(.secondary)
@@ -1157,18 +1157,18 @@ struct EditRecordingModeSheet: View {
                     }
                     LabeledContent("Sensor Area") {
                         HStack(spacing: 8) {
-                            TextField("W", value: $widthMM, format: .number)
+                            TextField("W", value: $widthMM, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 80)
                             Text("\u{00D7}").foregroundStyle(.secondary)
-                            TextField("H", value: $heightMM, format: .number)
+                            TextField("H", value: $heightMM, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 80)
                             Text("mm").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     LabeledContent("Max FPS") {
-                        TextField("FPS", value: $maxFPS, format: .number)
+                        TextField("FPS", value: $maxFPS, format: .number.grouping(.never))
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
                     }
@@ -1183,7 +1183,7 @@ struct EditRecordingModeSheet: View {
                             }
                             GridRow {
                                 Text("Resolution").foregroundStyle(.secondary).font(.caption)
-                                Text("\(snapshot.resWidth) \u{00D7} \(snapshot.resHeight) px").font(.caption)
+                                Text(verbatim: "\(snapshot.resWidth) \u{00D7} \(snapshot.resHeight) px").font(.caption)
                             }
                             GridRow {
                                 Text("Sensor Area").foregroundStyle(.secondary).font(.caption)
@@ -1265,14 +1265,14 @@ struct AddRecordingModeSheet: View {
                 Section("Mode") {
                     TextField("Name", text: $name)
                     HStack {
-                        TextField("Width (px)", value: $widthPx, format: .number)
-                        TextField("Height (px)", value: $heightPx, format: .number)
+                        TextField("Width (px)", value: $widthPx, format: .number.grouping(.never))
+                        TextField("Height (px)", value: $heightPx, format: .number.grouping(.never))
                     }
                     HStack {
-                        TextField("Width (mm)", value: $widthMM, format: .number)
-                        TextField("Height (mm)", value: $heightMM, format: .number)
+                        TextField("Width (mm)", value: $widthMM, format: .number.grouping(.never))
+                        TextField("Height (mm)", value: $heightMM, format: .number.grouping(.never))
                     }
-                    TextField("Max FPS", value: $maxFPS, format: .number)
+                    TextField("Max FPS", value: $maxFPS, format: .number.grouping(.never))
                 }
             }
             .formStyle(.grouped)
@@ -1413,9 +1413,9 @@ struct ConflictRow: View {
     @ViewBuilder
     private func modeDetails(_ mode: RecordingMode) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("\(mode.activePhotosites.width) \u{00D7} \(mode.activePhotosites.height) px")
+            Text(verbatim: "\(mode.activePhotosites.width) \u{00D7} \(mode.activePhotosites.height) px")
                 .font(.caption)
-            Text(String(format: "%.2f \u{00D7} %.2f mm",
+            Text(verbatim: String(format: "%.2f \u{00D7} %.2f mm",
                         mode.activeImageAreaMM.width,
                         mode.activeImageAreaMM.height))
                 .font(.caption)

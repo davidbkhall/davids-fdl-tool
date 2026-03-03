@@ -15,6 +15,10 @@ class CanvasTemplateViewModel: ObservableObject {
     @Published var editorDescription = ""
     @Published var editorPipeline: [PipelineStep] = []
 
+    // ASC Template editor state
+    @Published var showASCEditor = false
+    @Published var ascEditorConfig = CanvasTemplateConfig()
+
     // Import state
     @Published var importJSONText = ""
     @Published var importValidation: ValidationResult?
@@ -116,6 +120,98 @@ class CanvasTemplateViewModel: ObservableObject {
         editingTemplate = nil
         resetEditor()
         showEditor = true
+    }
+
+    func beginNewASCTemplate(config: CanvasTemplateConfig) {
+        editingTemplate = nil
+        ascEditorConfig = config
+        showASCEditor = true
+    }
+
+    func beginEditingASC(_ template: CanvasTemplate) {
+        editingTemplate = template
+        guard let data = template.templateJSON.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(
+                  with: data
+              ) as? [String: Any]
+        else {
+            ascEditorConfig = CanvasTemplateConfig(label: template.name)
+            showASCEditor = true
+            return
+        }
+        var config = CanvasTemplateConfig()
+        if let id = dict["id"] as? String { config.id = id }
+        if let label = dict["label"] as? String {
+            config.label = label
+        } else {
+            config.label = template.name
+        }
+        if let t = dict["target_dimensions"] as? [String: Any] {
+            if let w = t["width"] as? Int { config.targetWidth = w }
+            if let h = t["height"] as? Int { config.targetHeight = h }
+        }
+        if let fs = dict["fit_source"] as? String { config.fitSource = fs }
+        if let fm = dict["fit_method"] as? String { config.fitMethod = fm }
+        if let ah = dict["alignment_method_horizontal"] as? String {
+            config.alignmentHorizontal = ah
+        }
+        if let av = dict["alignment_method_vertical"] as? String {
+            config.alignmentVertical = av
+        }
+        if let p = dict["preserve_from_source_canvas"] as? String {
+            config.preserveFromSourceCanvas = p
+        }
+        if let pm = dict["pad_to_maximum"] as? Bool {
+            config.padToMaximum = pm
+        }
+        if let mx = dict["maximum_dimensions"] as? [String: Any] {
+            config.maximumWidth = mx["width"] as? Int
+            config.maximumHeight = mx["height"] as? Int
+        }
+        if let r = dict["round"] as? [String: Any] {
+            if let re = r["even"] as? String { config.roundEven = re }
+            if let rm = r["mode"] as? String { config.roundMode = rm }
+        }
+        ascEditorConfig = config
+        showASCEditor = true
+    }
+
+    func saveASCTemplate() {
+        let dict = ascEditorConfig.toDict()
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: dict, options: [.prettyPrinted, .sortedKeys]
+        ),
+              let jsonStr = String(data: data, encoding: .utf8)
+        else {
+            errorMessage = "Failed to serialize template"
+            return
+        }
+        let template: CanvasTemplate
+        if let existing = editingTemplate {
+            template = CanvasTemplate(
+                id: existing.id,
+                name: ascEditorConfig.label,
+                description: existing.description,
+                templateJSON: jsonStr,
+                source: existing.source,
+                createdAt: existing.createdAt,
+                updatedAt: Date()
+            )
+        } else {
+            template = CanvasTemplate(
+                name: ascEditorConfig.label,
+                description: nil,
+                templateJSON: jsonStr,
+                source: "manual"
+            )
+        }
+        do {
+            try libraryStore.saveCanvasTemplate(template)
+            loadTemplates()
+            showASCEditor = false
+        } catch {
+            errorMessage = "Save failed: \(error.localizedDescription)"
+        }
     }
 
     func resetEditor() {

@@ -31,6 +31,13 @@ struct ViewerView: View {
             appState.pendingOpenURL = nil
             viewModel.loadFromURL(url, pythonBridge: appState.pythonBridge)
         }
+        .onChange(of: appState.pendingFDLDocument?.id) { _, _ in
+            guard let doc = appState.pendingFDLDocument else { return }
+            let name = appState.pendingFDLFileName ?? "Chart FDL"
+            appState.pendingFDLDocument = nil
+            appState.pendingFDLFileName = nil
+            viewModel.loadDocument(doc, fileName: name)
+        }
     }
 
     // MARK: - Toolbar
@@ -53,7 +60,7 @@ struct ViewerView: View {
                     Image(systemName: "minus.magnifyingglass")
                 }
                 .buttonStyle(.borderless)
-                Text("\(Int(viewModel.zoomScale * 100))%")
+                Text(verbatim: "\(Int(viewModel.zoomScale * 100))%")
                     .font(.caption)
                     .frame(width: 36)
                 Button(action: { viewModel.zoomIn() }) {
@@ -206,15 +213,15 @@ struct ViewerView: View {
                             if let canvas = viewModel.selectedCanvas {
                                 Divider()
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("\(Int(canvas.dimensions.width)) \u{00D7} \(Int(canvas.dimensions.height))")
+                                    Text(verbatim: "\(Int(canvas.dimensions.width)) \u{00D7} \(Int(canvas.dimensions.height))")
                                         .font(.system(.caption, design: .monospaced))
                                     if let eff = canvas.effectiveDimensions {
-                                        Text("Effective: \(Int(eff.width)) \u{00D7} \(Int(eff.height))")
+                                        Text(verbatim: "Effective: \(Int(eff.width)) \u{00D7} \(Int(eff.height))")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
                                     if let squeeze = canvas.anamorphicSqueeze, squeeze != 1.0 {
-                                        Text("Squeeze: \(String(format: "%.2f\u{00D7}", squeeze))")
+                                        Text(verbatim: "Squeeze: \(String(format: "%.2f\u{00D7}", squeeze))")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -279,169 +286,11 @@ struct ViewerView: View {
 
                 GroupBox("Template") {
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 4) {
-                            Picker("Preset", selection: Binding(
-                                get: { viewModel.selectedPresetName ?? "" },
-                                set: { if !$0.isEmpty { viewModel.applyPreset($0) } }
-                            )) {
-                                Text("Custom").tag("")
-                                ForEach(TemplatePresets.all, id: \.name) { preset in
-                                    Text(preset.name).tag(preset.name)
-                                }
-                            }
-                            .font(.caption)
-
-                            Menu {
-                                Button("Import Template JSON...") {
-                                    viewModel.importTemplateJSON()
-                                }
-                                Button("Export Template JSON...") {
-                                    viewModel.exportTemplateJSON()
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                            }
-                            .menuStyle(.borderlessButton)
-                            .fixedSize()
+                        if viewModel.templateIsConfigured {
+                            templateSummaryView
+                        } else {
+                            templateEmptyView
                         }
-
-                        Text("Target Dimensions")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
-
-                        HStack(spacing: 4) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Width").font(.caption2).foregroundStyle(.secondary)
-                                TextField("W", value: $viewModel.templateConfig.targetWidth, format: .number)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.caption)
-                                    .frame(width: 70)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Height").font(.caption2).foregroundStyle(.secondary)
-                                TextField("H", value: $viewModel.templateConfig.targetHeight, format: .number)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.caption)
-                                    .frame(width: 70)
-                            }
-                        }
-
-                        Picker("Fit Source", selection: $viewModel.templateConfig.fitSource) {
-                            ForEach(TemplatePresets.fitSourceOptions, id: \.value) { opt in
-                                Text(opt.label).tag(opt.value)
-                            }
-                        }
-                        .font(.caption)
-
-                        Picker("Fit Method", selection: $viewModel.templateConfig.fitMethod) {
-                            ForEach(TemplatePresets.fitMethodOptions, id: \.value) { opt in
-                                Text(opt.label).tag(opt.value)
-                            }
-                        }
-                        .font(.caption)
-
-                        Text("Alignment")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
-
-                        HStack(spacing: 4) {
-                            Picker("H", selection: $viewModel.templateConfig.alignmentHorizontal) {
-                                ForEach(TemplatePresets.alignmentHOptions, id: \.value) { opt in
-                                    Text(opt.label).tag(opt.value)
-                                }
-                            }
-                            .font(.caption)
-                            Picker("V", selection: $viewModel.templateConfig.alignmentVertical) {
-                                ForEach(TemplatePresets.alignmentVOptions, id: \.value) { opt in
-                                    Text(opt.label).tag(opt.value)
-                                }
-                            }
-                            .font(.caption)
-                        }
-
-                        DisclosureGroup {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Maximum Dimensions")
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.secondary)
-
-                                HStack(spacing: 4) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Max W").font(.caption2).foregroundStyle(.secondary)
-                                        TextField("Max W", value: $viewModel.templateConfig.maximumWidth, format: .number)
-                                            .textFieldStyle(.roundedBorder)
-                                            .font(.caption)
-                                            .frame(width: 70)
-                                    }
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Max H").font(.caption2).foregroundStyle(.secondary)
-                                        TextField("Max H", value: $viewModel.templateConfig.maximumHeight, format: .number)
-                                            .textFieldStyle(.roundedBorder)
-                                            .font(.caption)
-                                            .frame(width: 70)
-                                    }
-                                }
-
-                                Toggle("Pad to Maximum", isOn: $viewModel.templateConfig.padToMaximum)
-                                    .font(.caption)
-
-                                Divider()
-
-                                Text("Rounding")
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.secondary)
-
-                                Picker("Round To", selection: $viewModel.templateConfig.roundEven) {
-                                    ForEach(TemplatePresets.roundEvenOptions, id: \.value) { opt in
-                                        Text(opt.label).tag(opt.value)
-                                    }
-                                }
-                                .font(.caption)
-
-                                Picker("Mode", selection: $viewModel.templateConfig.roundMode) {
-                                    ForEach(TemplatePresets.roundModeOptions, id: \.value) { opt in
-                                        Text(opt.label).tag(opt.value)
-                                    }
-                                }
-                                .font(.caption)
-
-                                Divider()
-
-                                Picker("Preserve from Source", selection: Binding(
-                                    get: { viewModel.templateConfig.preserveFromSourceCanvas ?? "" },
-                                    set: { viewModel.templateConfig.preserveFromSourceCanvas = $0.isEmpty ? nil : $0 }
-                                )) {
-                                    Text("None (omit)").tag("")
-                                    Text("Framing Decision").tag("framing_decision.dimensions")
-                                    Text("Protection").tag("framing_decision.protection_dimensions")
-                                    Text("Effective Canvas").tag("canvas.effective_dimensions")
-                                    Text("Full Canvas").tag("canvas.dimensions")
-                                }
-                                .font(.caption)
-                            }
-                            .padding(.vertical, 2)
-                        } label: {
-                            Text("Advanced")
-                                .font(.caption2.weight(.medium))
-                        }
-                        .font(.caption)
-
-                        Button(action: { viewModel.applyTemplate(pythonBridge: appState.pythonBridge) }) {
-                            HStack {
-                                if viewModel.isApplyingTemplate {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "arrow.right.square")
-                                }
-                                Text(viewModel.outputDocument != nil ? "REPROCESS" : "TRANSFORM")
-                                    .font(.caption.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(viewModel.isApplyingTemplate || viewModel.loadedDocument == nil)
                     }
                     .padding(.vertical, 4)
                 }
@@ -499,9 +348,13 @@ struct ViewerView: View {
 
     // MARK: - Source Tab
 
+    private var hasSourceContent: Bool {
+        viewModel.loadedDocument != nil || viewModel.referenceImage != nil
+    }
+
     @ViewBuilder
     private var sourceTabContent: some View {
-        if viewModel.loadedDocument != nil {
+        if hasSourceContent {
             CanvasVisualizationView(viewModel: viewModel)
                 .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
         } else {
@@ -520,7 +373,10 @@ struct ViewerView: View {
                 .font(.title2.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            Text("Load a Source FDL from the sidebar to visualize\ncanvas geometry, apply templates, and compare results.")
+            Text(
+                "Load a Source FDL or Reference Image from the sidebar\n"
+                + "to visualize canvas geometry."
+            )
                 .font(.callout)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -652,12 +508,12 @@ struct ViewerView: View {
                                 }
                                 GridRow {
                                     Text("Dimensions").foregroundStyle(.secondary)
-                                    Text("\(Int(canvas.dimensions.width)) \u{00D7} \(Int(canvas.dimensions.height))")
+                                    Text(verbatim: "\(Int(canvas.dimensions.width)) \u{00D7} \(Int(canvas.dimensions.height))")
                                 }
                                 if let eff = canvas.effectiveDimensions {
                                     GridRow {
                                         Text("Effective").foregroundStyle(.secondary)
-                                        Text("\(Int(eff.width)) \u{00D7} \(Int(eff.height))")
+                                        Text(verbatim: "\(Int(eff.width)) \u{00D7} \(Int(eff.height))")
                                     }
                                 }
                                 if let squeeze = canvas.anamorphicSqueeze, squeeze != 1.0 {
@@ -702,7 +558,7 @@ struct ViewerView: View {
                                 }
                                 GridRow {
                                     Text("Target").foregroundStyle(.secondary)
-                                    Text("\(viewModel.templateConfig.targetWidth)\u{00D7}\(viewModel.templateConfig.targetHeight)")
+                                    Text(verbatim: "\(viewModel.templateConfig.targetWidth)\u{00D7}\(viewModel.templateConfig.targetHeight)")
                                 }
                             }
                             .font(.caption)
@@ -837,7 +693,7 @@ struct ViewerView: View {
             if let canvas = viewModel.selectedCanvas {
                 HStack(spacing: 4) {
                     Text("Canvas:").foregroundStyle(.secondary)
-                    Text("\(Int(canvas.dimensions.width))\u{00D7}\(Int(canvas.dimensions.height))")
+                    Text(verbatim: "\(Int(canvas.dimensions.width))\u{00D7}\(Int(canvas.dimensions.height))")
                         .font(.system(.caption2, design: .monospaced))
                 }
                 .font(.caption2)
@@ -845,7 +701,7 @@ struct ViewerView: View {
                 if let eff = canvas.effectiveDimensions {
                     HStack(spacing: 4) {
                         Text("Effective:").foregroundStyle(.secondary)
-                        Text("\(Int(eff.width))\u{00D7}\(Int(eff.height))")
+                        Text(verbatim: "\(Int(eff.width))\u{00D7}\(Int(eff.height))")
                             .font(.system(.caption2, design: .monospaced))
                     }
                     .font(.caption2)
@@ -868,6 +724,416 @@ struct ViewerView: View {
                 }
                 .font(.caption2)
             }
+        }
+    }
+
+    // MARK: - Template Views
+
+    @ViewBuilder
+    private var templateEmptyView: some View {
+        templateSourceMenu
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+
+        Text("Select a preset, create custom, or import a template")
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity)
+    }
+
+    private var templateSourceMenu: some View {
+        HStack(spacing: 4) {
+            Menu {
+                Button("Custom") {
+                    viewModel.startCustomTemplate()
+                }
+                Divider()
+                ForEach(TemplatePresets.all, id: \.name) { preset in
+                    Button(preset.name) {
+                        viewModel.applyPreset(preset.name)
+                    }
+                }
+                Divider()
+                Button("Import JSON...") {
+                    viewModel.importTemplateJSON()
+                }
+                if !appState.libraryViewModel.canvasTemplates.isEmpty {
+                    Divider()
+                    Menu("From Library") {
+                        ForEach(
+                            appState.libraryViewModel.canvasTemplates
+                        ) { tpl in
+                            Button(tpl.name) {
+                                viewModel.loadLibraryTemplate(tpl)
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "rectangle.on.rectangle.angled")
+                    Text("Select Template...")
+                }
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            }
+            .menuStyle(.borderlessButton)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.secondary.opacity(0.3))
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var templateSummaryView: some View {
+        HStack {
+            Image(systemName: "rectangle.on.rectangle.angled")
+                .foregroundStyle(.purple)
+            templatePresetMenu
+            Spacer()
+            Button(action: { viewModel.resetTemplateValues() }) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Reset template to defaults")
+            Button(action: { viewModel.resetTemplate() }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Clear template")
+        }
+
+        Divider()
+
+        templateConfigFields
+
+        Button(action: {
+            viewModel.applyTemplate(pythonBridge: appState.pythonBridge)
+        }) {
+            HStack {
+                if viewModel.isApplyingTemplate {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "arrow.right.square")
+                }
+                Text(
+                    viewModel.outputDocument != nil
+                        ? "REPROCESS" : "TRANSFORM"
+                )
+                    .font(.caption.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(
+            viewModel.isApplyingTemplate
+                || viewModel.loadedDocument == nil
+        )
+        .help(
+            viewModel.loadedDocument == nil
+                ? "Load a Source FDL first"
+                : "Apply template to generate output"
+        )
+
+        HStack(spacing: 6) {
+            Button(action: { viewModel.exportTemplateJSON() }) {
+                Label("Export", systemImage: "square.and.arrow.up")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button(action: {
+                viewModel.saveTemplateToLibrary(
+                    libraryStore: appState.libraryStore,
+                    libraryViewModel: appState.libraryViewModel
+                )
+            }) {
+                Label("Save to Library", systemImage: "building.columns")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            if !appState.libraryViewModel.projects.isEmpty {
+                Menu {
+                    ForEach(
+                        appState.libraryViewModel.projects
+                    ) { project in
+                        Button(project.name) {
+                            viewModel.assignTemplateToProject(
+                                projectID: project.id,
+                                libraryStore: appState.libraryStore,
+                                libraryViewModel: appState.libraryViewModel
+                            )
+                        }
+                    }
+                } label: {
+                    Label("Add to Project", systemImage: "folder.badge.plus")
+                        .font(.caption)
+                }
+                .controlSize(.small)
+            }
+        }
+    }
+
+    /// Dropdown on the template name to switch presets or import.
+    private var templatePresetMenu: some View {
+        Menu {
+            Button("Custom") {
+                viewModel.startCustomTemplate()
+            }
+            Divider()
+            ForEach(TemplatePresets.all, id: \.name) { preset in
+                Button(preset.name) {
+                    viewModel.applyPreset(preset.name)
+                }
+            }
+            Divider()
+            Button("Import JSON...") {
+                viewModel.importTemplateJSON()
+            }
+            if !appState.libraryViewModel.canvasTemplates.isEmpty {
+                Divider()
+                Menu("From Library") {
+                    ForEach(
+                        appState.libraryViewModel.canvasTemplates
+                    ) { tpl in
+                        Button(tpl.name) {
+                            viewModel.loadLibraryTemplate(tpl)
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 2) {
+                Text(viewModel.templateConfig.label)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private var templateConfigFields: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Text("Label")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                TextField(
+                    "Template Label",
+                    text: $viewModel.templateConfig.label
+                )
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
+            }
+
+            Text("Target Dimensions")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Width")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    TextField(
+                        "W",
+                        value: $viewModel.templateConfig.targetWidth,
+                        format: .number.grouping(.never)
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .frame(width: 70)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Height")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    TextField(
+                        "H",
+                        value: $viewModel.templateConfig.targetHeight,
+                        format: .number.grouping(.never)
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .frame(width: 70)
+                }
+            }
+
+            Picker(
+                "Fit Source",
+                selection: $viewModel.templateConfig.fitSource
+            ) {
+                ForEach(
+                    TemplatePresets.fitSourceOptions, id: \.value
+                ) { opt in
+                    Text(opt.label).tag(opt.value)
+                }
+            }
+            .font(.caption)
+
+            Picker(
+                "Fit Method",
+                selection: $viewModel.templateConfig.fitMethod
+            ) {
+                ForEach(
+                    TemplatePresets.fitMethodOptions, id: \.value
+                ) { opt in
+                    Text(opt.label).tag(opt.value)
+                }
+            }
+            .font(.caption)
+
+            Text("Alignment")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 4) {
+                Picker(
+                    "H",
+                    selection: $viewModel.templateConfig.alignmentHorizontal
+                ) {
+                    ForEach(
+                        TemplatePresets.alignmentHOptions, id: \.value
+                    ) { opt in
+                        Text(opt.label).tag(opt.value)
+                    }
+                }
+                .font(.caption)
+                Picker(
+                    "V",
+                    selection: $viewModel.templateConfig.alignmentVertical
+                ) {
+                    ForEach(
+                        TemplatePresets.alignmentVOptions, id: \.value
+                    ) { opt in
+                        Text(opt.label).tag(opt.value)
+                    }
+                }
+                .font(.caption)
+            }
+
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Maximum Dimensions")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 4) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Max W")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            TextField(
+                                "Max W",
+                                value: $viewModel.templateConfig.maximumWidth,
+                                format: .number.grouping(.never)
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .font(.caption)
+                            .frame(width: 70)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Max H")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            TextField(
+                                "Max H",
+                                value: $viewModel.templateConfig.maximumHeight,
+                                format: .number.grouping(.never)
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .font(.caption)
+                            .frame(width: 70)
+                        }
+                    }
+
+                    Toggle(
+                        "Pad to Maximum",
+                        isOn: $viewModel.templateConfig.padToMaximum
+                    )
+                    .font(.caption)
+
+                    Divider()
+
+                    Text("Rounding")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    Picker(
+                        "Round To",
+                        selection: $viewModel.templateConfig.roundEven
+                    ) {
+                        ForEach(
+                            TemplatePresets.roundEvenOptions, id: \.value
+                        ) { opt in
+                            Text(opt.label).tag(opt.value)
+                        }
+                    }
+                    .font(.caption)
+
+                    Picker(
+                        "Mode",
+                        selection: $viewModel.templateConfig.roundMode
+                    ) {
+                        ForEach(
+                            TemplatePresets.roundModeOptions, id: \.value
+                        ) { opt in
+                            Text(opt.label).tag(opt.value)
+                        }
+                    }
+                    .font(.caption)
+
+                    Divider()
+
+                    Picker(
+                        "Preserve from Source",
+                        selection: Binding(
+                            get: {
+                                viewModel.templateConfig
+                                    .preserveFromSourceCanvas ?? ""
+                            },
+                            set: {
+                                viewModel.templateConfig
+                                    .preserveFromSourceCanvas =
+                                    $0.isEmpty ? nil : $0
+                            }
+                        )
+                    ) {
+                        Text("None").tag("")
+                        Text("Framing Decision")
+                            .tag("framing_decision.dimensions")
+                        Text("Protection")
+                            .tag("framing_decision.protection_dimensions")
+                        Text("Effective Canvas")
+                            .tag("canvas.effective_dimensions")
+                        Text("Full Canvas")
+                            .tag("canvas.dimensions")
+                    }
+                    .font(.caption)
+                }
+                .padding(.vertical, 2)
+            } label: {
+                Text("Advanced")
+                    .font(.caption2.weight(.medium))
+            }
+            .font(.caption)
         }
     }
 

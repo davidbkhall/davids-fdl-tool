@@ -486,6 +486,85 @@ class ChartGeneratorViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Open in FDL Viewer
+
+    func buildLocalFDLDocument(creator: String = "FDL Tool") -> FDLDocument {
+        let cw = canvasWidth
+        let ch = canvasHeight
+
+        let fds = framelines.map { fl -> FDLFramingDecision in
+            let fw = fl.width
+            let fh = fl.height
+            let ax: Double
+            let ay: Double
+            if let cx = fl.anchorX, let cy = fl.anchorY {
+                ax = cx; ay = cy
+            } else {
+                switch fl.hAlign {
+                case .left: ax = 0
+                case .right: ax = cw - fw
+                default: ax = (cw - fw) / 2
+                }
+                switch fl.vAlign {
+                case .top: ay = 0
+                case .bottom: ay = ch - fh
+                default: ay = (ch - fh) / 2
+                }
+            }
+
+            var protDims: FDLDimensions?
+            var protAnchor: FDLPoint?
+            if let prot = effectiveProtection(for: fl) {
+                protDims = FDLDimensions(width: prot.width, height: prot.height)
+                let px = fl.protectionAnchorX ?? (cw - prot.width) / 2
+                let py = fl.protectionAnchorY ?? (ch - prot.height) / 2
+                protAnchor = FDLPoint(x: px, y: py)
+            }
+
+            return FDLFramingDecision(
+                id: UUID().uuidString,
+                label: fl.label,
+                framingIntentId: fl.framingIntent.isEmpty ? nil : fl.framingIntent,
+                dimensions: FDLDimensions(width: fw, height: fh),
+                anchorPoint: FDLPoint(x: ax, y: ay),
+                protectionDimensions: protDims,
+                protectionAnchorPoint: protAnchor
+            )
+        }
+
+        var effDims: FDLDimensions?
+        var effAnchor: FDLPoint?
+        if showEffectiveDimensions,
+           let ew = canvasEffectiveWidth, let eh = canvasEffectiveHeight {
+            effDims = FDLDimensions(width: ew, height: eh)
+            effAnchor = FDLPoint(x: canvasEffectiveAnchorX, y: canvasEffectiveAnchorY)
+        }
+
+        let canvas = FDLCanvas(
+            id: UUID().uuidString,
+            label: chartTitle,
+            dimensions: FDLDimensions(width: cw, height: ch),
+            effectiveDimensions: effDims,
+            effectiveAnchorPoint: effAnchor,
+            anamorphicSqueeze: anamorphicSqueeze != 1.0 ? anamorphicSqueeze : nil,
+            framingDecisions: fds
+        )
+
+        let context = FDLContext(
+            label: selectedCamera.map { "\($0.manufacturer) \($0.model)" } ?? "Chart Generator",
+            contextCreator: creator,
+            canvases: [canvas]
+        )
+
+        return FDLDocument(
+            id: UUID().uuidString,
+            version: FDLVersion(major: 2, minor: 0),
+            fdlCreator: creator,
+            defaultFramingIntent: nil,
+            contexts: [context]
+        )
+    }
+
     // MARK: - Param Builders
 
     private func chartParams() -> [String: Any] {

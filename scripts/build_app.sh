@@ -6,14 +6,23 @@ APP_NAME="FDL Tool"
 BUNDLE_ID="com.fdltool.app"
 APP_DIR="$HOME/Desktop/$APP_NAME.app"
 
-echo "Building release binary..."
+# Kill any running instance first
+pkill -f "$APP_DIR/Contents/MacOS/FDLTool" 2>/dev/null || true
+sleep 0.5
+
+echo "Cleaning build cache..."
 cd "$PROJECT_DIR/FDLTool"
+swift package clean 2>/dev/null || true
+
+echo "Building release binary..."
 swift build -c release 2>&1 | tail -5
 
 BINARY="$(swift build -c release --show-bin-path)/FDLTool"
 
-echo "Creating app bundle at $APP_DIR..."
+echo "Removing old app bundle..."
 rm -rf "$APP_DIR"
+
+echo "Creating app bundle at $APP_DIR..."
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
@@ -82,10 +91,33 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
             <string>Default</string>
         </dict>
     </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.ascmitc.framing-decision-list</string>
+            <key>UTTypeDescription</key>
+            <string>ASC Framing Decision List</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>fdl</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
 </dict>
 </plist>
 PLIST
 
+echo "Registering app bundle with Launch Services..."
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_DIR" 2>/dev/null || true
+
 echo "Build complete: $APP_DIR"
 echo "Launching..."
-open "$APP_DIR"
+open -n "$APP_DIR"

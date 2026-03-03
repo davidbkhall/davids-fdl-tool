@@ -13,8 +13,8 @@ enum Tool: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .library: return "folder"
-        case .chartGenerator: return "chart.bar.doc.horizontal"
-        case .viewer: return "doc.text.magnifyingglass"
+        case .chartGenerator: return "viewfinder"
+        case .viewer: return "eye"
         case .clipID: return "film"
         case .cameraDB: return "camera"
         }

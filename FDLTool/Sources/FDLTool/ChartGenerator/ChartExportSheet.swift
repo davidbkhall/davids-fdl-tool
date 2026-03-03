@@ -45,7 +45,7 @@ struct ChartExportSheet: View {
                     GridRow {
                         Text("Canvas")
                             .foregroundStyle(.secondary)
-                        Text("\(Int(viewModel.canvasWidth)) \u{00D7} \(Int(viewModel.canvasHeight))")
+                        Text(verbatim: "\(Int(viewModel.canvasWidth)) \u{00D7} \(Int(viewModel.canvasHeight))")
                     }
                     GridRow {
                         Text("Framelines")

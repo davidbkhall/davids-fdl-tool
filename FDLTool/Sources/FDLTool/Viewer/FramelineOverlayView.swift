@@ -482,11 +482,11 @@ struct FramelineOverlayView: View {
     @ViewBuilder
     private func infoBadge(imageSize: CGSize, originX: CGFloat, originY: CGFloat, scaledH: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("\(Int(imageSize.width)) \u{00D7} \(Int(imageSize.height))")
+            Text(verbatim: "\(Int(imageSize.width)) \u{00D7} \(Int(imageSize.height))")
                 .font(.system(size: 10, design: .monospaced))
             if let doc = document {
                 let fdCount = doc.contexts.flatMap(\.canvases).flatMap(\.framingDecisions).count
-                Text("\(fdCount) frameline\(fdCount == 1 ? "" : "s")")
+                Text(verbatim: "\(fdCount) frameline\(fdCount == 1 ? "" : "s")")
                     .font(.system(size: 9))
             }
         }
