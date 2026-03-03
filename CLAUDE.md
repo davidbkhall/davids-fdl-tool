@@ -47,8 +47,9 @@ JSON-RPC 2.0 over stdin/stdout. Swift `PythonBridge` actor launches Python subpr
 - **MVVM**: Each tool has a View + ViewModel (ObservableObject)
 - **AppState**: Shared ObservableObject for cross-tool state (current project, Python bridge, library store)
 - **Navigation**: `NavigationSplitView` with sidebar tool selector
-- **Models**: Codable structs in `Models/` directory — custom `encode(to:)` methods control JSON key ordering to match ASC FDL reference format
+- **Models**: Codable structs in `Models/` directory
 - **Services**: Backend communication in `Services/` directory
+- **JSON Serialization**: `FDLJSONSerializer` (in `FDLDocument.swift`) produces reference-ordered JSON. Do NOT use JSONEncoder for display JSON — its dictionary-backed keyed containers ignore insertion order. The serializer encodes → parses via JSONSerialization → re-serializes with explicit key order arrays matching ASC FDL reference format.
 
 ### Python Conventions
 - Handlers in `fdl_backend/handlers/` — one module per domain
@@ -90,24 +91,43 @@ cd FDLTool && swift test
 cd python_backend && pytest
 ```
 
-## Session Notes (2026-03-03)
+## Session Notes
 
-### Uncommitted changes (11 files modified, ~1059 insertions)
-All changes are staged in the working tree but NOT committed.
+### Latest session: 2026-03-01 (commit 71b6c90, pushed to main)
 
-### What was done this session:
-1. **Audited Framing Charts page** against reference `fdl_framing.cpp` and golden test vectors
-2. **Fixed `buildLocalFDLDocument`** — now produces spec-compliant FDL documents:
-   - `framing_intents` array, `default_framing_intent`, `source_canvas_id` (self-ref), `anamorphic_squeeze` always included
-   - Proper FD IDs ("1-1" format) and `framing_intent_id` linking
-3. **Fixed `addPreset`** — now uses `fitAspectIntoWorkingArea` for correct anamorphic handling
-4. **Fixed `fitAspectIntoWorkingArea`** — uses desqueezed aspect ratio for letterbox/pillarbox determination (fixes dimensions exceeding canvas for anamorphic sensors)
-5. **Added auto-recalculation** — Combine subscribers recalculate intent-linked framelines when squeeze, camera, mode, or canvas dimensions change
-6. **Fixed chart canvas preview** — effective area and protection use actual anchor positions instead of always centering
-7. **Fixed JSON key ordering** — custom `encode(to:)` on FDLDocument, FDLCanvas, FDLFramingDecision, FDLFramingIntent, FDLCanvasTemplate to match reference ordering (version/uuid header first, label before id). Removed `.sortedKeys` from JSONEncoder.
+**What was done:**
+1. **Fixed JSON key ordering** — Discovered that Swift's `JSONEncoder` ignores insertion order from custom `encode(to:)` methods (dictionary-backed keyed containers). Replaced with `FDLJSONSerializer` in `FDLDocument.swift` — a recursive serializer that encodes → parses → re-serializes with explicit key ordering matching ASC FDL reference format (version/uuid at top, label before id in nested objects). Removed all custom `encode(to:)` methods from FDL model structs.
+2. **Fixed `fitAspectIntoWorkingArea`** — Uses desqueezed (display) aspect ratio for letterbox/pillarbox determination. Verified against Scen_10 (4320x3456, 2x squeeze → protection 4124x3456), Scen_3 (8640x5760, 1x → 8640x4860), golden vector (4096x3432, 2x → height 3428).
+3. **Added auto-recalculation** — Combine subscribers in `ChartGeneratorViewModel` recalculate intent-linked framelines when anamorphic squeeze, camera, mode, or canvas dimensions change.
+4. **Fixed `buildLocalFDLDocument`** — Produces spec-compliant FDL documents with `framing_intents`, `default_framing_intent`, `source_canvas_id`, proper FD IDs, and `framing_intent_id` linking.
+5. **Enhanced Details tab** — Side-by-side source/output document views, full template summary in output document section.
+6. **Dimension label positioning** — Refactored `dimLabel` in canvas views to use `overlay` with `Alignment` for precise inside-bounding-box positioning.
+7. **Anamorphic circle** — Fixed to squeeze horizontally (`rx = radius / squeeze`), not vertically.
+8. **UI refinements** — "Import Template" labels, "Choose Framing Decision" module name, Document Structure as expandable DisclosureGroup inside Source FDL module, consistent HUD between source/output.
 
-### What still needs to be done:
-- **BUILD AND TEST**: The last `swift build` hit a sandbox abort. Need to rebuild with `required_permissions: ["all"]` and run `build_app.sh` to verify all changes.
-- **Verify JSON output**: Load an FDL in the Viewer, apply a template, check that the Details > Output JSON has header fields at top matching reference format.
-- **Verify anamorphic Framing Charts**: Test with ARRI ALEXA 35 + 2.0x squeeze + 2.39:1 intent — dimensions should fit within canvas (pillarbox, not overflowing letterbox).
-- **Commit and push** once validated.
+**Build validated:** All framing test vectors pass. App bundle built and launched from `~/Desktop/FDL Tool.app`.
+
+### Previous session work (also in commit 71b6c90):
+- Full 10-step ASC FDL template application pipeline in `ViewerViewModel.applyTemplateLocally()`
+- Reference image rendering in Output/Comparison tabs
+- Pinch-to-zoom with `MagnificationGesture` in canvas views
+- Library template editing, project assignment, zoom/layer controls
+- "Open in Viewer" button in Chart Generator
+- Default Creator setting in app preferences
+- `Text(verbatim:)` for all dimension displays (no locale commas)
+
+### Known areas for future work:
+- **User should manually test**: Load FDL in Viewer → apply template → verify Details tab JSON has header at top and output is correct
+- **User should manually test**: Framing Charts with 2.0x anamorphic squeeze → verify dimensions fit canvas and recalculate on squeeze change
+- The sidebar collapse behavior was previously reported as problematic (icons disappearing). It was reverted to the standard `NavigationSplitView` behavior. User may revisit.
+- Library Canvas Templates: preview panel could be further refined for parity with FDL Viewer controls
+- Comparison tab reference image rendering may need additional testing with various source/template combinations
+
+### Key file locations:
+- Template application algorithm: `ViewerViewModel.swift` → `applyTemplateLocally()`
+- JSON serializer: `FDLDocument.swift` → `FDLJSONSerializer`
+- Framing calculation: `ChartGeneratorViewModel.swift` → `fitAspectIntoWorkingArea()`
+- Combine recalculation: `ChartGeneratorViewModel.swift` → `setupRecalculationSubscribers()`
+- Reference C++ implementation: `/Users/dhall/Documents/GitHub/ascmitc/fdl/native/core/src/`
+- Test scenarios: `/Users/dhall/Downloads/scenario_resources_20260215/`
+- Reference FDL spec documentation: https://ascmitc.github.io/fdl/dev/FDL_Apply_Template_Logic/
