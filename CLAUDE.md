@@ -93,41 +93,75 @@ cd python_backend && pytest
 
 ## Session Notes
 
-### Latest session: 2026-03-01 (commit 71b6c90, pushed to main)
+### Latest session: 2026-03-03 (commit 3d1d3e8, pushed to main)
 
 **What was done:**
-1. **Fixed JSON key ordering** — Discovered that Swift's `JSONEncoder` ignores insertion order from custom `encode(to:)` methods (dictionary-backed keyed containers). Replaced with `FDLJSONSerializer` in `FDLDocument.swift` — a recursive serializer that encodes → parses → re-serializes with explicit key ordering matching ASC FDL reference format (version/uuid at top, label before id in nested objects). Removed all custom `encode(to:)` methods from FDL model structs.
-2. **Fixed `fitAspectIntoWorkingArea`** — Uses desqueezed (display) aspect ratio for letterbox/pillarbox determination. Verified against Scen_10 (4320x3456, 2x squeeze → protection 4124x3456), Scen_3 (8640x5760, 1x → 8640x4860), golden vector (4096x3432, 2x → height 3428).
-3. **Added auto-recalculation** — Combine subscribers in `ChartGeneratorViewModel` recalculate intent-linked framelines when anamorphic squeeze, camera, mode, or canvas dimensions change.
-4. **Fixed `buildLocalFDLDocument`** — Produces spec-compliant FDL documents with `framing_intents`, `default_framing_intent`, `source_canvas_id`, proper FD IDs, and `framing_intent_id` linking.
-5. **Enhanced Details tab** — Side-by-side source/output document views, full template summary in output document section.
-6. **Dimension label positioning** — Refactored `dimLabel` in canvas views to use `overlay` with `Alignment` for precise inside-bounding-box positioning.
-7. **Anamorphic circle** — Fixed to squeeze horizontally (`rx = radius / squeeze`), not vertically.
-8. **UI refinements** — "Import Template" labels, "Choose Framing Decision" module name, Document Structure as expandable DisclosureGroup inside Source FDL module, consistent HUD between source/output.
 
-**Build validated:** All framing test vectors pass. App bundle built and launched from `~/Desktop/FDL Tool.app`.
+#### Camera Database Expansion & Cleanup
+1. **Expanded bundled cameras.json** from 13 → 25 cameras with manufacturer-verified data:
+   - ARRI: ALEXA 35 (8 modes), Mini LF (8), Mini (5), LF (4), SXT (4), 65 (3), 265 (3), AMIRA (3) — sourced from ARRI Formats PDF v6.1
+   - RED: V-RAPTOR [X] 8K VV (5 modes), KOMODO 6K (3) — sourced from RED Technical Specifications
+   - Sony: VENICE (5 modes), VENICE 2 (6), BURANO (3) — sourced from Sony Venice Calculator
+   - Canon: EOS C80 (4), C70 (3), C700 (3), plus updated C400/C500 Mark II/C300 Mark III — sourced from Canon Official Specifications
+   - All entries include `sync_sources` metadata for attribution
+2. **Removed `commonDeliverables`** field entirely from `CameraSpec` model, `CodingKeys`, `init`, decoders, `CameraDatabaseView` UI, `CameraDBStore` enrichment logic, `CineDSyncService`, `CameraDBSyncService`, `cameras.json`, and tests
+3. **Added CineD sync service** (`CineDSyncService.swift`) for web-scraping CineD Camera Database with credential support stored in app Settings
+4. **Camera deduplication** — name-based dedup in `CameraDBStore.mergeFromLocal` prevents duplicate entries across bundled/synced sources
+5. **Metadata preservation** — `enrichFromExisting` helper ensures rich bundled metadata isn't lost during API syncs
+6. **Camera model deletion** — right-click context menu and detail-pane trash button for non-bundled cameras
+7. **Resync feedback** — success/error messages with auto-dismiss after 5 seconds
+8. **UI selection stability** — dynamic camera lookup by ID instead of stale array index; `orderedIDs` preserves ordering in `mergeFromAPI`
 
-### Previous session work (also in commit 71b6c90):
-- Full 10-step ASC FDL template application pipeline in `ViewerViewModel.applyTemplateLocally()`
-- Reference image rendering in Output/Comparison tabs
-- Pinch-to-zoom with `MagnificationGesture` in canvas views
-- Library template editing, project assignment, zoom/layer controls
-- "Open in Viewer" button in Chart Generator
-- Default Creator setting in app preferences
-- `Text(verbatim:)` for all dimension displays (no locale commas)
+#### UI/UX Overhaul (Apple HIG alignment)
+9. **Camera Database UI** — Source badges increased from 7–8pt (unreadable) to 9pt semibold with full-opacity colors via reusable `SourceBadge` component. Manufacturer section headers changed from loud accent background to clean uppercase `.caption .semibold .secondary`. Detail pane uses icon-labeled GroupBoxes, Grid with `.leadingFirstTextBaseline` alignment, `.callout` font for data. Badges display per-manufacturer colors (ARRI=teal, RED=red, Sony=indigo, Canon=pink, MMM=blue, CineD=purple).
+10. **Sidebar** — Updated SF Symbols: `tray.full`, `viewfinder.rectangular`, `rectangle.on.rectangle.angled`, `film.stack`, `camera.aperture` with `.symbolRenderingMode(.hierarchical)`
+11. **FDL Viewer** — All GroupBox sections use icon-labeled headers (`.headline`), field labels bumped from `.caption2` to `.caption`
+12. **Chart Generator** — All 7 config panel sections upgraded to icon-labeled GroupBoxes
+13. **FDL Library** — Template detail panel switched from fixed-width `paramRow` to `Grid` layout to prevent field clipping. Empty states standardized: `.quaternary` icons, `.title3` headings, `.callout` descriptions
+14. **All empty states** standardized across the app per Apple HIG patterns
+
+#### Library Canvas Templates Fixes
+15. **Info panel not updating on selection** — Root cause: nested `ObservableObject` (`canvasTemplateViewModel` inside `AppState`) changes didn't propagate. Fixed with `wireUpNestedObservables()` in `AppState` that forwards `objectWillChange` via Combine from `canvasTemplateViewModel` and `libraryViewModel`
+16. **State not persisting across navigation** — `selectedSection` was `@State` in `LibraryView` (reset on view recreation). Moved to `AppState.librarySelectedSection` as `@Published`
+
+#### Other Changes from Prior Session (also in this commit)
+17. **Viewer state persistence** — `ViewerViewModel` held by `AppState` as `@ObservedObject` to survive tool switching
+18. **Output HUD** — Shows before/after values for transformed dimensions (Effective, Framing, Protection) and output-only for Canvas
+19. **`context_creator` in output FDL** — Set to "FDL Tool v1.0 - {defaultCreator}" in output documents
+20. **Template menu UX** — "Custom" renamed to "New Blank Template", dropdown label changed to fixed "Load Template" with template name shown in header
+21. **Layers toggle bar** — Moved from toolbar dropdown to bottom of viewer, enlarged for usability, includes reference image toggle
+22. **Output reference image** — Clipped to output canvas dimensions
+23. **App permissions** — Mitigated recurring Desktop TCC prompts by avoiding `NSOpenPanel` with Desktop initial directory
+
+**Build validated:** App bundle at `~/Applications/FDL Tool.app`. Build requires `required_permissions: ["all"]` in sandboxed environments.
 
 ### Known areas for future work:
-- **User should manually test**: Load FDL in Viewer → apply template → verify Details tab JSON has header at top and output is correct
-- **User should manually test**: Framing Charts with 2.0x anamorphic squeeze → verify dimensions fit canvas and recalculate on squeeze change
-- The sidebar collapse behavior was previously reported as problematic (icons disappearing). It was reverted to the standard `NavigationSplitView` behavior. User may revisit.
-- Library Canvas Templates: preview panel could be further refined for parity with FDL Viewer controls
-- Comparison tab reference image rendering may need additional testing with various source/template combinations
+- **Library Canvas Templates**: preview panel could be further refined for parity with FDL Viewer controls (zoom, all layer toggles)
+- **Sidebar collapse**: previously reported icons disappearing. Reverted to standard `NavigationSplitView`. User may revisit
+- **CineD scraping**: `CineDSyncService` has unused variables (`manufacturerPattern`, `linkRegex`). HTML parsing may need maintenance as site structure changes
+- **Manufacturer data sources**: ARRI AFDC, RED crop-factor tool, Sony/Canon calculators were explored but deemed too complex to scrape dynamically — data was manually bundled instead. Consider periodic manual refresh of `cameras.json`
+- **Comparison tab**: reference image rendering may need additional testing with various source/template combinations
+- **Framing Charts**: user should verify 2.0x anamorphic squeeze dimensions recalculate correctly
+- **Testing coverage**: only `CameraDBStoreTests` exist for Swift. Consider adding ViewerViewModel template application tests
+
+### Previous session: 2026-03-01 (commit 71b6c90)
+- Fixed JSON key ordering with `FDLJSONSerializer`
+- Fixed `fitAspectIntoWorkingArea` desqueezed aspect logic
+- Added Combine auto-recalculation for Chart Generator
+- Full 10-step ASC FDL template application pipeline
+- Reference image rendering, pinch-to-zoom, Library template editing
+- `Text(verbatim:)` for all dimension displays (no locale commas)
 
 ### Key file locations:
 - Template application algorithm: `ViewerViewModel.swift` → `applyTemplateLocally()`
 - JSON serializer: `FDLDocument.swift` → `FDLJSONSerializer`
 - Framing calculation: `ChartGeneratorViewModel.swift` → `fitAspectIntoWorkingArea()`
 - Combine recalculation: `ChartGeneratorViewModel.swift` → `setupRecalculationSubscribers()`
+- Camera data enrichment: `CameraDBStore.swift` → `enrichFromExisting()`
+- CineD sync: `CineDSyncService.swift`
+- Nested observable forwarding: `AppState.swift` → `wireUpNestedObservables()`
+- Source badge component: `CameraDatabaseView.swift` → `SourceBadge`
+- Bundled camera data: `resources/camera_db/cameras.json`
 - Reference C++ implementation: `/Users/dhall/Documents/GitHub/ascmitc/fdl/native/core/src/`
 - Test scenarios: `/Users/dhall/Downloads/scenario_resources_20260215/`
 - Reference FDL spec documentation: https://ascmitc.github.io/fdl/dev/FDL_Apply_Template_Logic/
