@@ -10,6 +10,14 @@ struct RecordingMode: Codable, Identifiable {
     var source: ModeSource
     /// Snapshot of the original synced values for conflict detection.
     var syncedSnapshot: RecordingModeSnapshot?
+    /// Which data sources contributed to this mode.
+    var syncSources: [String]
+    /// CineD-specific extended fields.
+    var sensorModeName: String?
+    var aspectRatio: String?
+    var bitDepth: String?
+    var fileFormat: String?
+    var sampling: String?
 
     enum ModeSource: String, Codable {
         case bundled
@@ -25,11 +33,18 @@ struct RecordingMode: Codable, Identifiable {
         case maxFPS = "max_fps"
         case codecOptions = "codec_options"
         case syncedSnapshot = "synced_snapshot"
+        case syncSources = "sync_sources"
+        case sensorModeName = "sensor_mode_name"
+        case aspectRatio = "aspect_ratio"
+        case bitDepth = "bit_depth"
+        case fileFormat = "file_format"
+        case sampling
     }
 
     init(id: String, name: String, activePhotosites: Dimensions,
          activeImageAreaMM: PhysicalDimensions, maxFPS: Int,
-         codecOptions: [String], source: ModeSource = .bundled) {
+         codecOptions: [String], source: ModeSource = .bundled,
+         syncSources: [String] = []) {
         self.id = id
         self.name = name
         self.activePhotosites = activePhotosites
@@ -38,6 +53,7 @@ struct RecordingMode: Codable, Identifiable {
         self.codecOptions = codecOptions
         self.source = source
         self.syncedSnapshot = nil
+        self.syncSources = syncSources
     }
 
     init(from decoder: Decoder) throws {
@@ -50,6 +66,12 @@ struct RecordingMode: Codable, Identifiable {
         codecOptions = try c.decodeIfPresent([String].self, forKey: .codecOptions) ?? []
         source = try c.decodeIfPresent(ModeSource.self, forKey: .source) ?? .bundled
         syncedSnapshot = try c.decodeIfPresent(RecordingModeSnapshot.self, forKey: .syncedSnapshot)
+        syncSources = try c.decodeIfPresent([String].self, forKey: .syncSources) ?? []
+        sensorModeName = try c.decodeIfPresent(String.self, forKey: .sensorModeName)
+        aspectRatio = try c.decodeIfPresent(String.self, forKey: .aspectRatio)
+        bitDepth = try c.decodeIfPresent(String.self, forKey: .bitDepth)
+        fileFormat = try c.decodeIfPresent(String.self, forKey: .fileFormat)
+        sampling = try c.decodeIfPresent(String.self, forKey: .sampling)
     }
 }
 

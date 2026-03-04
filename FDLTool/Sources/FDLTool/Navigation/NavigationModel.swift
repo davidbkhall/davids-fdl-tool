@@ -12,11 +12,11 @@ enum Tool: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .library: return "folder"
-        case .chartGenerator: return "viewfinder"
-        case .viewer: return "eye"
-        case .clipID: return "film"
-        case .cameraDB: return "camera"
+        case .library: return "tray.full"
+        case .chartGenerator: return "viewfinder.rectangular"
+        case .viewer: return "rectangle.on.rectangle.angled"
+        case .clipID: return "film.stack"
+        case .cameraDB: return "camera.aperture"
         }
     }
 

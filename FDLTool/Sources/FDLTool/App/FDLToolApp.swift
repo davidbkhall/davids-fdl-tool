@@ -118,7 +118,7 @@ struct ContentView: View {
         case .chartGenerator:
             ChartGeneratorView()
         case .viewer:
-            ViewerView()
+            ViewerView(viewModel: appState.viewerViewModel)
         case .clipID:
             ClipIDView()
         case .cameraDB:
@@ -212,16 +212,34 @@ struct SettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(
-                    "Camera sensor data is sourced from the CamDB Camera Database"
-                    + " by Matchmove Machine and synced via their public API."
-                )
+                    Text("Camera data is sourced from bundled data, MatchMove Machine API, and CineD Camera Database.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Link("camdb.matchmovemachine.com",
-                         destination: URL(string: "https://camdb.matchmovemachine.com/")!)
-                        .font(.caption)
+                    HStack(spacing: 16) {
+                        Link("camdb.matchmovemachine.com",
+                             destination: URL(string: "https://camdb.matchmovemachine.com/")!)
+                            .font(.caption)
+                        Link("cined.com/camera-database",
+                             destination: URL(string: "https://www.cined.com/camera-database/")!)
+                            .font(.caption)
+                    }
                 }
+            }
+
+            Section("CineD Credentials") {
+                LabeledContent("Email") {
+                    TextField("CineD email", text: $appState.cinedEmail)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                }
+                LabeledContent("Password") {
+                    SecureField("CineD password", text: $appState.cinedPassword)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                }
+                Text("Optional. Required if CineD restricts access to full camera database content. Credentials are stored locally.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Storage") {
@@ -259,6 +277,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 480)
+        .frame(width: 480, height: 560)
     }
 }

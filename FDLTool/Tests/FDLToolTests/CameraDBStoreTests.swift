@@ -24,8 +24,7 @@ final class CameraDBStoreTests: XCTestCase {
               "max_fps": 120,
               "codec_options": ["ARRIRAW", "ProRes 4444 XQ"]
             }
-          ],
-          "common_deliverables": ["4096x2160", "3840x2160"]
+          ]
         }
         """
         let data = json.data(using: .utf8)!
@@ -39,7 +38,6 @@ final class CameraDBStoreTests: XCTestCase {
         XCTAssertEqual(camera.sensor.pixelPitchUM, 6.075)
         XCTAssertEqual(camera.recordingModes.count, 1)
         XCTAssertEqual(camera.recordingModes[0].maxFPS, 120)
-        XCTAssertEqual(camera.commonDeliverables, ["4096x2160", "3840x2160"])
     }
 
     func testCameraDatabaseDecoding() throws {
@@ -58,8 +56,7 @@ final class CameraDBStoreTests: XCTestCase {
                 "physical_dimensions_mm": {"width": 24.0, "height": 13.5},
                 "pixel_pitch_um": 6.25
               },
-              "recording_modes": [],
-              "common_deliverables": []
+              "recording_modes": []
             }
           ]
         }

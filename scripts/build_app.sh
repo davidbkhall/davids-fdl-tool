@@ -4,7 +4,7 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="FDL Tool"
 BUNDLE_ID="com.fdltool.app"
-APP_DIR="$HOME/Desktop/$APP_NAME.app"
+APP_DIR="$HOME/Applications/$APP_NAME.app"
 
 # Kill any running instance first
 pkill -f "$APP_DIR/Contents/MacOS/FDLTool" 2>/dev/null || true
@@ -21,8 +21,10 @@ BINARY="$(swift build -c release --show-bin-path)/FDLTool"
 
 echo "Removing old app bundle..."
 rm -rf "$APP_DIR"
+rm -rf "$HOME/Desktop/$APP_NAME.app"
 
 echo "Creating app bundle at $APP_DIR..."
+mkdir -p "$(dirname "$APP_DIR")"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 

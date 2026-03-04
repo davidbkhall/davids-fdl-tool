@@ -18,8 +18,13 @@ struct CameraSpec: Codable, Identifiable {
     var model: String
     var sensor: SensorSpec
     var recordingModes: [RecordingMode]
-    var commonDeliverables: [String]
     var source: CameraSource
+    /// Which data sources contributed to this camera (e.g. "Bundled", "MatchMove Machine", "CineD").
+    var syncSources: [String]
+    /// Extra metadata from CineD or other sources.
+    var releaseDate: String?
+    var lensMount: String?
+    var baseSensitivity: String?
 
     enum CameraSource: String, Codable {
         case bundled
@@ -30,19 +35,22 @@ struct CameraSpec: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, manufacturer, model, sensor, source
         case recordingModes = "recording_modes"
-        case commonDeliverables = "common_deliverables"
+        case syncSources = "sync_sources"
+        case releaseDate = "release_date"
+        case lensMount = "lens_mount"
+        case baseSensitivity = "base_sensitivity"
     }
 
     init(id: String, manufacturer: String, model: String, sensor: SensorSpec,
-         recordingModes: [RecordingMode], commonDeliverables: [String],
-         source: CameraSource = .bundled) {
+         recordingModes: [RecordingMode],
+         source: CameraSource = .bundled, syncSources: [String] = []) {
         self.id = id
         self.manufacturer = manufacturer
         self.model = model
         self.sensor = sensor
         self.recordingModes = recordingModes
-        self.commonDeliverables = commonDeliverables
         self.source = source
+        self.syncSources = syncSources
     }
 
     init(from decoder: Decoder) throws {
@@ -52,8 +60,11 @@ struct CameraSpec: Codable, Identifiable {
         model = try c.decode(String.self, forKey: .model)
         sensor = try c.decode(SensorSpec.self, forKey: .sensor)
         recordingModes = try c.decode([RecordingMode].self, forKey: .recordingModes)
-        commonDeliverables = try c.decodeIfPresent([String].self, forKey: .commonDeliverables) ?? []
         source = try c.decodeIfPresent(CameraSource.self, forKey: .source) ?? .bundled
+        syncSources = try c.decodeIfPresent([String].self, forKey: .syncSources) ?? []
+        releaseDate = try c.decodeIfPresent(String.self, forKey: .releaseDate)
+        lensMount = try c.decodeIfPresent(String.self, forKey: .lensMount)
+        baseSensitivity = try c.decodeIfPresent(String.self, forKey: .baseSensitivity)
     }
 }
 

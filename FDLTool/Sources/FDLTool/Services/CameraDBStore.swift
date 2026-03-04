@@ -132,11 +132,162 @@ class CameraDBStore: ObservableObject {
     }
 
     private func mergeFromLocal(_ localCameras: [CameraSpec]) {
-        var existingByID = Dictionary(uniqueKeysWithValues: cameras.map { ($0.id, $0) })
-        for cam in localCameras {
-            existingByID[cam.id] = cam
+        var nameToID: [String: String] = [:]
+        for cam in cameras {
+            nameToID["\(cam.manufacturer)|\(cam.model)".lowercased()] = cam.id
         }
-        cameras = Array(existingByID.values)
+
+        var result = cameras
+        for var cam in localCameras {
+            let nameKey = "\(cam.manufacturer)|\(cam.model)".lowercased()
+
+            if let existingIdx = result.firstIndex(where: { $0.id == cam.id }) {
+                result[existingIdx] = cam
+            } else if let bundledID = nameToID[nameKey],
+                      let bundledIdx = result.firstIndex(where: { $0.id == bundledID && $0.source == .bundled }) {
+                let bundled = result[bundledIdx]
+                cam = Self.enrichFromExisting(apiCamera: cam, existing: bundled)
+                result[bundledIdx] = cam
+            } else {
+                result.append(cam)
+            }
+            nameToID[nameKey] = cam.id
+        }
+        cameras = result
+    }
+
+    /// Carry over maxFPS, codecOptions, and syncSources from an existing camera
+    /// into an API-synced camera whose modes lack that metadata.
+    /// Works for both bundled and previously-enriched synced cameras.
+    private static func enrichFromExisting(apiCamera: CameraSpec, existing: CameraSpec) -> CameraSpec {
+        var enriched = apiCamera
+
+        // Merge syncSources
+        var sources = Set(enriched.syncSources)
+        sources.formUnion(existing.syncSources)
+        enriched.syncSources = Array(sources).sorted()
+
+        // Carry over CineD metadata if missing
+        if enriched.releaseDate == nil { enriched.releaseDate = existing.releaseDate }
+        if enriched.lensMount == nil { enriched.lensMount = existing.lensMount }
+        if enriched.baseSensitivity == nil { enriched.baseSensitivity = existing.baseSensitivity }
+
+        let existingByRes = Dictionary(
+            grouping: existing.recordingModes,
+            by: { "\($0.activePhotosites.width)x\($0.activePhotosites.height)" }
+        )
+        let existingByID = Dictionary(
+            uniqueKeysWithValues: existing.recordingModes.map { ($0.id, $0) }
+        )
+
+        for i in enriched.recordingModes.indices {
+            let mode = enriched.recordingModes[i]
+            let match = existingByID[mode.id]
+                ?? existingByRes["\(mode.activePhotosites.width)x\(mode.activePhotosites.height)"]?.first
+
+            if let match = match {
+                if mode.maxFPS == 0 && match.maxFPS > 0 {
+                    enriched.recordingModes[i].maxFPS = match.maxFPS
+                }
+                if mode.codecOptions.isEmpty && !match.codecOptions.isEmpty {
+                    enriched.recordingModes[i].codecOptions = match.codecOptions
+                }
+                // Merge mode-level syncSources
+                var modeSources = Set(enriched.recordingModes[i].syncSources)
+                modeSources.formUnion(match.syncSources)
+                enriched.recordingModes[i].syncSources = Array(modeSources).sorted()
+                // Carry over CineD extended fields
+                if enriched.recordingModes[i].sensorModeName == nil { enriched.recordingModes[i].sensorModeName = match.sensorModeName }
+                if enriched.recordingModes[i].aspectRatio == nil { enriched.recordingModes[i].aspectRatio = match.aspectRatio }
+                if enriched.recordingModes[i].bitDepth == nil { enriched.recordingModes[i].bitDepth = match.bitDepth }
+                if enriched.recordingModes[i].fileFormat == nil { enriched.recordingModes[i].fileFormat = match.fileFormat }
+                if enriched.recordingModes[i].sampling == nil { enriched.recordingModes[i].sampling = match.sampling }
+            }
+        }
+
+        return enriched
+    }
+
+    // MARK: - CineD Merge
+
+    /// Merge cameras from CineD into the store.
+    /// Matches by manufacturer+model (case-insensitive) and enriches existing entries
+    /// rather than creating duplicates.
+    func mergeFromCineD(_ cinedCameras: [CameraSpec]) {
+        var nameToIndex: [String: Int] = [:]
+        for (i, cam) in cameras.enumerated() {
+            nameToIndex["\(cam.manufacturer)|\(cam.model)".lowercased()] = i
+        }
+
+        var newCameras: [CameraSpec] = []
+
+        for var cinedCam in cinedCameras {
+            let key = "\(cinedCam.manufacturer)|\(cinedCam.model)".lowercased()
+
+            if let existingIdx = nameToIndex[key] {
+                var existing = cameras[existingIdx]
+
+                // Merge syncSources
+                var sources = Set(existing.syncSources)
+                sources.insert(CineDSyncService.sourceName)
+                existing.syncSources = Array(sources).sorted()
+
+                // Enrich metadata from CineD
+                if existing.releaseDate == nil { existing.releaseDate = cinedCam.releaseDate }
+                if existing.lensMount == nil { existing.lensMount = cinedCam.lensMount }
+                if existing.baseSensitivity == nil { existing.baseSensitivity = cinedCam.baseSensitivity }
+
+                // Enrich existing modes with CineD data (codecs, FPS, extended fields)
+                let cinedByRes = Dictionary(
+                    grouping: cinedCam.recordingModes,
+                    by: { "\($0.activePhotosites.width)x\($0.activePhotosites.height)" }
+                )
+
+                for i in existing.recordingModes.indices {
+                    let resKey = "\(existing.recordingModes[i].activePhotosites.width)x\(existing.recordingModes[i].activePhotosites.height)"
+                    if let cinedModes = cinedByRes[resKey] {
+                        // Take the best data from CineD modes matching this resolution
+                        let cinedMatch = cinedModes.first!
+                        if existing.recordingModes[i].maxFPS == 0 && cinedMatch.maxFPS > 0 {
+                            existing.recordingModes[i].maxFPS = cinedMatch.maxFPS
+                        }
+                        // Merge codec lists
+                        let allCodecs = Set(existing.recordingModes[i].codecOptions).union(cinedModes.flatMap(\.codecOptions))
+                        existing.recordingModes[i].codecOptions = Array(allCodecs).sorted()
+
+                        var modeSources = Set(existing.recordingModes[i].syncSources)
+                        modeSources.insert(CineDSyncService.sourceName)
+                        existing.recordingModes[i].syncSources = Array(modeSources).sorted()
+
+                        if existing.recordingModes[i].sensorModeName == nil { existing.recordingModes[i].sensorModeName = cinedMatch.sensorModeName }
+                        if existing.recordingModes[i].aspectRatio == nil { existing.recordingModes[i].aspectRatio = cinedMatch.aspectRatio }
+                        if existing.recordingModes[i].bitDepth == nil { existing.recordingModes[i].bitDepth = cinedMatch.bitDepth }
+                        if existing.recordingModes[i].fileFormat == nil { existing.recordingModes[i].fileFormat = cinedMatch.fileFormat }
+                        if existing.recordingModes[i].sampling == nil { existing.recordingModes[i].sampling = cinedMatch.sampling }
+                    }
+                }
+
+                // Add any CineD-only modes (resolutions not in existing)
+                let existingResolutions = Set(existing.recordingModes.map {
+                    "\($0.activePhotosites.width)x\($0.activePhotosites.height)"
+                })
+                for cinedMode in cinedCam.recordingModes {
+                    let resKey = "\(cinedMode.activePhotosites.width)x\(cinedMode.activePhotosites.height)"
+                    if !existingResolutions.contains(resKey) {
+                        existing.recordingModes.append(cinedMode)
+                    }
+                }
+
+                cameras[existingIdx] = existing
+            } else {
+                cinedCam.syncSources = [CineDSyncService.sourceName]
+                newCameras.append(cinedCam)
+                nameToIndex[key] = cameras.count + newCameras.count - 1
+            }
+        }
+
+        cameras.append(contentsOf: newCameras)
+        saveLocalCameras()
     }
 
     // MARK: - Search & Filter
@@ -185,9 +336,9 @@ class CameraDBStore: ObservableObject {
     /// Deduplicates cameras with matching manufacturer+model (case-insensitive).
     func mergeFromAPI(_ apiCameras: [CameraSpec]) {
         var existingByID = Dictionary(uniqueKeysWithValues: cameras.map { ($0.id, $0) })
+        var orderedIDs = cameras.map(\.id)
         var conflicts: [SyncConflict] = []
 
-        // Build a lookup of existing cameras by normalized manufacturer+model for dedup
         var nameToID: [String: String] = [:]
         for cam in cameras {
             let key = "\(cam.manufacturer)|\(cam.model)".lowercased()
@@ -196,17 +347,23 @@ class CameraDBStore: ObservableObject {
 
         for var cam in apiCameras {
             cam.source = .synced
+            if !cam.syncSources.contains("MatchMove Machine") {
+                cam.syncSources.append("MatchMove Machine")
+            }
 
-            // Deduplicate: if a bundled camera with the same name exists under a different ID, remove it
             let key = "\(cam.manufacturer)|\(cam.model)".lowercased()
             if let existingID = nameToID[key], existingID != cam.id {
                 if let existing = existingByID[existingID], existing.source == .bundled {
+                    cam = Self.enrichFromExisting(apiCamera: cam, existing: existing)
                     existingByID.removeValue(forKey: existingID)
+                    orderedIDs.removeAll { $0 == existingID }
                 }
             }
             nameToID[key] = cam.id
 
             if let existing = existingByID[cam.id] {
+                cam = Self.enrichFromExisting(apiCamera: cam, existing: existing)
+
                 let modifiedModes = existing.recordingModes.filter { $0.source == .modified }
                 if !modifiedModes.isEmpty {
                     let remoteByID = Dictionary(uniqueKeysWithValues: cam.recordingModes.map { ($0.id, $0) })
@@ -235,11 +392,13 @@ class CameraDBStore: ObservableObject {
                     }
                     cam.recordingModes = mergedModes
                 }
+            } else {
+                orderedIDs.append(cam.id)
             }
             existingByID[cam.id] = cam
         }
 
-        cameras = Array(existingByID.values)
+        cameras = orderedIDs.compactMap { existingByID[$0] }
         isLoaded = true
         pendingConflicts = conflicts
         saveLocalCameras()

@@ -150,22 +150,70 @@ struct CameraDatabaseView: View {
                 }
                 .help("Add a custom camera")
 
-                Button(action: {
-                    Task {
-                        await syncService.syncAll(cameraDBStore: store)
+                Menu {
+                    Button("MatchMove Machine") {
+                        Task {
+                            await syncService.syncAll(cameraDBStore: store)
+                        }
                     }
-                }) {
+                    .disabled(syncService.isSyncing)
+
+                    Button("CineD Camera Database") {
+                        Task {
+                            await appState.cinedSyncService.syncAll(
+                                email: appState.cinedEmail,
+                                password: appState.cinedPassword,
+                                cameraDBStore: store
+                            )
+                        }
+                    }
+                    .disabled(appState.cinedSyncService.isSyncing)
+
+                    Divider()
+
+                    Button("Sync All Sources") {
+                        Task {
+                            await syncService.syncAll(cameraDBStore: store)
+                            await appState.cinedSyncService.syncAll(
+                                email: appState.cinedEmail,
+                                password: appState.cinedPassword,
+                                cameraDBStore: store
+                            )
+                        }
+                    }
+                    .disabled(syncService.isSyncing || appState.cinedSyncService.isSyncing)
+                } label: {
                     Label("Sync", systemImage: "arrow.triangle.2.circlepath")
                         .font(.caption)
                 }
-                .disabled(syncService.isSyncing)
-                .help("Sync cameras from matchmovemachine.com")
+                .disabled(syncService.isSyncing || appState.cinedSyncService.isSyncing)
+                .help("Sync cameras from external sources")
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
 
             if let err = syncService.lastSyncError {
-                Text(err)
+                Text("MatchMove: \(err)")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 2)
+            }
+
+            if appState.cinedSyncService.isSyncing {
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.small)
+                    Text(appState.cinedSyncService.syncProgress)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 2)
+            }
+
+            if let err = appState.cinedSyncService.lastSyncError {
+                Text("CineD: \(err)")
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .padding(.horizontal, 8)
@@ -202,15 +250,28 @@ struct CameraDatabaseView: View {
                                 ForEach(group.cameras) { camera in
                                     CameraListRow(camera: camera)
                                         .tag(camera.id)
+                                        .contextMenu {
+                                            if camera.source != .bundled {
+                                                Button(role: .destructive) {
+                                                    if selectedCameraID == camera.id {
+                                                        selectedCameraID = nil
+                                                    }
+                                                    store.removeCamera(byID: camera.id)
+                                                } label: {
+                                                    Label("Delete Camera", systemImage: "trash")
+                                                }
+                                            } else {
+                                                Text("Bundled cameras cannot be deleted")
+                                            }
+                                        }
                                 }
                             } header: {
-                                Text(group.manufacturer)
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                                    .padding(.vertical, 4)
-                                    .padding(.horizontal, 4)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.accentColor.opacity(0.12))
+                                Text(group.manufacturer.uppercased())
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 2)
                             }
                         }
                     }
@@ -305,18 +366,27 @@ struct CameraDatabaseView: View {
     @ViewBuilder
     private var detailPane: some View {
         let store = appState.cameraDBStore
-        if let cameraID = selectedCameraID, let idx = store.cameras.firstIndex(where: { $0.id == cameraID }) {
+        if let cameraID = selectedCameraID, store.cameras.contains(where: { $0.id == cameraID }) {
             CameraDetailView(camera: Binding(
-                get: { store.cameras[idx] },
+                get: {
+                    store.cameras.first(where: { $0.id == cameraID })
+                        ?? store.cameras[0]
+                },
                 set: { store.updateCamera($0) }
-            ), cameraDBStore: store)
+            ), cameraDBStore: store, onDelete: { selectedCameraID = nil })
         } else {
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Image(systemName: "camera")
-                    .font(.system(size: 48))
+                    .font(.system(size: 40))
+                    .foregroundStyle(.quaternary)
+                Text("Select a Camera")
+                    .font(.title3)
                     .foregroundStyle(.secondary)
-                Text("Select a camera to view specifications")
-                    .foregroundStyle(.secondary)
+                Text("Choose a camera from the list to view its specifications and recording modes.")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 280)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -363,46 +433,98 @@ struct CameraListRow: View {
     let camera: CameraSpec
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(camera.model)
                     .font(.body)
+                    .fontWeight(.medium)
                     .lineLimit(1)
-                if camera.source != .bundled {
-                    Text(camera.source == .synced ? "API" : "Custom")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(
-                            camera.source == .synced ? Color.blue.opacity(0.7) : Color.orange.opacity(0.7),
-                            in: Capsule()
-                        )
+
+                Spacer(minLength: 0)
+
+                ForEach(camera.effectiveSourceBadges, id: \.self) { badge in
+                    SourceBadge(label: badge)
                 }
             }
-            HStack(spacing: 8) {
-                HStack(spacing: 3) {
-                    Text("Sensor:")
-                        .foregroundStyle(.tertiary)
-                    Text(camera.sensor.name)
+
+            HStack(spacing: 12) {
+                if !camera.sensor.name.isEmpty {
+                    Label(camera.sensor.name, systemImage: "cpu")
                         .foregroundStyle(.secondary)
                 }
-                HStack(spacing: 3) {
-                    Text("Res:")
-                        .foregroundStyle(.tertiary)
-                    Text(verbatim: "\(camera.sensor.photositeDimensions.width)\u{00D7}\(camera.sensor.photositeDimensions.height)")
-                        .foregroundStyle(.secondary)
-                }
+                Text(verbatim: "\(camera.sensor.photositeDimensions.width)\u{00D7}\(camera.sensor.photositeDimensions.height)")
+                    .foregroundStyle(.tertiary)
             }
             .font(.caption)
+            .lineLimit(1)
         }
-        .padding(.vertical, 1)
+        .padding(.vertical, 2)
+    }
+}
+
+struct SourceBadge: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Self.color(for: label), in: Capsule())
+    }
+
+    static func color(for badge: String) -> Color {
+        switch badge {
+        case "ARRI": return .teal
+        case "RED": return .red
+        case "Sony": return .indigo
+        case "Canon": return .pink
+        case "MMM": return .blue
+        case "CineD": return .purple
+        case "Custom": return .orange
+        case "API": return .blue
+        default: return .gray
+        }
+    }
+}
+
+extension CameraSpec {
+    /// Compute display badges from syncSources, falling back to the source enum.
+    var effectiveSourceBadges: [String] {
+        if !syncSources.isEmpty {
+            var badges: [String] = []
+            let seen = NSMutableSet()
+            for source in syncSources {
+                let badge: String
+                switch source {
+                case let s where s.hasPrefix("ARRI"): badge = "ARRI"
+                case let s where s.hasPrefix("RED"): badge = "RED"
+                case let s where s.hasPrefix("Sony"): badge = "Sony"
+                case let s where s.hasPrefix("Canon"): badge = "Canon"
+                case "MatchMove Machine": badge = "MMM"
+                case "CineD": badge = "CineD"
+                default: badge = source
+                }
+                if !seen.contains(badge) {
+                    seen.add(badge)
+                    badges.append(badge)
+                }
+            }
+            return badges
+        }
+        switch source {
+        case .synced: return ["API"]
+        case .custom: return ["Custom"]
+        case .bundled: return []
+        }
     }
 }
 
 struct CameraDetailView: View {
     @Binding var camera: CameraSpec
     @ObservedObject var cameraDBStore: CameraDBStore
+    var onDelete: (() -> Void)?
     @EnvironmentObject var appState: AppState
     @State private var modeToEdit: RecordingMode?
     @State private var showAddModeSheet = false
@@ -410,6 +532,7 @@ struct CameraDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var isSyncingCamera = false
     @State private var cameraSyncError: String?
+    @State private var cameraSyncSuccess: String?
 
     /// Extract the integer API ID from an "mmm-XX" style camera ID, if present.
     private var apiCameraID: Int? {
@@ -419,53 +542,60 @@ struct CameraDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                // MARK: Header with edit toggle + actions
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 20) {
+                // MARK: Header
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline) {
                         Text(camera.manufacturer)
-                            .font(.subheadline)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
-                        if isEditingEnabled {
-                            TextField("Model", text: $camera.model)
-                                .font(.title)
-                                .fontWeight(.semibold)
-                                .textFieldStyle(.roundedBorder)
-                        } else {
-                            Text(camera.model)
-                                .font(.title)
-                                .fontWeight(.semibold)
+
+                        Spacer()
+
+                        HStack(spacing: 6) {
+                            if apiCameraID != nil {
+                                Button(action: { resyncCamera() }) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(isSyncingCamera)
+                                .help("Re-sync this camera from API")
+                            }
+
+                            Toggle(isOn: $isEditingEnabled) {
+                                Image(systemName: isEditingEnabled ? "lock.open.fill" : "lock.fill")
+                                    .foregroundStyle(isEditingEnabled ? .orange : .secondary)
+                            }
+                            .toggleStyle(.button)
+                            .help(isEditingEnabled ? "Lock editing" : "Unlock editing")
+
+                            if camera.source != .bundled {
+                                Button(action: { showDeleteConfirm = true }) {
+                                    Image(systemName: "trash")
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Delete this camera")
+                            }
                         }
+                        .controlSize(.small)
                     }
-                    Spacer()
-                    HStack(spacing: 8) {
-                        if apiCameraID != nil {
-                            Button(action: { resyncCamera() }) {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .font(.body)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(isSyncingCamera)
-                            .help("Re-sync this camera from API")
-                        }
 
-                        Toggle(isOn: $isEditingEnabled) {
-                            Image(systemName: isEditingEnabled ? "lock.open.fill" : "lock.fill")
-                                .font(.body)
-                                .foregroundStyle(isEditingEnabled ? .orange : .secondary)
-                        }
-                        .toggleStyle(.button)
-                        .help(isEditingEnabled ? "Lock editing" : "Unlock editing")
+                    if isEditingEnabled {
+                        TextField("Model", text: $camera.model)
+                            .font(.title2.weight(.semibold))
+                            .textFieldStyle(.roundedBorder)
+                    } else {
+                        Text(camera.model)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                    }
 
-                        if camera.source != .bundled {
-                            Button(action: { showDeleteConfirm = true }) {
-                                Image(systemName: "trash")
-                                    .font(.body)
-                                    .foregroundStyle(isEditingEnabled ? .red : .secondary)
+                    if !camera.effectiveSourceBadges.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(camera.effectiveSourceBadges, id: \.self) { badge in
+                                SourceBadge(label: badge)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!isEditingEnabled)
-                            .help("Remove this camera")
                         }
                     }
                 }
@@ -473,24 +603,71 @@ struct CameraDetailView: View {
                 if isSyncingCamera {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("Syncing...").font(.caption).foregroundStyle(.secondary)
+                        Text("Syncing...")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 if let err = cameraSyncError {
-                    Text(err).font(.caption2).foregroundStyle(.red)
+                    Label(err, systemImage: "xmark.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
+                if let msg = cameraSyncSuccess {
+                    Label(msg, systemImage: "checkmark.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                        .transition(.opacity)
+                }
+
+                // MARK: Extended Metadata
+                if camera.releaseDate != nil || camera.lensMount != nil || camera.baseSensitivity != nil {
+                    GroupBox {
+                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 8) {
+                            if let date = camera.releaseDate {
+                                GridRow {
+                                    Text("Released")
+                                        .foregroundStyle(.secondary)
+                                        .gridColumnAlignment(.trailing)
+                                    Text(date)
+                                }
+                            }
+                            if let mount = camera.lensMount {
+                                GridRow {
+                                    Text("Lens Mount").foregroundStyle(.secondary)
+                                    Text(mount)
+                                }
+                            }
+                            if let iso = camera.baseSensitivity {
+                                GridRow {
+                                    Text("Base ISO").foregroundStyle(.secondary)
+                                    Text(iso)
+                                }
+                            }
+                        }
+                        .font(.callout)
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } label: {
+                        Label("Details", systemImage: "info.circle")
+                            .font(.headline)
+                    }
                 }
 
                 // MARK: Sensor
-                GroupBox("Sensor") {
+                GroupBox {
                     if isEditingEnabled {
                         editableSensorGrid
                     } else {
                         readOnlySensorGrid
                     }
+                } label: {
+                    Label("Sensor", systemImage: "cpu")
+                        .font(.headline)
                 }
 
                 // MARK: Recording Modes
-                GroupBox("Recording Modes") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(camera.recordingModes) { mode in
                             RecordingModeRow(
@@ -503,46 +680,36 @@ struct CameraDetailView: View {
                                 onResync: apiCameraID != nil ? { resyncMode(mode) } : nil
                             )
                             if mode.id != camera.recordingModes.last?.id {
-                                Divider().padding(.vertical, 4)
+                                Divider().padding(.vertical, 6)
                             }
                         }
                     }
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if isEditingEnabled {
-                    Button(action: { showAddModeSheet = true }) {
-                        Label("Add Recording Mode", systemImage: "plus.circle.fill")
-                            .font(.body)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                }
-
-                // MARK: Common Deliverables
-                if !camera.commonDeliverables.isEmpty {
-                    GroupBox("Common Deliverables") {
-                        FlowLayout(spacing: 6) {
-                            ForEach(camera.commonDeliverables, id: \.self) { deliverable in
-                                Text(deliverable)
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(.blue.opacity(0.1), in: Capsule())
+                } label: {
+                    HStack {
+                        Label("Recording Modes", systemImage: "film")
+                            .font(.headline)
+                        Spacer()
+                        if isEditingEnabled {
+                            Button(action: { showAddModeSheet = true }) {
+                                Label("Add", systemImage: "plus")
+                                    .font(.callout)
                             }
+                            .buttonStyle(.borderless)
                         }
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
                 // MARK: Sensor Visualization
-                GroupBox("Sensor Visualization") {
+                GroupBox {
                     SensorVisualization(camera: camera)
                         .frame(height: 200)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 4)
+                } label: {
+                    Label("Sensor Visualization", systemImage: "rectangle.dashed")
+                        .font(.headline)
                 }
             }
             .padding()
@@ -550,6 +717,7 @@ struct CameraDetailView: View {
         .alert("Delete Camera?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
                 cameraDBStore.removeCamera(byID: camera.id)
+                onDelete?()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -590,9 +758,11 @@ struct CameraDetailView: View {
 
     @ViewBuilder
     private var readOnlySensorGrid: some View {
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 8) {
             GridRow {
-                Text("Name").foregroundStyle(.secondary)
+                Text("Name")
+                    .foregroundStyle(.secondary)
+                    .gridColumnAlignment(.trailing)
                 Text(camera.sensor.name)
             }
             GridRow {
@@ -614,16 +784,18 @@ struct CameraDetailView: View {
                 Text(String(format: "%.3f \u{03BC}m", camera.sensor.pixelPitchUM))
             }
         }
-        .font(.body)
+        .font(.callout)
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
     private var editableSensorGrid: some View {
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 8) {
             GridRow {
-                Text("Name").foregroundStyle(.secondary)
+                Text("Name")
+                    .foregroundStyle(.secondary)
+                    .gridColumnAlignment(.trailing)
                 TextField("Sensor Name", text: $camera.sensor.name)
                     .textFieldStyle(.roundedBorder)
             }
@@ -648,7 +820,7 @@ struct CameraDetailView: View {
                     .textFieldStyle(.roundedBorder).frame(width: 100)
             }
         }
-        .font(.body)
+        .font(.callout)
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -659,9 +831,31 @@ struct CameraDetailView: View {
         guard let id = apiCameraID else { return }
         isSyncingCamera = true
         cameraSyncError = nil
+        cameraSyncSuccess = nil
+
+        let beforeModes = camera.recordingModes.count
+
         Task {
             do {
                 try await appState.cameraDBSyncService.syncCamera(apiCameraID: id, cameraDBStore: cameraDBStore)
+                let afterCam = cameraDBStore.cameras.first(where: { $0.id == camera.id })
+                let afterModes = afterCam?.recordingModes.count ?? beforeModes
+                let modesDiff = afterModes - beforeModes
+
+                var message = "Sync complete."
+                if modesDiff > 0 {
+                    message += " \(modesDiff) new mode\(modesDiff == 1 ? "" : "s") added."
+                } else if modesDiff < 0 {
+                    message += " \(-modesDiff) mode\(modesDiff == -1 ? "" : "s") removed."
+                } else {
+                    message += " Camera is up to date."
+                }
+                withAnimation { cameraSyncSuccess = message }
+
+                Task {
+                    try? await Task.sleep(for: .seconds(5))
+                    withAnimation { cameraSyncSuccess = nil }
+                }
             } catch {
                 cameraSyncError = error.localizedDescription
             }
@@ -673,9 +867,15 @@ struct CameraDetailView: View {
         guard let camID = apiCameraID else { return }
         isSyncingCamera = true
         cameraSyncError = nil
+        cameraSyncSuccess = nil
         Task {
             do {
                 try await appState.cameraDBSyncService.syncRecordingMode(apiCameraID: camID, modeID: mode.id, cameraDBStore: cameraDBStore)
+                withAnimation { cameraSyncSuccess = "Mode \"\(mode.name)\" synced successfully." }
+                Task {
+                    try? await Task.sleep(for: .seconds(5))
+                    withAnimation { cameraSyncSuccess = nil }
+                }
             } catch {
                 cameraSyncError = error.localizedDescription
             }
@@ -700,91 +900,93 @@ struct RecordingModeRow: View {
     var onResync: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(mode.name)
-                    .font(.body.weight(.medium))
-                modeSourceBadge
+                    .font(.callout.weight(.medium))
+                modeSourceBadges
                 Spacer()
                 actionButtons
             }
 
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 3) {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 4) {
                 GridRow {
                     Text("Active Area")
-                        .font(.caption)
                         .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
                     Text(verbatim: "\(mode.activePhotosites.width) \u{00D7} \(mode.activePhotosites.height) px")
-                        .font(.caption)
                     AspectRatioLabel(width: Double(mode.activePhotosites.width),
                                      height: Double(mode.activePhotosites.height))
                 }
                 GridRow {
-                    Text("Image Area")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Image Area").foregroundStyle(.secondary)
                     Text(String(format: "%.2f \u{00D7} %.2f mm",
                                 mode.activeImageAreaMM.width,
                                 mode.activeImageAreaMM.height))
-                        .font(.caption)
                     Text("")
                 }
                 if mode.maxFPS > 0 {
                     GridRow {
-                        Text("Max FPS")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text("Max FPS").foregroundStyle(.secondary)
                         Text("\(mode.maxFPS) fps")
-                            .font(.caption)
                         Text("")
                     }
                 }
             }
+            .font(.caption)
 
             if !mode.codecOptions.isEmpty {
                 HStack(spacing: 4) {
                     Text("Codecs:")
-                        .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text(mode.codecOptions.joined(separator: ", "))
-                        .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(2)
                 }
+                .font(.caption)
+            }
+
+            let extFields = [
+                mode.aspectRatio.map { "Aspect: \($0)" },
+                mode.bitDepth.map { "\($0)" },
+                mode.sampling,
+                mode.fileFormat.map { "Format: \($0)" }
+            ].compactMap { $0 }
+            if !extFields.isEmpty {
+                Text(extFields.joined(separator: " \u{2022} "))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     @ViewBuilder
     private var actionButtons: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Button(action: { onEdit?() }) {
                 Image(systemName: "pencil")
-                    .font(.caption)
-                    .foregroundStyle(isEditingEnabled ? Color.accentColor : Color.secondary.opacity(0.4))
+                    .foregroundStyle(isEditingEnabled ? Color.accentColor : Color.secondary.opacity(0.3))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .disabled(!isEditingEnabled)
             .help("Edit recording mode")
 
             if onResync != nil && (mode.source == .synced || mode.source == .modified) {
                 Button(action: { onResync?() }) {
                     Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.caption)
-                        .foregroundStyle(isEditingEnabled ? .blue : .secondary.opacity(0.4))
+                        .foregroundStyle(isEditingEnabled ? .blue : .secondary.opacity(0.3))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .disabled(!isEditingEnabled)
                 .help("Re-sync this mode from API")
             }
 
             Button(action: { onDelete?() }) {
                 Image(systemName: "trash")
-                    .font(.caption)
-                    .foregroundStyle(isEditingEnabled ? .red : .secondary.opacity(0.4))
+                    .foregroundStyle(isEditingEnabled ? .red : .secondary.opacity(0.3))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .disabled(!isEditingEnabled)
             .help("Delete recording mode")
 
@@ -796,44 +998,39 @@ struct RecordingModeRow: View {
                 appState.chartGeneratorViewModel.selectedModeID = mode.id
                 appState.chartGeneratorViewModel.useCustomCanvas = false
             }) {
-                HStack(spacing: 3) {
-                    Image(systemName: "rectangle.on.rectangle.angled")
-                    Text("Chart")
-                }
-                .font(.caption)
+                Label("Chart", systemImage: "rectangle.on.rectangle.angled")
+                    .font(.caption)
             }
             .buttonStyle(.bordered)
             .controlSize(.mini)
             .help("Open in Chart Generator")
         }
+        .controlSize(.small)
     }
 
     @ViewBuilder
-    private var modeSourceBadge: some View {
-        switch mode.source {
-        case .synced:
-            Text("API")
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color.blue.opacity(0.7), in: Capsule())
-        case .custom:
-            Text("Custom")
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color.orange.opacity(0.7), in: Capsule())
-        case .modified:
-            Text("Modified")
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color.yellow.opacity(0.8), in: Capsule())
-        case .bundled:
-            EmptyView()
+    private var modeSourceBadges: some View {
+        if !mode.syncSources.isEmpty {
+            ForEach(mode.syncSources, id: \.self) { src in
+                let label = src == "MatchMove Machine" ? "MMM" : src
+                SourceBadge(label: label)
+            }
+        } else {
+            switch mode.source {
+            case .synced:
+                SourceBadge(label: "API")
+            case .custom:
+                SourceBadge(label: "Custom")
+            case .modified:
+                Text("Modified")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(.yellow, in: Capsule())
+            case .bundled:
+                EmptyView()
+            }
         }
     }
 }
@@ -1078,7 +1275,6 @@ struct AddCameraSheet: View {
                     pixelPitchUM: pixelPitch
                 ),
                 recordingModes: [mode],
-                commonDeliverables: [],
                 source: .custom
             )
             cameraDBStore.addCustomCamera(camera)
@@ -1099,7 +1295,6 @@ struct AddCameraSheet: View {
                     pixelPitchUM: pixelPitch
                 ),
                 recordingModes: recordingModes,
-                commonDeliverables: [],
                 source: .custom
             )
             cameraDBStore.addCustomCamera(camera)

@@ -17,15 +17,16 @@ struct ChartConfigPanel: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Chart title
-                GroupBox("Chart Title") {
+                GroupBox {
                     TextField("Title", text: $viewModel.chartTitle)
                         .textFieldStyle(.roundedBorder)
                         .padding(.vertical, 2)
+                } label: {
+                    Label("Chart Title", systemImage: "textformat")
+                        .font(.headline)
                 }
 
-                // Camera & Mode
-                GroupBox("Camera & Mode") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Use custom canvas", isOn: $viewModel.useCustomCanvas)
                             .font(.caption)
@@ -40,10 +41,12 @@ struct ChartConfigPanel: View {
                         canvasSummary
                     }
                     .padding(.vertical, 4)
+                } label: {
+                    Label("Camera & Mode", systemImage: "camera")
+                        .font(.headline)
                 }
 
-                // Framing Intents
-                GroupBox("Framing Intents") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Spacer()
@@ -76,10 +79,12 @@ struct ChartConfigPanel: View {
                         }
                     }
                     .padding(.vertical, 4)
+                } label: {
+                    Label("Framing Intents", systemImage: "aspectratio")
+                        .font(.headline)
                 }
 
-                // Framing Decisions
-                GroupBox("Framing Decisions") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Framelines")
@@ -115,10 +120,12 @@ struct ChartConfigPanel: View {
                         }
                     }
                     .padding(.vertical, 4)
+                } label: {
+                    Label("Framing Decisions", systemImage: "viewfinder.rectangular")
+                        .font(.headline)
                 }
 
-                // Effective Dimensions (optional)
-                GroupBox("Effective Dimensions") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Enable effective area", isOn: $viewModel.showEffectiveDimensions)
                             .font(.caption)
@@ -169,10 +176,12 @@ struct ChartConfigPanel: View {
                     }
                     .padding(.vertical, 4)
                     .font(.caption)
+                } label: {
+                    Label("Effective Dimensions", systemImage: "rectangle.center.inset.filled")
+                        .font(.headline)
                 }
 
-                // Anamorphic Squeeze
-                GroupBox("Anamorphic Squeeze") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         Picker("Squeeze", selection: Binding(
                             get: {
@@ -215,10 +224,12 @@ struct ChartConfigPanel: View {
                         }
                     }
                     .padding(.vertical, 2)
+                } label: {
+                    Label("Anamorphic Squeeze", systemImage: "arrow.left.and.right")
+                        .font(.headline)
                 }
 
-                // Layers
-                GroupBox("Layers") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Canvas Boundary", isOn: $viewModel.showCanvasLayer)
                         Toggle("Effective Area", isOn: $viewModel.showEffectiveLayer)
@@ -241,10 +252,12 @@ struct ChartConfigPanel: View {
                     }
                     .font(.caption)
                     .padding(.vertical, 2)
+                } label: {
+                    Label("Layers", systemImage: "square.3.layers.3d")
+                        .font(.headline)
                 }
 
-                // Metadata
-                GroupBox("Metadata Overlay") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
                         Toggle("Show on chart", isOn: $viewModel.metadataOverlayShow)
                             .font(.caption)
@@ -258,13 +271,18 @@ struct ChartConfigPanel: View {
                         }
                     }
                     .padding(.vertical, 2)
+                } label: {
+                    Label("Metadata Overlay", systemImage: "text.below.photo")
+                        .font(.headline)
                 }
 
-                // Options
-                GroupBox("Options") {
+                GroupBox {
                     Toggle("Show labels on chart", isOn: $viewModel.showLabels)
                         .font(.caption)
                         .padding(.vertical, 2)
+                } label: {
+                    Label("Options", systemImage: "slider.horizontal.3")
+                        .font(.headline)
                 }
             }
             .padding()

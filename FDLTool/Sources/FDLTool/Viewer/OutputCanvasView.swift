@@ -27,8 +27,8 @@ struct OutputCanvasView: View {
                 ZStack(alignment: .topLeading) {
                     Color.clear
 
-                    // Transformed reference image
-                    if let image = viewModel.referenceImage,
+                    if viewModel.showReferenceImage,
+                       let image = viewModel.referenceImage,
                        let sourceCanvas = viewModel.selectedCanvas,
                        let sourceFD = viewModel.selectedFramingDecision ?? sourceCanvas.framingDecisions.first,
                        let outDoc = viewModel.outputDocument,
@@ -46,23 +46,26 @@ struct OutputCanvasView: View {
                         let outFDW = outFD.dimensions.width
                         let outFDH = outFD.dimensions.height
 
-                        // Scale source image so the source FD maps onto the output FD
                         let imgScaleX = outFDW / max(srcFDW, 1)
                         let imgScaleY = outFDH / max(srcFDH, 1)
 
-                        // Source canvas scaled to output coordinates
                         let imgW = srcCanvasW * imgScaleX * totalScale
                         let imgH = srcCanvasH * imgScaleY * totalScale
 
-                        // Position: source FD anchor maps to output FD anchor
                         let imgX = baseX + (outAnchor.x - srcAnchor.x * imgScaleX) * totalScale
                         let imgY = baseY + (outAnchor.y - srcAnchor.y * imgScaleY) * totalScale
 
-                        Image(nsImage: image)
-                            .resizable()
-                            .frame(width: imgW, height: imgH)
+                        Color.clear
+                            .frame(width: scaledW, height: scaledH)
+                            .overlay(alignment: .topLeading) {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .frame(width: imgW, height: imgH)
+                                    .offset(x: imgX - baseX, y: imgY - baseY)
+                            }
+                            .clipped()
                             .opacity(viewModel.imageOpacity)
-                            .offset(x: imgX, y: imgY)
+                            .offset(x: baseX, y: baseY)
                     }
 
                     if let computedCanvas = viewModel.outputComputedCanvas {
@@ -319,6 +322,9 @@ struct OutputCanvasView: View {
 
     @ViewBuilder
     private func outputHUD(canvasW: Double, canvasH: Double) -> some View {
+        let srcCanvas = viewModel.selectedCanvas
+        let outCanvas = viewModel.outputDocument?.contexts.last?.canvases.first
+
         VStack(alignment: .leading, spacing: 3) {
             Text("OUTPUT")
                 .foregroundStyle(.yellow)
@@ -326,18 +332,23 @@ struct OutputCanvasView: View {
             Text(verbatim: "Canvas: \(Int(canvasW))\u{00D7}\(Int(canvasH))")
                 .foregroundStyle(ViewerColors.canvas)
 
-            if let doc = viewModel.outputDocument,
-               let canvas = doc.contexts.first?.canvases.first {
-                if let eff = canvas.effectiveDimensions {
-                    Text(verbatim: "Effective: \(Int(eff.width))\u{00D7}\(Int(eff.height))")
+            if let oc = outCanvas {
+                if let srcEff = srcCanvas?.effectiveDimensions, let outEff = oc.effectiveDimensions {
+                    Text(verbatim: "Effective: \(Int(srcEff.width))\u{00D7}\(Int(srcEff.height)) \u{2192} \(Int(outEff.width))\u{00D7}\(Int(outEff.height))")
                         .foregroundStyle(ViewerColors.effective)
                 }
-                ForEach(Array(canvas.framingDecisions.enumerated()), id: \.offset) { _, fd in
-                    Text(verbatim: "Framing: \(fd.label ?? "FD") \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
-                        .foregroundStyle(ViewerColors.framing)
+
+                let srcFDs = srcCanvas?.framingDecisions ?? []
+                ForEach(Array(oc.framingDecisions.enumerated()), id: \.offset) { i, fd in
+                    if i < srcFDs.count {
+                        Text(verbatim: "Framing: \(Int(srcFDs[i].dimensions.width))\u{00D7}\(Int(srcFDs[i].dimensions.height)) \u{2192} \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
+                            .foregroundStyle(ViewerColors.framing)
+                    }
                 }
-                if let prot = canvas.framingDecisions.first?.protectionDimensions {
-                    Text(verbatim: "Protection: \(Int(prot.width))\u{00D7}\(Int(prot.height))")
+
+                if let srcProt = srcFDs.first?.protectionDimensions,
+                   let outProt = oc.framingDecisions.first?.protectionDimensions {
+                    Text(verbatim: "Protection: \(Int(srcProt.width))\u{00D7}\(Int(srcProt.height)) \u{2192} \(Int(outProt.width))\u{00D7}\(Int(outProt.height))")
                         .foregroundStyle(ViewerColors.protection)
                 }
             }

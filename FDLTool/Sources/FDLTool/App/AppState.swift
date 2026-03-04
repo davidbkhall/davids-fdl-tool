@@ -7,9 +7,25 @@ class AppState: ObservableObject {
     @Published var currentProject: Project?
     @Published var pythonBridgeStatus: BridgeStatus = .stopped
 
+    /// Persists the selected Library section across navigation.
+    @Published var librarySelectedSection: LibrarySection = .projects
+
+    enum LibrarySection: String, CaseIterable {
+        case projects = "Projects"
+        case templates = "Canvas Templates"
+    }
+
     /// Default creator name used when generating new FDLs (persisted to UserDefaults).
     @Published var defaultCreator: String {
         didSet { UserDefaults.standard.set(defaultCreator, forKey: "defaultCreator") }
+    }
+
+    /// CineD credentials for camera database sync (persisted to UserDefaults).
+    @Published var cinedEmail: String {
+        didSet { UserDefaults.standard.set(cinedEmail, forKey: "cinedEmail") }
+    }
+    @Published var cinedPassword: String {
+        didSet { UserDefaults.standard.set(cinedPassword, forKey: "cinedPassword") }
     }
 
     /// Surfaced to the user as a blocking alert when the bridge fails.
@@ -27,6 +43,7 @@ class AppState: ObservableObject {
     let libraryStore: LibraryStore
     let cameraDBStore: CameraDBStore
     let cameraDBSyncService = CameraDBSyncService()
+    let cinedSyncService = CineDSyncService()
 
     // ViewModels (lazy-initialized after services are ready)
     lazy var libraryViewModel: LibraryViewModel = {
@@ -45,20 +62,40 @@ class AppState: ObservableObject {
         ClipIDViewModel(pythonBridge: pythonBridge, libraryStore: libraryStore)
     }()
 
+    lazy var viewerViewModel: ViewerViewModel = {
+        ViewerViewModel()
+    }()
+
     enum BridgeStatus: String {
         case stopped, starting, running, error
     }
 
     var isBridgeReady: Bool { pythonBridgeStatus == .running }
 
+    private var nestedCancellables = Set<AnyCancellable>()
+
     init() {
         self.pythonBridge = PythonBridge()
         self.libraryStore = LibraryStore()
         self.cameraDBStore = CameraDBStore()
         self.defaultCreator = UserDefaults.standard.string(forKey: "defaultCreator") ?? "FDL Tool"
+        self.cinedEmail = UserDefaults.standard.string(forKey: "cinedEmail") ?? ""
+        self.cinedPassword = UserDefaults.standard.string(forKey: "cinedPassword") ?? ""
+    }
+
+    /// Forward objectWillChange from nested ViewModels so SwiftUI views
+    /// that observe AppState also react to changes in those children.
+    func wireUpNestedObservables() {
+        canvasTemplateViewModel.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &nestedCancellables)
+        libraryViewModel.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &nestedCancellables)
     }
 
     func startServices() async {
+        wireUpNestedObservables()
         cameraDBStore.loadBundled()
 
         pythonBridgeStatus = .starting

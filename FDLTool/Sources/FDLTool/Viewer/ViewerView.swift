@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct ViewerView: View {
     @EnvironmentObject var appState: AppState
-    @StateObject private var viewModel = ViewerViewModel()
+    @ObservedObject var viewModel: ViewerViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,10 +74,6 @@ struct ViewerView: View {
                 .help("Fit to view")
             }
 
-            Divider().frame(height: 18)
-
-            layerToggleMenu
-
             if viewModel.loadedDocument != nil {
                 Divider().frame(height: 18)
                 Button("Close") { viewModel.closeDocument() }
@@ -93,7 +89,7 @@ struct ViewerView: View {
     private var viewerSidebar: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                GroupBox("Source FDL") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
                         if let fileName = viewModel.loadedFileName {
                             HStack {
@@ -119,7 +115,7 @@ struct ViewerView: View {
                                         Image(systemName: val.valid ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                                             .foregroundStyle(val.valid ? .green : .orange)
                                         Text(val.valid ? "Valid" : "\(val.errors.count) issue(s)")
-                                            .font(.caption2)
+                                            .font(.caption)
                                             .foregroundStyle(val.valid ? .green : .orange)
                                     }
                                 }
@@ -129,7 +125,7 @@ struct ViewerView: View {
                                     FDLTreeView(document: doc)
                                 } label: {
                                     Text("Document Structure")
-                                        .font(.caption2.weight(.medium))
+                                        .font(.caption.weight(.medium))
                                         .foregroundStyle(.secondary)
                                 }
                             }
@@ -150,12 +146,15 @@ struct ViewerView: View {
                             }
 
                             Text("Or drag & drop an .fdl / .json file")
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(.tertiary)
                                 .frame(maxWidth: .infinity)
                         }
                     }
                     .padding(.vertical, 4)
+                } label: {
+                    Label("Source FDL", systemImage: "doc.text")
+                        .font(.headline)
                 }
                 .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                     handleFDLDrop(providers)
@@ -164,12 +163,12 @@ struct ViewerView: View {
 
                 // Selection pickers (shown when document loaded)
                 if viewModel.loadedDocument != nil {
-                    GroupBox("Choose Framing Decision") {
+                    GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
                             if viewModel.contextLabels.count > 1 {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Context")
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Picker("Context", selection: Binding(
                                         get: { viewModel.selectedContextIndex },
@@ -186,7 +185,7 @@ struct ViewerView: View {
                             if viewModel.canvasLabels.count > 1 {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Canvas")
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Picker("Canvas", selection: Binding(
                                         get: { viewModel.selectedCanvasIndex },
@@ -203,7 +202,7 @@ struct ViewerView: View {
                             if !viewModel.framingLabels.isEmpty {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Framing Decision")
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Picker("Framing", selection: Binding(
                                         get: { viewModel.selectedFramingIndex ?? -1 },
@@ -226,26 +225,29 @@ struct ViewerView: View {
                                         .font(.system(.caption, design: .monospaced))
                                     if let eff = canvas.effectiveDimensions {
                                         Text(verbatim: "Effective: \(Int(eff.width)) \u{00D7} \(Int(eff.height))")
-                                            .font(.caption2)
+                                            .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                     if let squeeze = canvas.anamorphicSqueeze, squeeze != 1.0 {
                                         Text(verbatim: "Squeeze: \(String(format: "%.2f\u{00D7}", squeeze))")
-                                            .font(.caption2)
+                                            .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                     let fdCount = canvas.framingDecisions.count
                                     Text("\(fdCount) framing decision\(fdCount == 1 ? "" : "s")")
-                                        .font(.caption2)
+                                        .font(.caption)
                                         .foregroundStyle(.tertiary)
                                 }
                             }
                         }
                         .padding(.vertical, 4)
+                    } label: {
+                        Label("Framing Decision", systemImage: "viewfinder.rectangular")
+                            .font(.headline)
                     }
                 }
 
-                GroupBox("Reference Image") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
                         if viewModel.referenceImage != nil {
                             HStack(spacing: 6) {
@@ -264,7 +266,7 @@ struct ViewerView: View {
 
                             HStack(spacing: 6) {
                                 Text("Opacity")
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Slider(value: $viewModel.imageOpacity, in: 0...1.0)
                             }
@@ -281,19 +283,22 @@ struct ViewerView: View {
                             .buttonStyle(.bordered)
 
                             Text("Or drag & drop an image here")
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(.tertiary)
                                 .frame(maxWidth: .infinity)
                         }
                     }
                     .padding(.vertical, 4)
+                } label: {
+                    Label("Reference Image", systemImage: "photo")
+                        .font(.headline)
                 }
                 .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                     handleImageDrop(providers)
                     return true
                 }
 
-                GroupBox("Template") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
                         if viewModel.templateIsConfigured {
                             templateSummaryView
@@ -302,32 +307,9 @@ struct ViewerView: View {
                         }
                     }
                     .padding(.vertical, 4)
-                }
-
-                // Layer visibility
-                GroupBox("Layers") {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Toggle("Canvas", isOn: $viewModel.showCanvasLayer)
-                        Toggle("Effective", isOn: $viewModel.showEffectiveLayer)
-                        Toggle("Framing", isOn: $viewModel.showFramingLayer)
-                        Toggle("Protection", isOn: $viewModel.showProtectionLayer)
-                        Divider()
-                        Toggle("Dimension Labels", isOn: $viewModel.showDimensionLabels)
-                        Toggle("Anchor Points", isOn: $viewModel.showAnchorPoints)
-                        Toggle("Crosshairs", isOn: $viewModel.showCrosshairs)
-                        Toggle("HUD", isOn: $viewModel.showHUD)
-                        Toggle("Grid", isOn: $viewModel.showGridOverlay)
-                        if viewModel.showGridOverlay {
-                            Picker("Spacing", selection: $viewModel.gridSpacing) {
-                                Text("100").tag(100.0)
-                                Text("250").tag(250.0)
-                                Text("500").tag(500.0)
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
-                    .font(.caption)
-                    .padding(.vertical, 4)
+                } label: {
+                    Label("Template", systemImage: "square.resize")
+                        .font(.headline)
                 }
 
             }
@@ -360,8 +342,11 @@ struct ViewerView: View {
     @ViewBuilder
     private var sourceTabContent: some View {
         if hasSourceContent {
-            CanvasVisualizationView(viewModel: viewModel)
-                .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+            VStack(spacing: 0) {
+                CanvasVisualizationView(viewModel: viewModel)
+                    .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+                layerToggleBar
+            }
         } else {
             sourceEmptyState
         }
@@ -395,8 +380,11 @@ struct ViewerView: View {
     @ViewBuilder
     private var outputTab: some View {
         if viewModel.outputDocument != nil, viewModel.outputGeometry != nil {
-            OutputCanvasView(viewModel: viewModel)
-                .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+            VStack(spacing: 0) {
+                OutputCanvasView(viewModel: viewModel)
+                    .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+                layerToggleBar
+            }
         } else {
             VStack(spacing: 12) {
                 Image(systemName: "arrow.right.doc.on.clipboard")
@@ -421,24 +409,27 @@ struct ViewerView: View {
     @ViewBuilder
     private var comparisonTab: some View {
         if viewModel.outputDocument != nil, viewModel.outputGeometry != nil {
-            HSplitView {
-                VStack(spacing: 0) {
-                    Text("SOURCE")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
-                    CanvasVisualizationView(viewModel: viewModel)
-                        .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
-                }
+            VStack(spacing: 0) {
+                HSplitView {
+                    VStack(spacing: 0) {
+                        Text("SOURCE")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
+                        CanvasVisualizationView(viewModel: viewModel)
+                            .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+                    }
 
-                VStack(spacing: 0) {
-                    Text("OUTPUT")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
-                    OutputCanvasView(viewModel: viewModel)
-                        .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+                    VStack(spacing: 0) {
+                        Text("OUTPUT")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
+                        OutputCanvasView(viewModel: viewModel)
+                            .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+                    }
                 }
+                layerToggleBar
             }
         } else {
             VStack(spacing: 12) {
@@ -750,26 +741,120 @@ struct ViewerView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Layer Toggle Menu
+    // MARK: - Layer Toggle Bar (bottom of canvas)
 
     @ViewBuilder
-    private var layerToggleMenu: some View {
-        Menu {
-            Toggle("Canvas", isOn: $viewModel.showCanvasLayer)
-            Toggle("Effective", isOn: $viewModel.showEffectiveLayer)
-            Toggle("Framing", isOn: $viewModel.showFramingLayer)
-            Toggle("Protection", isOn: $viewModel.showProtectionLayer)
+    private var layerToggleBar: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 4) {
+                layerPill("Canvas", color: ViewerColors.canvas, isOn: $viewModel.showCanvasLayer)
+                layerPill("Effective", color: ViewerColors.effective, isOn: $viewModel.showEffectiveLayer)
+                layerPill("Framing", color: ViewerColors.framing, isOn: $viewModel.showFramingLayer)
+                layerPill("Protection", color: ViewerColors.protection, isOn: $viewModel.showProtectionLayer)
+            }
+
             Divider()
-            Toggle("Labels", isOn: $viewModel.showDimensionLabels)
-            Toggle("Anchors", isOn: $viewModel.showAnchorPoints)
-            Toggle("Crosshairs", isOn: $viewModel.showCrosshairs)
-            Toggle("HUD", isOn: $viewModel.showHUD)
-            Toggle("Grid", isOn: $viewModel.showGridOverlay)
+                .frame(height: 18)
+                .padding(.horizontal, 8)
+
+            HStack(spacing: 4) {
+                iconPill("photo", label: "Reference Image", isOn: $viewModel.showReferenceImage,
+                         tint: viewModel.referenceImage != nil ? .white : nil)
+            }
+
+            Divider()
+                .frame(height: 18)
+                .padding(.horizontal, 8)
+
+            HStack(spacing: 4) {
+                iconPill("textformat.size", label: "Labels", isOn: $viewModel.showDimensionLabels)
+                iconPill("diamond", label: "Anchors", isOn: $viewModel.showAnchorPoints)
+                iconPill("plus", label: "Crosshairs", isOn: $viewModel.showCrosshairs)
+                iconPill("info.square", label: "HUD", isOn: $viewModel.showHUD)
+                gridPill
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+    }
+
+    private func layerPill(_ label: String, color: Color, isOn: Binding<Bool>) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
         } label: {
-            Label("Layers", systemImage: "square.3.layers.3d")
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 8, height: 8)
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(isOn.wrappedValue ? color.opacity(0.2) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(isOn.wrappedValue ? color.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 0.5)
+            )
+            .foregroundStyle(isOn.wrappedValue ? .primary : .tertiary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func iconPill(_ icon: String, label: String, isOn: Binding<Bool>, tint: Color? = nil) -> some View {
+        let activeColor = tint ?? Color.accentColor
+        return Button {
+            isOn.wrappedValue.toggle()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+                .frame(width: 24, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(isOn.wrappedValue ? activeColor.opacity(0.2) : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .strokeBorder(isOn.wrappedValue ? activeColor.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 0.5)
+                )
+                .foregroundStyle(isOn.wrappedValue ? .primary : .tertiary)
+        }
+        .buttonStyle(.plain)
+        .help(label)
+    }
+
+    private var gridPill: some View {
+        Menu {
+            Toggle("Show Grid", isOn: $viewModel.showGridOverlay)
+            if viewModel.showGridOverlay {
+                Divider()
+                Picker("Spacing", selection: $viewModel.gridSpacing) {
+                    Text("100px").tag(100.0)
+                    Text("250px").tag(250.0)
+                    Text("500px").tag(500.0)
+                }
+            }
+        } label: {
+            Image(systemName: "grid")
+                .font(.system(size: 10))
+                .frame(width: 24, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(viewModel.showGridOverlay ? Color.accentColor.opacity(0.2) : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .strokeBorder(viewModel.showGridOverlay ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 0.5)
+                )
+                .foregroundStyle(viewModel.showGridOverlay ? .primary : .tertiary)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+        .help("Grid")
     }
 
     // MARK: - Source Document Summary
@@ -857,7 +942,7 @@ struct ViewerView: View {
     private var templateSourceMenu: some View {
         HStack(spacing: 4) {
             Menu {
-                Button("Custom") {
+                Button("New Blank Template") {
                     viewModel.startCustomTemplate()
                 }
                 Divider()
@@ -906,8 +991,11 @@ struct ViewerView: View {
         HStack {
             Image(systemName: "rectangle.on.rectangle.angled")
                 .foregroundStyle(.purple)
-            templatePresetMenu
+            Text(viewModel.templateConfig.label)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
             Spacer()
+            templatePresetMenu
             Button(action: { viewModel.resetTemplateValues() }) {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.caption)
@@ -928,7 +1016,7 @@ struct ViewerView: View {
         templateConfigFields
 
         Button(action: {
-            viewModel.applyTemplate(pythonBridge: appState.pythonBridge)
+            viewModel.applyTemplate(pythonBridge: appState.pythonBridge, defaultCreator: appState.defaultCreator)
         }) {
             HStack {
                 if viewModel.isApplyingTemplate {
@@ -1002,7 +1090,7 @@ struct ViewerView: View {
     /// Dropdown on the template name to switch presets or import.
     private var templatePresetMenu: some View {
         Menu {
-            Button("Custom") {
+            Button("New Blank Template") {
                 viewModel.startCustomTemplate()
             }
             Divider()
@@ -1028,10 +1116,11 @@ struct ViewerView: View {
                 }
             }
         } label: {
-            HStack(spacing: 2) {
-                Text(viewModel.templateConfig.label)
+            HStack(spacing: 3) {
+                Image(systemName: "square.and.arrow.down.on.square")
+                    .font(.system(size: 9))
+                Text("Load Template")
                     .font(.caption.weight(.medium))
-                    .lineLimit(1)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8))
                     .foregroundStyle(.secondary)

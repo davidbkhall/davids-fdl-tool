@@ -38,7 +38,7 @@ struct CanvasVisualizationView: View {
                 ZStack(alignment: .topLeading) {
                     Color.clear
 
-                    if let image = viewModel.referenceImage {
+                    if viewModel.showReferenceImage, let image = viewModel.referenceImage {
                         Image(nsImage: image)
                             .resizable()
                             .frame(width: scaledW, height: scaledH)

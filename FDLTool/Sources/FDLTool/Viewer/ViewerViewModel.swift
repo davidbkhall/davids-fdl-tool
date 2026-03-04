@@ -45,6 +45,7 @@ class ViewerViewModel: ObservableObject {
     @Published var showHUD = true
     @Published var showGridOverlay = false
     @Published var gridSpacing: Double = 100
+    @Published var showReferenceImage = true
 
     // Zoom state
     @Published var zoomScale: CGFloat = 1.0
@@ -374,7 +375,7 @@ class ViewerViewModel: ObservableObject {
         }
     }
 
-    func applyTemplate(pythonBridge: PythonBridge) {
+    func applyTemplate(pythonBridge: PythonBridge, defaultCreator: String = "") {
         guard loadedDocument != nil else {
             errorMessage = "No source FDL loaded"
             return
@@ -385,7 +386,8 @@ class ViewerViewModel: ObservableObject {
         applyTemplateLocally(
             ctxIndex: selectedContextIndex,
             canvasIndex: selectedCanvasIndex,
-            fdIndex: selectedFramingIndex ?? 0
+            fdIndex: selectedFramingIndex ?? 0,
+            defaultCreator: defaultCreator
         )
         buildTransformInfo()
         activeTab = .output
@@ -403,7 +405,8 @@ class ViewerViewModel: ObservableObject {
     /// Full ASC FDL spec template application (10-step pipeline).
     /// Reference: https://ascmitc.github.io/fdl/dev/FDL_Apply_Template_Logic/
     private func applyTemplateLocally(
-        ctxIndex: Int, canvasIndex: Int, fdIndex: Int
+        ctxIndex: Int, canvasIndex: Int, fdIndex: Int,
+        defaultCreator: String = ""
     ) {
         guard let doc = loadedDocument,
               ctxIndex < doc.contexts.count else { return }
@@ -687,10 +690,16 @@ class ViewerViewModel: ObservableObject {
             framingDecisions: [newFD]
         )
 
+        let creatorString: String = {
+            let base = "FDL Tool v1.0"
+            if defaultCreator.isEmpty { return base }
+            return "\(base) - \(defaultCreator)"
+        }()
+
         let newCtx = FDLContext(
             id: UUID(),
             label: tmpl.label,
-            contextCreator: doc.fdlCreator,
+            contextCreator: creatorString,
             canvases: [newCanvas]
         )
 

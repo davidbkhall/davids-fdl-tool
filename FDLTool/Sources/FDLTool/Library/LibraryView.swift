@@ -8,13 +8,10 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     @EnvironmentObject var appState: AppState
 
-    /// Sections in the left sidebar
-    enum LibrarySection: String, CaseIterable {
-        case projects = "Projects"
-        case templates = "Canvas Templates"
+    private var selectedSection: AppState.LibrarySection {
+        get { appState.librarySelectedSection }
+        nonmutating set { appState.librarySelectedSection = newValue }
     }
-
-    @State private var selectedSection: LibrarySection = .projects
 
     var body: some View {
         HSplitView {
@@ -47,8 +44,8 @@ struct LibraryView: View {
     private var leftPane: some View {
         VStack(spacing: 0) {
             // Section picker
-            Picker("Section", selection: $selectedSection) {
-                ForEach(LibrarySection.allCases, id: \.self) { section in
+            Picker("Section", selection: $appState.librarySelectedSection) {
+                ForEach(AppState.LibrarySection.allCases, id: \.self) { section in
                     Text(section.rawValue).tag(section)
                 }
             }
@@ -111,13 +108,16 @@ struct LibraryView: View {
                 Divider()
 
                 if vm.fdlEntries.isEmpty {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 10) {
                         Image(systemName: "doc.badge.plus")
-                            .font(.system(size: 36))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 32))
+                            .foregroundStyle(.quaternary)
                         Text("No FDLs in this project")
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                         Button("Add FDL...") { vm.showImportSheet = true }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -149,12 +149,14 @@ struct LibraryView: View {
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "folder.badge.plus")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 36))
+                        .foregroundStyle(.quaternary)
                     Text("No Project Selected")
-                        .font(.title2)
-                    Text("Create or select a project to get started.")
+                        .font(.title3)
                         .foregroundStyle(.secondary)
+                    Text("Create or select a project to get started.")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -175,12 +177,18 @@ struct LibraryView: View {
             )
             .id(template.id)
         } else {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Image(systemName: "rectangle.3.group")
-                    .font(.system(size: 36))
+                    .font(.system(size: 32))
+                    .foregroundStyle(.quaternary)
+                Text("Select a Template")
+                    .font(.title3)
                     .foregroundStyle(.secondary)
-                Text("Select a template to view details")
-                    .foregroundStyle(.secondary)
+                Text("Choose a canvas template from the list to view its parameters.")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 240)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -201,12 +209,18 @@ struct LibraryView: View {
                     onDelete: { vm.deleteEntry(entry) }
                 )
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 36))
+                        .font(.system(size: 32))
+                        .foregroundStyle(.quaternary)
+                    Text("Select an FDL")
+                        .font(.title3)
                         .foregroundStyle(.secondary)
-                    Text("Select an FDL to view details")
-                        .foregroundStyle(.secondary)
+                    Text("Choose an FDL entry to view its details and validation status.")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 240)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -310,50 +324,58 @@ struct TemplateDetailView: View {
 
     @ViewBuilder
     private var headerView: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
                 if isEditingEnabled {
                     TextField("Label", text: $editConfig.label)
-                        .font(.title2.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                         .textFieldStyle(.roundedBorder)
                 } else {
                     Text(template.name)
-                        .font(.title2)
+                        .font(.title3)
                         .fontWeight(.semibold)
+                        .lineLimit(2)
                 }
-                if let desc = template.description, !desc.isEmpty {
-                    Text(desc)
+
+                Spacer(minLength: 4)
+
+                Toggle(isOn: $isEditingEnabled) {
+                    Image(
+                        systemName: isEditingEnabled
+                            ? "lock.open.fill" : "lock.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(
+                        isEditingEnabled ? .orange : .secondary
+                    )
+                }
+                .toggleStyle(.button)
+                .help(isEditingEnabled ? "Lock editing" : "Unlock editing")
+
+                Button {
+                    viewModel.exportTemplate(template)
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
-            }
-            Spacer()
+                .buttonStyle(.bordered)
+                .help("Export")
 
-            Toggle(isOn: $isEditingEnabled) {
-                Image(
-                    systemName: isEditingEnabled
-                        ? "lock.open.fill" : "lock.fill"
-                )
-                .font(.body)
-                .foregroundStyle(
-                    isEditingEnabled ? .orange : .secondary
-                )
+                Button(role: .destructive) {
+                    viewModel.deleteTemplate(template)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isEditingEnabled)
             }
-            .toggleStyle(.button)
-            .help(isEditingEnabled ? "Lock editing" : "Unlock editing")
 
-            Button("Export") {
-                viewModel.exportTemplate(template)
+            if let desc = template.description, !desc.isEmpty {
+                Text(desc)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.bordered)
-
-            Button(role: .destructive) {
-                viewModel.deleteTemplate(template)
-            } label: {
-                Image(systemName: "trash")
-            }
-            .buttonStyle(.bordered)
-            .disabled(!isEditingEnabled)
         }
     }
 
@@ -362,255 +384,166 @@ struct TemplateDetailView: View {
     @ViewBuilder
     private var templateFieldsView: some View {
         GroupBox("Template Parameters") {
-            VStack(alignment: .leading, spacing: 8) {
-                paramRow("Target Dimensions") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 8) {
+                GridRow {
+                    Text("Target Dims")
+                        .gridColumnAlignment(.trailing)
                     if isEditingEnabled {
                         HStack(spacing: 4) {
-                            TextField(
-                                "W",
-                                value: $editConfig.targetWidth,
-                                format: .number.grouping(.never)
-                            )
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
+                            TextField("W", value: $editConfig.targetWidth, format: .number.grouping(.never))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
                             Text("\u{00D7}").foregroundStyle(.secondary)
-                            TextField(
-                                "H",
-                                value: $editConfig.targetHeight,
-                                format: .number.grouping(.never)
-                            )
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
+                            TextField("H", value: $editConfig.targetHeight, format: .number.grouping(.never))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
                         }
                     } else {
-                        Text(
-                            verbatim: "\(editConfig.targetWidth)"
-                                + " \u{00D7} \(editConfig.targetHeight)"
-                        )
+                        Text(verbatim: "\(editConfig.targetWidth) \u{00D7} \(editConfig.targetHeight)")
                     }
                 }
 
-                paramRow("Anamorphic Squeeze") {
+                GridRow {
+                    Text("Squeeze")
                     if isEditingEnabled {
-                        TextField(
-                            "Squeeze",
-                            value: $editConfig.targetAnamorphicSqueeze,
-                            format: .number
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                        TextField("Squeeze", value: $editConfig.targetAnamorphicSqueeze, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 70)
                     } else {
                         Text(verbatim: "\(String(format: "%.1f", editConfig.targetAnamorphicSqueeze))\u{00D7}")
                     }
                 }
 
-                paramRow("Fit Source") {
+                GridRow {
+                    Text("Fit Source")
                     if isEditingEnabled {
-                        Picker(
-                            "", selection: $editConfig.fitSource
-                        ) {
-                            ForEach(
-                                TemplatePresets.fitSourceOptions,
-                                id: \.value
-                            ) { opt in
+                        Picker("", selection: $editConfig.fitSource) {
+                            ForEach(TemplatePresets.fitSourceOptions, id: \.value) { opt in
                                 Text(opt.label).tag(opt.value)
                             }
                         }
                         .labelsHidden()
                     } else {
-                        Text(
-                            TemplatePresets.fitSourceOptions
-                                .first {
-                                    $0.value == editConfig.fitSource
-                                }?.label ?? editConfig.fitSource
-                        )
+                        Text(TemplatePresets.fitSourceOptions.first { $0.value == editConfig.fitSource }?.label ?? editConfig.fitSource)
                     }
                 }
 
-                paramRow("Fit Method") {
+                GridRow {
+                    Text("Fit Method")
                     if isEditingEnabled {
-                        Picker(
-                            "", selection: $editConfig.fitMethod
-                        ) {
-                            ForEach(
-                                TemplatePresets.fitMethodOptions,
-                                id: \.value
-                            ) { opt in
+                        Picker("", selection: $editConfig.fitMethod) {
+                            ForEach(TemplatePresets.fitMethodOptions, id: \.value) { opt in
                                 Text(opt.label).tag(opt.value)
                             }
                         }
                         .labelsHidden()
                     } else {
-                        Text(
-                            TemplatePresets.fitMethodOptions
-                                .first {
-                                    $0.value == editConfig.fitMethod
-                                }?.label ?? editConfig.fitMethod
-                        )
+                        Text(TemplatePresets.fitMethodOptions.first { $0.value == editConfig.fitMethod }?.label ?? editConfig.fitMethod)
                     }
                 }
 
-                paramRow("Alignment") {
+                GridRow {
+                    Text("Alignment")
                     if isEditingEnabled {
                         HStack(spacing: 4) {
-                            Picker(
-                                "H",
-                                selection: $editConfig.alignmentHorizontal
-                            ) {
-                                ForEach(
-                                    TemplatePresets.alignmentHOptions,
-                                    id: \.value
-                                ) { o in
+                            Picker("H", selection: $editConfig.alignmentHorizontal) {
+                                ForEach(TemplatePresets.alignmentHOptions, id: \.value) { o in
                                     Text(o.label).tag(o.value)
                                 }
                             }
-                            .frame(width: 100)
-                            Picker(
-                                "V",
-                                selection: $editConfig.alignmentVertical
-                            ) {
-                                ForEach(
-                                    TemplatePresets.alignmentVOptions,
-                                    id: \.value
-                                ) { o in
+                            .frame(minWidth: 80)
+                            Picker("V", selection: $editConfig.alignmentVertical) {
+                                ForEach(TemplatePresets.alignmentVOptions, id: \.value) { o in
                                     Text(o.label).tag(o.value)
                                 }
                             }
-                            .frame(width: 100)
+                            .frame(minWidth: 80)
                         }
                     } else {
-                        Text(
-                            verbatim: "\(editConfig.alignmentHorizontal)"
-                                + " / \(editConfig.alignmentVertical)"
-                        )
+                        Text(verbatim: "\(editConfig.alignmentHorizontal) / \(editConfig.alignmentVertical)")
                     }
                 }
 
-                paramRow("Rounding") {
+                GridRow {
+                    Text("Rounding")
                     if isEditingEnabled {
                         HStack(spacing: 4) {
-                            Picker(
-                                "",
-                                selection: $editConfig.roundEven
-                            ) {
-                                ForEach(
-                                    TemplatePresets.roundEvenOptions,
-                                    id: \.value
-                                ) { o in
+                            Picker("", selection: $editConfig.roundEven) {
+                                ForEach(TemplatePresets.roundEvenOptions, id: \.value) { o in
                                     Text(o.label).tag(o.value)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 120)
-                            Picker(
-                                "",
-                                selection: $editConfig.roundMode
-                            ) {
-                                ForEach(
-                                    TemplatePresets.roundModeOptions,
-                                    id: \.value
-                                ) { o in
+                            .frame(minWidth: 90)
+                            Picker("", selection: $editConfig.roundMode) {
+                                ForEach(TemplatePresets.roundModeOptions, id: \.value) { o in
                                     Text(o.label).tag(o.value)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 120)
+                            .frame(minWidth: 90)
                         }
                     } else {
-                        Text(
-                            verbatim: "\(editConfig.roundEven)"
-                                + " / \(editConfig.roundMode)"
-                        )
+                        Text(verbatim: "\(editConfig.roundEven) / \(editConfig.roundMode)")
                     }
                 }
 
-                paramRow("Maximum Dims") {
+                GridRow {
+                    Text("Max Dims")
                     if isEditingEnabled {
                         HStack(spacing: 4) {
-                            TextField(
-                                "Max W",
-                                value: $editConfig.maximumWidth,
-                                format: .number.grouping(.never)
-                            )
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
+                            TextField("Max W", value: $editConfig.maximumWidth, format: .number.grouping(.never))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
                             Text("\u{00D7}").foregroundStyle(.secondary)
-                            TextField(
-                                "Max H",
-                                value: $editConfig.maximumHeight,
-                                format: .number.grouping(.never)
-                            )
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
+                            TextField("Max H", value: $editConfig.maximumHeight, format: .number.grouping(.never))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
                         }
                     } else {
-                        if let mw = editConfig.maximumWidth,
-                           let mh = editConfig.maximumHeight
-                        {
-                            Text(
-                                verbatim: "\(mw) \u{00D7} \(mh)"
-                            )
+                        if let mw = editConfig.maximumWidth, let mh = editConfig.maximumHeight {
+                            Text(verbatim: "\(mw) \u{00D7} \(mh)")
                         } else {
-                            Text("None")
-                                .foregroundStyle(.tertiary)
+                            Text("None").foregroundStyle(.tertiary)
                         }
                     }
                 }
 
-                paramRow("Pad to Maximum") {
+                GridRow {
+                    Text("Pad to Max")
                     if isEditingEnabled {
-                        Toggle(
-                            "",
-                            isOn: $editConfig.padToMaximum
-                        )
-                        .labelsHidden()
+                        Toggle("", isOn: $editConfig.padToMaximum)
+                            .labelsHidden()
                     } else {
                         Text(editConfig.padToMaximum ? "Yes" : "No")
                     }
                 }
 
-                paramRow("Preserve") {
+                GridRow {
+                    Text("Preserve")
                     if isEditingEnabled {
-                        Picker(
-                            "",
-                            selection: Binding(
-                                get: {
-                                    editConfig.preserveFromSourceCanvas
-                                        ?? ""
-                                },
-                                set: {
-                                    editConfig.preserveFromSourceCanvas =
-                                        $0.isEmpty ? nil : $0
-                                }
-                            )
-                        ) {
+                        Picker("", selection: Binding(
+                            get: { editConfig.preserveFromSourceCanvas ?? "" },
+                            set: { editConfig.preserveFromSourceCanvas = $0.isEmpty ? nil : $0 }
+                        )) {
                             Text("None").tag("")
-                            Text("Framing Decision")
-                                .tag("framing_decision.dimensions")
-                            Text("Protection")
-                                .tag(
-                                    "framing_decision.protection_dimensions"
-                                )
-                            Text("Effective Canvas")
-                                .tag("canvas.effective_dimensions")
-                            Text("Full Canvas")
-                                .tag("canvas.dimensions")
+                            Text("Framing Decision").tag("framing_decision.dimensions")
+                            Text("Protection").tag("framing_decision.protection_dimensions")
+                            Text("Effective Canvas").tag("canvas.effective_dimensions")
+                            Text("Full Canvas").tag("canvas.dimensions")
                         }
                         .labelsHidden()
                     } else {
-                        if let preserve = editConfig
-                            .preserveFromSourceCanvas,
-                            !preserve.isEmpty
-                        {
+                        if let preserve = editConfig.preserveFromSourceCanvas, !preserve.isEmpty {
                             Text(preserveLabel(preserve))
                         } else {
-                            Text("None")
-                                .foregroundStyle(.tertiary)
+                            Text("None").foregroundStyle(.tertiary)
                         }
                     }
                 }
             }
             .font(.caption)
+            .foregroundStyle(.secondary)
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -623,19 +556,6 @@ struct TemplateDetailView: View {
         case "canvas.effective_dimensions": return "Effective Canvas"
         case "canvas.dimensions": return "Full Canvas"
         default: return value
-        }
-    }
-
-    @ViewBuilder
-    private func paramRow<Content: View>(
-        _ label: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .trailing)
-            content()
         }
     }
 
@@ -834,12 +754,18 @@ struct TemplatePreviewPanel: View {
                     previewCanvas
                 }
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "eye")
-                        .font(.system(size: 36))
+                        .font(.system(size: 32))
+                        .foregroundStyle(.quaternary)
+                    Text("Template Preview")
+                        .font(.title3)
                         .foregroundStyle(.secondary)
-                    Text("Select a template to preview")
-                        .foregroundStyle(.secondary)
+                    Text("Select a template and load a source FDL to see a visual preview.")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 240)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

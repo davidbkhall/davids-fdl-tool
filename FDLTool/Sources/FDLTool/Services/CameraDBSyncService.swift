@@ -228,7 +228,6 @@ class CameraDBSyncService: ObservableObject {
                 pixelPitchUM: pixelPitch
             ),
             recordingModes: modes,
-            commonDeliverables: [],
             source: .synced
         )
     }

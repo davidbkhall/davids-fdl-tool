@@ -6,8 +6,13 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             List(Tool.allCases, selection: $selectedTool) { tool in
-                Label(tool.rawValue, systemImage: tool.systemImage)
-                    .tag(tool)
+                Label {
+                    Text(tool.rawValue)
+                } icon: {
+                    Image(systemName: tool.systemImage)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .tag(tool)
             }
             .listStyle(.sidebar)
 
@@ -16,8 +21,8 @@ struct SidebarView: View {
             HStack {
                 Spacer()
                 SettingsLink {
-                    Image(systemName: "gear")
-                        .font(.system(size: 14))
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
