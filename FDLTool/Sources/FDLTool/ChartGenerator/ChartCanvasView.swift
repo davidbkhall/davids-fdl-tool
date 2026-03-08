@@ -160,7 +160,16 @@ struct ChartCanvasView: View {
                             .offset(x: originX, y: originY)
 
                         if viewModel.showDimensionLabels {
-                            let labelPos = canvasDimensionLabelPosition(originX: originX, originY: originY, scaledW: scaledW, scaledH: scaledH, canvasW: cw, canvasH: ch, scaleX: scaleX, scaleY: scaleY)
+                            let labelPos = canvasDimensionLabelPosition(
+                                originX: originX,
+                                originY: originY,
+                                scaledW: scaledW,
+                                scaledH: scaledH,
+                                canvasW: cw,
+                                canvasH: ch,
+                                scaleX: scaleX,
+                                scaleY: scaleY
+                            )
                             Text(verbatim: "Canvas: \(Int(cw))\u{00D7}\(Int(ch))")
                                 .font(.system(size: 9, design: .monospaced))
                                 .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.7) : .gray)
@@ -247,11 +256,20 @@ struct ChartCanvasView: View {
                                 .offset(x: protectionRect.minX, y: protectionRect.minY)
 
                             if viewModel.showDimensionLabels {
+                                let protectionAnchorX = Int(
+                                    fl.protectionAnchorX
+                                        ?? (viewModel.canvasWidth - prot.width) / 2
+                                )
+                                let protectionAnchorY = Int(
+                                    fl.protectionAnchorY
+                                        ?? (viewModel.canvasHeight - prot.height) / 2
+                                )
                                 Text(verbatim: "Protection: \(Int(prot.width))\u{00D7}\(Int(prot.height))")
                                     .font(.system(size: 8, design: .monospaced))
                                     .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.8) : .white.opacity(0.8))
                                     .offset(x: protectionRect.minX + 4, y: protectionRect.minY + 2)
-                                Text(verbatim: "Anchor: \(Int(fl.protectionAnchorX ?? (viewModel.canvasWidth - prot.width) / 2)), \(Int(fl.protectionAnchorY ?? (viewModel.canvasHeight - prot.height) / 2))")
+                                let protectionAnchorText = "Anchor: \(protectionAnchorX), \(protectionAnchorY)"
+                                Text(verbatim: protectionAnchorText)
                                     .font(.system(size: 8, design: .monospaced))
                                     .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.8) : .white.opacity(0.8))
                                     .offset(x: max(originX + 2, protectionRect.maxX - 126), y: max(originY + 2, protectionRect.maxY - 16))
@@ -483,7 +501,16 @@ struct ChartCanvasView: View {
         ]
     }
 
-    private func canvasDimensionLabelPosition(originX: Double, originY: Double, scaledW: Double, scaledH: Double, canvasW: Double, canvasH: Double, scaleX: Double, scaleY: Double) -> (x: Double, y: Double) {
+    private func canvasDimensionLabelPosition(
+        originX: Double,
+        originY: Double,
+        scaledW: Double,
+        scaledH: Double,
+        canvasW: Double,
+        canvasH: Double,
+        scaleX: Double,
+        scaleY: Double
+    ) -> (x: Double, y: Double) {
         var x = originX + scaledW - 150
         var y = originY + scaledH - 16
         for fl in viewModel.framelines {

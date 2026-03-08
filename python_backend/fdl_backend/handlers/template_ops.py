@@ -174,9 +174,7 @@ def _apply_with_library(params: dict) -> dict:
         "target_anamorphic_squeeze": float(template_data.get("target_anamorphic_squeeze", 1.0)),
         "fit_source": GeometryPath(template_data.get("fit_source", "framing_decision.dimensions")),
         "fit_method": FitMethod(template_data.get("fit_method", "fit_all")),
-        "alignment_method_horizontal": HAlign(
-            template_data.get("alignment_method_horizontal", "center")
-        ),
+        "alignment_method_horizontal": HAlign(template_data.get("alignment_method_horizontal", "center")),
         "alignment_method_vertical": VAlign(template_data.get("alignment_method_vertical", "center")),
         "round": RoundStrategy(
             even=RoundingEven(round_dict.get("even", "even")),
@@ -303,26 +301,42 @@ def _apply_canvas_template_dict(
     if src_w <= 0 or src_h <= 0:
         raise ValueError("Source dimensions are zero")
 
-    # 2. Compute scale factor
-    scale_x = target_w / src_w
-    scale_y = target_h / src_h
+    # 2. Compute output effective dimensions from source aspect.
+    # ASC behavior is based on display aspect (desqueezed width), while
+    # persisted dimensions remain in squeezed source space.
+    display_src_w = src_w * squeeze
+    source_aspect = display_src_w / src_h
+    target_aspect = target_w / target_h if target_h > 0 else source_aspect
 
-    if fit_method == "fit_all":
-        scale = min(scale_x, scale_y)
-    elif fit_method == "fill":
-        scale = max(scale_x, scale_y)
-    elif fit_method == "width":
-        scale = scale_x
+    if fit_method == "width":
+        out_eff_w = target_w
+        out_eff_h = target_w / source_aspect
     elif fit_method == "height":
-        scale = scale_y
-    else:
-        scale = min(scale_x, scale_y)
+        out_eff_h = target_h
+        out_eff_w = target_h * source_aspect
+    elif fit_method == "fill":
+        if source_aspect >= target_aspect:
+            out_eff_h = target_h
+            out_eff_w = target_h * source_aspect
+        else:
+            out_eff_w = target_w
+            out_eff_h = target_w / source_aspect
+    else:  # fit_all
+        if source_aspect >= target_aspect:
+            out_eff_w = target_w
+            out_eff_h = target_w / source_aspect
+        else:
+            out_eff_h = target_h
+            out_eff_w = target_h * source_aspect
 
-    # 3. Scale all geometry
-    new_canvas_w = canvas_w * scale
-    new_canvas_h = canvas_h * scale
-    new_eff_w = eff_w * scale
-    new_eff_h = eff_h * scale
+    # Convert display-space output width back into stored squeezed-space width.
+    new_eff_w = out_eff_w / max(squeeze, 1e-9)
+    new_eff_h = out_eff_h
+
+    # 3. Scale all geometry relative to source framing decision dimensions.
+    scale_w = new_eff_w / fd_w if fd_w > 0 else 1.0
+    scale_h = new_eff_h / fd_h if fd_h > 0 else 1.0
+    scale = min(scale_w, scale_h)
     new_fd_w = fd_w * scale
     new_fd_h = fd_h * scale
     new_prot_w = prot_w * scale if prot_w else None
@@ -341,8 +355,6 @@ def _apply_canvas_template_dict(
         else:
             return round(val / base) * base
 
-    new_canvas_w = _round(new_canvas_w)
-    new_canvas_h = _round(new_canvas_h)
     new_eff_w = _round(new_eff_w)
     new_eff_h = _round(new_eff_h)
     new_fd_w = _round(new_fd_w)
@@ -353,14 +365,17 @@ def _apply_canvas_template_dict(
 
     # 5. Apply maximum dimensions
     if max_dims:
-        max_w = float(max_dims.get("width", new_canvas_w))
-        max_h = float(max_dims.get("height", new_canvas_h))
+        max_w = float(max_dims.get("width", new_eff_w))
+        max_h = float(max_dims.get("height", new_eff_h))
         if pad_to_max:
-            new_canvas_w = max(new_canvas_w, max_w)
-            new_canvas_h = max(new_canvas_h, max_h)
+            new_canvas_w = max_w
+            new_canvas_h = max_h
         else:
-            new_canvas_w = min(new_canvas_w, max_w)
-            new_canvas_h = min(new_canvas_h, max_h)
+            new_canvas_w = min(new_eff_w, max_w)
+            new_canvas_h = min(new_eff_h, max_h)
+    else:
+        new_canvas_w = new_eff_w
+        new_canvas_h = new_eff_h
 
     # 6. Compute anchor for framing within canvas
     def _align(canvas_dim: float, fd_dim: float, mode: str) -> float:

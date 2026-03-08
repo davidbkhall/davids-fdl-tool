@@ -23,6 +23,7 @@ from fdl_backend.utils.fdl_convert import fdl_to_dict
 PY_BACKEND_ROOT = Path(__file__).resolve().parents[2]
 VENDOR_ROOT = PY_BACKEND_ROOT / "vendor"
 
+
 def _add_sys_path_if_exists(path: str | Path) -> None:
     path = str(path)
     if path and os.path.isdir(path) and path not in sys.path:
@@ -52,8 +53,7 @@ def _load_module(module_name: str, vendor_subdir: str, env_var: str) -> Any:
         if importlib.util.find_spec(module_name):
             return importlib.import_module(module_name)
     raise ImportError(
-        f"{module_name} is not available. Install it or bundle it in python_backend/vendor "
-        f"(or set {env_var})."
+        f"{module_name} is not available. Install it or bundle it in python_backend/vendor (or set {env_var})."
     )
 
 
@@ -95,9 +95,7 @@ def _coerce_json_string(value: Any) -> str:
 def _run_cli(command: list[str]) -> None:
     proc = subprocess.run(command, capture_output=True, text=True)
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"Conversion CLI failed ({proc.returncode}): {proc.stderr.strip() or proc.stdout.strip()}"
-        )
+        raise RuntimeError(f"Conversion CLI failed ({proc.returncode}): {proc.stderr.strip() or proc.stdout.strip()}")
 
 
 def _conversion_report(
@@ -447,9 +445,7 @@ def arri_to_fdl(params: dict) -> dict:
                     "arri_xml.vendor_extension_nodes.*",
                     "arri_xml.unrecognized_metadata.*",
                 ],
-                warnings=[
-                    "Some ARRI-specific XML metadata may not map to canonical ASC FDL fields."
-                ],
+                warnings=["Some ARRI-specific XML metadata may not map to canonical ASC FDL fields."],
             ),
         }
 
@@ -614,8 +610,6 @@ def sony_to_fdl(params: dict) -> dict:
                     "sony_xml.vendor_extension_nodes.*",
                     "sony_xml.unrecognized_metadata.*",
                 ],
-                warnings=[
-                    "Some Sony-specific XML metadata may not map to canonical ASC FDL fields."
-                ],
+                warnings=["Some Sony-specific XML metadata may not map to canonical ASC FDL fields."],
             ),
         }

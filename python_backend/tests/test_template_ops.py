@@ -248,7 +248,7 @@ def test_apply_fdl_template_invalid_index_errors():
         "round": {"even": "even", "mode": "round"},
     }
 
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, IndexError)):
         template_ops.apply_fdl_template(
             {
                 "fdl_json": json.dumps(source),

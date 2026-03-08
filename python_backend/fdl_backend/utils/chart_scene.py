@@ -79,12 +79,14 @@ class ChartScene:
     siemens_star_size: str = "small"
     show_chart_markers: bool = False
     background_theme: str = "dark"
-    layers: dict[str, bool] = field(default_factory=lambda: {
-        "canvas": True,
-        "effective": True,
-        "protection": True,
-        "framing": True,
-    })
+    layers: dict[str, bool] = field(
+        default_factory=lambda: {
+            "canvas": True,
+            "effective": True,
+            "protection": True,
+            "framing": True,
+        }
+    )
     framelines: list[FramelineScene] = field(default_factory=list)
     metadata: MetadataScene | None = None
     burn_in: BurnInScene | None = None

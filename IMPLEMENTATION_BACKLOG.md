@@ -170,3 +170,15 @@ Evaluate usability, performance, and visual polish across Viewer, Library, Chart
 - [x] Shared style tokens introduced and adopted in touched screens.
 - [x] Known non-blocking build warnings addressed in touched areas.
 - [ ] Manual UX review in running app (navigation, readability, spacing, interaction flow).
+
+## Carry-over To Next Session (hold merge to main)
+
+Status: PR is open, but merge is intentionally blocked pending these fixes.
+
+- [ ] Chart Generator export interactions still not working reliably.
+- [ ] Logo overlay should follow the same anisotropic squeeze/de-squeeze deformation behavior as Siemens stars/canvas when anamorphic > 1.0.
+- [ ] Dimension and anchor label positioning still needs refinement.
+- [ ] Chart Preview default theme should be `White` (not `Dark`).
+- [ ] Remove `Squeeze Circle` and `Center Marker` from Layers options.
+- [ ] Add boundary arrows for dimension regions similar to reference chart example.
+- [ ] Replace inset stroked boundary boxes with exact-pixel region shading for canvas/effective/protection/framing areas (reference chart style).

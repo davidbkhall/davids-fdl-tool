@@ -14,8 +14,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fdl_backend.utils.fdl_convert import HAS_FDL
 from fdl_backend.utils.chart_scene import ChartScene
+from fdl_backend.utils.fdl_convert import HAS_FDL
 
 if HAS_FDL:
     from fdl_backend.utils.fdl_convert import (
@@ -143,7 +143,7 @@ def generate_svg(params: dict) -> dict:
                 title,
                 insert=(svg_w / 2, 28),
                 fill=fg,
-                    font_size=f"{_font_size(16.0, canvas_w, canvas_h):.0f}px",
+                font_size=f"{_font_size(16.0, canvas_w, canvas_h):.0f}px",
                 font_family="sans-serif",
                 text_anchor="middle",
             )
@@ -154,7 +154,6 @@ def generate_svg(params: dict) -> dict:
     line_minor = _line_width(1.0, cw, ch)
     line_major = _line_width(2.0, cw, ch)
     font_small = _font_size(10.0, cw, ch)
-    font_label = _font_size(11.0, cw, ch)
     label_fg = "#2F2F2F" if scene.background_theme == "white" else "#E4E4E4"
 
     if show_canvas:
@@ -170,7 +169,11 @@ def generate_svg(params: dict) -> dict:
         ex = cx + int(((canvas_w - eff_w) / 2.0) * scale * display_x)
         ey = cy + int(((canvas_h - eff_h) / 2.0) * scale)
         exi, eyi, ewi, ehi = _adjusted_rect_for_stroke(ex, ey, ew, eh, _line_width(1.5, cw, ch))
-        dwg.add(dwg.rect(insert=(exi, eyi), size=(ewi, ehi), fill="none", stroke="#5AC8FA", stroke_width=_line_width(1.5, cw, ch)))
+        dwg.add(
+            dwg.rect(
+                insert=(exi, eyi), size=(ewi, ehi), fill="none", stroke="#5AC8FA", stroke_width=_line_width(1.5, cw, ch)
+            )
+        )
         if show_labels:
             dwg.add(
                 dwg.text(
@@ -274,10 +277,20 @@ def generate_svg(params: dict) -> dict:
                 center_x = sx + sw / 2
                 center_y = sy + sh / 2
                 dwg.add(
-                    dwg.line(start=(center_x - 8, center_y), end=(center_x + 8, center_y), stroke=color, stroke_width=line_minor)
+                    dwg.line(
+                        start=(center_x - 8, center_y),
+                        end=(center_x + 8, center_y),
+                        stroke=color,
+                        stroke_width=line_minor,
+                    )
                 )
                 dwg.add(
-                    dwg.line(start=(center_x, center_y - 8), end=(center_x, center_y + 8), stroke=color, stroke_width=line_minor)
+                    dwg.line(
+                        start=(center_x, center_y - 8),
+                        end=(center_x, center_y + 8),
+                        stroke=color,
+                        stroke_width=line_minor,
+                    )
                 )
 
             if show_labels:
@@ -294,8 +307,16 @@ def generate_svg(params: dict) -> dict:
                         text_anchor="middle",
                     )
                 )
-                anchor_x = int(fl.anchor_x if fl.anchor_x is not None else ((canvas_w - fw) / 2 if h_align == "center" else (0 if h_align == "left" else canvas_w - fw)))
-                anchor_y = int(fl.anchor_y if fl.anchor_y is not None else ((canvas_h - fh) / 2 if v_align == "center" else (0 if v_align == "top" else canvas_h - fh)))
+                anchor_x = int(
+                    fl.anchor_x
+                    if fl.anchor_x is not None
+                    else ((canvas_w - fw) / 2 if h_align == "center" else (0 if h_align == "left" else canvas_w - fw))
+                )
+                anchor_y = int(
+                    fl.anchor_y
+                    if fl.anchor_y is not None
+                    else ((canvas_h - fh) / 2 if v_align == "center" else (0 if v_align == "top" else canvas_h - fh))
+                )
                 dwg.add(
                     dwg.text(
                         f"Anchor: {anchor_x}, {anchor_y}",
@@ -317,8 +338,12 @@ def generate_svg(params: dict) -> dict:
                     )
                 )
                 if show_protection and prot_w and prot_h:
-                    pa_x = int(fl.protection_anchor_x if fl.protection_anchor_x is not None else (canvas_w - prot_w) / 2)
-                    pa_y = int(fl.protection_anchor_y if fl.protection_anchor_y is not None else (canvas_h - prot_h) / 2)
+                    pa_x = int(
+                        fl.protection_anchor_x if fl.protection_anchor_x is not None else (canvas_w - prot_w) / 2
+                    )
+                    pa_y = int(
+                        fl.protection_anchor_y if fl.protection_anchor_y is not None else (canvas_h - prot_h) / 2
+                    )
                     dwg.add(
                         dwg.text(
                             f"Protection: {int(prot_w)}\u00d7{int(prot_h)}",
@@ -366,7 +391,7 @@ def generate_svg(params: dict) -> dict:
         lx0, ly0 = label_x - bbox_w, label_y - bbox_h
         lx1, ly1 = label_x, label_y
         if any(not (lx1 < rx0 or lx0 > rx1 or ly1 < ry0 or ly0 > ry1) for (rx0, ry0, rx1, ry1) in occupied_rects):
-            label_y -= (bbox_h + 2)
+            label_y -= bbox_h + 2
         else:
             break
     dwg.add(
@@ -420,7 +445,6 @@ def generate_png(params: dict) -> dict:
 
     bg = "#1a1a1a"
     fg = "#222222" if scene.background_theme == "white" else "white"
-    dim_fg = "#666666" if scene.background_theme == "white" else "#999999"
     img = Image.new("RGB", (img_w, img_h), bg)
     draw = ImageDraw.Draw(img)
 
@@ -515,15 +539,27 @@ def generate_png(params: dict) -> dict:
             if show_crosshairs:
                 center_x = sx + sw // 2
                 center_y = sy + sh // 2
-                draw.line([(center_x - 8, center_y), (center_x + 8, center_y)], fill=color, width=int(_line_width(1.0, cw, ch)))
-                draw.line([(center_x, center_y - 8), (center_x, center_y + 8)], fill=color, width=int(_line_width(1.0, cw, ch)))
+                draw.line(
+                    [(center_x - 8, center_y), (center_x + 8, center_y)],
+                    fill=color,
+                    width=int(_line_width(1.0, cw, ch)),
+                )
+                draw.line(
+                    [(center_x, center_y - 8), (center_x, center_y + 8)],
+                    fill=color,
+                    width=int(_line_width(1.0, cw, ch)),
+                )
 
             label = fl.label
             if label:
                 label_x = min(max(sx + 4, cx + 2), cx + cw - 120)
                 label_y = min(max(sy + 2, cy + 2), cy + ch - 14)
                 draw.text((label_x, label_y), label, fill=color)
-                draw.text((min(max(sx + sw - 68, cx + 2), cx + cw - 68), min(max(sy + sh - 12, cy + 2), cy + ch - 12)), f"{int(fw)}x{int(fh)}", fill=color)
+                draw.text(
+                    (min(max(sx + sw - 68, cx + 2), cx + cw - 68), min(max(sy + sh - 12, cy + 2), cy + ch - 12)),
+                    f"{int(fw)}x{int(fh)}",
+                    fill=color,
+                )
 
     if show_squeeze_circle and squeeze != 1.0:
         center_x = cx + cw // 2
@@ -575,7 +611,6 @@ def generate_tiff(params: dict) -> dict:
     img_h = int(canvas_h * scale) + padding * 2 + (40 if title else 0)
 
     bg = "#1a1a1a"
-    dim_fg = "#666666" if scene.background_theme == "white" else "#999999"
     fg = "#222222" if scene.background_theme == "white" else "white"
     img = Image.new("RGB", (img_w, img_h), bg)
     draw = ImageDraw.Draw(img)
@@ -669,15 +704,27 @@ def generate_tiff(params: dict) -> dict:
             if show_crosshairs:
                 center_x = sx + sw // 2
                 center_y = sy + sh // 2
-                draw.line([(center_x - 8, center_y), (center_x + 8, center_y)], fill=color, width=int(_line_width(1.0, cw, ch)))
-                draw.line([(center_x, center_y - 8), (center_x, center_y + 8)], fill=color, width=int(_line_width(1.0, cw, ch)))
+                draw.line(
+                    [(center_x - 8, center_y), (center_x + 8, center_y)],
+                    fill=color,
+                    width=int(_line_width(1.0, cw, ch)),
+                )
+                draw.line(
+                    [(center_x, center_y - 8), (center_x, center_y + 8)],
+                    fill=color,
+                    width=int(_line_width(1.0, cw, ch)),
+                )
 
             label = fl.label
             if label:
                 label_x = min(max(sx + 4, cx + 2), cx + cw - 120)
                 label_y = min(max(sy + 2, cy + 2), cy + ch - 14)
                 draw.text((label_x, label_y), label, fill=color)
-                draw.text((min(max(sx + sw - 68, cx + 2), cx + cw - 68), min(max(sy + sh - 12, cy + 2), cy + ch - 12)), f"{int(fw)}x{int(fh)}", fill=color)
+                draw.text(
+                    (min(max(sx + sw - 68, cx + 2), cx + cw - 68), min(max(sy + sh - 12, cy + 2), cy + ch - 12)),
+                    f"{int(fw)}x{int(fh)}",
+                    fill=color,
+                )
 
     if show_squeeze_circle and squeeze != 1.0:
         center_x = cx + cw // 2
@@ -773,9 +820,17 @@ def _draw_svg_common_overlays(dwg: Any, scene: ChartScene, cx: int, cy: int, cw:
         center_x = cx + cw / 2
         center_y = cy + ch / 2
         dwg.add(dwg.line(start=(center_x, cy), end=(center_x, cy + my), stroke=overlay_color, stroke_width=line_minor))
-        dwg.add(dwg.line(start=(center_x, cy + ch), end=(center_x, cy + ch - my), stroke=overlay_color, stroke_width=line_minor))
+        dwg.add(
+            dwg.line(
+                start=(center_x, cy + ch), end=(center_x, cy + ch - my), stroke=overlay_color, stroke_width=line_minor
+            )
+        )
         dwg.add(dwg.line(start=(cx, center_y), end=(cx + mx, center_y), stroke=overlay_color, stroke_width=line_minor))
-        dwg.add(dwg.line(start=(cx + cw, center_y), end=(cx + cw - mx, center_y), stroke=overlay_color, stroke_width=line_minor))
+        dwg.add(
+            dwg.line(
+                start=(cx + cw, center_y), end=(cx + cw - mx, center_y), stroke=overlay_color, stroke_width=line_minor
+            )
+        )
 
     if scene.show_siemens_stars:
         stars = _siemens_star_centers(scene, cx, cy, cw, ch)
@@ -809,7 +864,6 @@ def _draw_svg_common_overlays(dwg: Any, scene: ChartScene, cx: int, cy: int, cw:
             )
         )
 
-
     metadata = scene.metadata
     burn = scene.burn_in
     lines: list[str] = []
@@ -828,7 +882,12 @@ def _draw_svg_common_overlays(dwg: Any, scene: ChartScene, cx: int, cy: int, cw:
     if lines:
         center_x = cx + cw / 2 + (metadata.offset_x if metadata else 0.0)
         center_y = cy + ch / 2 + (metadata.offset_y if metadata else 0.0)
-        line_gap = max(12, int(_font_size(max((metadata.font_size if metadata else 12.0), (burn.font_size if burn else 12.0)), cw, ch)))
+        line_gap = max(
+            12,
+            int(
+                _font_size(max((metadata.font_size if metadata else 12.0), (burn.font_size if burn else 12.0)), cw, ch)
+            ),
+        )
         y = center_y - ((len(lines) - 1) * line_gap) / 2
         for line in lines:
             dwg.add(
@@ -901,7 +960,6 @@ def _draw_png_common_overlays(draw: Any, scene: ChartScene, cx: int, cy: int, cw
         draw.line([(center_x - 12, center_y), (center_x + 12, center_y)], fill=overlay_color, width=line_minor)
         draw.line([(center_x, center_y - 12), (center_x, center_y + 12)], fill=overlay_color, width=line_minor)
 
-
     metadata = scene.metadata
     burn = scene.burn_in
     lines: list[str] = []
@@ -956,8 +1014,16 @@ def _siemens_star_centers(scene: ChartScene, cx: int, cy: int, cw: int, ch: int)
             fx = target_x + (float(fl.anchor_x) / max(1.0, float(scene.canvas_width))) * target_w
             fy = target_y + (float(fl.anchor_y) / max(1.0, float(scene.canvas_height))) * target_h
         else:
-            fx = target_x if fl.h_align == "left" else (target_x + target_w - fw if fl.h_align == "right" else target_x + (target_w - fw) / 2.0)
-            fy = target_y if fl.v_align == "top" else (target_y + target_h - fh if fl.v_align == "bottom" else target_y + (target_h - fh) / 2.0)
+            fx = (
+                target_x
+                if fl.h_align == "left"
+                else (target_x + target_w - fw if fl.h_align == "right" else target_x + (target_w - fw) / 2.0)
+            )
+            fy = (
+                target_y
+                if fl.v_align == "top"
+                else (target_y + target_h - fh if fl.v_align == "bottom" else target_y + (target_h - fh) / 2.0)
+            )
         target_x, target_y, target_w, target_h = float(fx), float(fy), float(fw), float(fh)
     radius = max(14.0, min(28.0, min(target_w, target_h) * 0.09))
     inset = radius + max(14.0, min(target_w, target_h) * 0.08)
@@ -1008,7 +1074,9 @@ def _draw_png_siemens_star(
     key = (max(12, int(width)), max(12, int(height)))
     sprite = _SIEMENS_PNG_CACHE.get(key)
     if sprite is None:
-        png_bytes = cairosvg.svg2png(bytestring=_SIEMENS_SVG_TEXT.encode("utf-8"), output_width=key[0], output_height=key[1])
+        png_bytes = cairosvg.svg2png(
+            bytestring=_SIEMENS_SVG_TEXT.encode("utf-8"), output_width=key[0], output_height=key[1]
+        )
         sprite = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
         _SIEMENS_PNG_CACHE[key] = sprite
     img_ref = draw._image
@@ -1071,9 +1139,7 @@ def _draw_png_frameline_style(
         draw.rectangle([sx, sy, sx + sw, sy + sh], outline=color, width=line_major)
 
 
-def _adjusted_rect_for_stroke(
-    sx: int, sy: int, sw: int, sh: int, line_width: float
-) -> tuple[int, int, int, int]:
+def _adjusted_rect_for_stroke(sx: int, sy: int, sw: int, sh: int, line_width: float) -> tuple[int, int, int, int]:
     half = max(1, int(round(line_width / 2.0)))
     # Always draw inside defined dimensions.
     return sx + half, sy + half, max(1, sw - (half * 2)), max(1, sh - (half * 2))

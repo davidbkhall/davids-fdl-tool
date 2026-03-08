@@ -54,7 +54,9 @@ class CineDSyncService: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        let body = "log=\(email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email)&pwd=\(password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? password)&wp-submit=Log+In&redirect_to=%2Fcamera-database%2F"
+        let encodedEmail = email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email
+        let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? password
+        let body = "log=\(encodedEmail)&pwd=\(encodedPassword)&wp-submit=Log+In&redirect_to=%2Fcamera-database%2F"
         request.httpBody = body.data(using: .utf8)
 
         let config = URLSessionConfiguration.ephemeral
@@ -249,7 +251,9 @@ class CineDSyncService: ObservableObject {
     func parseRecordingModes(html: String) -> [CineDRecordingMode] {
         var modes: [CineDRecordingMode] = []
 
-        let rowPattern = #"\|\s*([^|]+?)\s*\|\s*(\w.*?\(\d+\s*x\s*\d+\))\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+\.?\d*p?)\s*\|(?:\s*([^|]*?)\s*\|)?\s*([^|]*?)\s*\|\s*(\d+\s*bit)\s*\|\s*([^|]+?)\s*\|"#
+        let rowPattern =
+            #"\|\s*([^|]+?)\s*\|\s*(\w.*?\(\d+\s*x\s*\d+\))\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+\.?\d*p?)\s*\|"#
+            + #"(?:\s*([^|]*?)\s*\|)?\s*([^|]*?)\s*\|\s*(\d+\s*bit)\s*\|\s*([^|]+?)\s*\|"#
 
         guard let regex = try? NSRegularExpression(pattern: rowPattern) else { return modes }
 
