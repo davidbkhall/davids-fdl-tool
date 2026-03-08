@@ -30,7 +30,12 @@ fi
 echo ""
 echo "Installing Python backend dependencies..."
 cd "$(dirname "$0")/../python_backend"
-pip3 install -e ".[dev]"
+if pip3 install -e ".[dev,frameline]"; then
+    echo "✓ Installed optional frameline conversion dependencies"
+else
+    echo "⚠︎ Optional frameline packages unavailable; core backend installed without ARRI/Sony converters"
+    pip3 install -e ".[dev]"
+fi
 
 echo ""
 echo "=== Setup complete ==="

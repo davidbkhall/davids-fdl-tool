@@ -163,9 +163,6 @@ class CineDSyncService: ObservableObject {
     func parseCameraList(html: String) -> [CineDCamera] {
         var cameras: [CineDCamera] = []
 
-        let manufacturerPattern = #"choose\s+(\w[\w\s]*?)\s+camera:"#
-        let linkPattern = #"\?camera=([\w\-\[\]/%.]+)"#
-
         let sections = html.components(separatedBy: "choose ")
         for section in sections.dropFirst() {
             let headerEnd = section.range(of: " camera:")
@@ -173,7 +170,6 @@ class CineDSyncService: ObservableObject {
             let manufacturer = String(section[section.startIndex..<headerEnd.lowerBound]).trimmingCharacters(in: .whitespaces)
 
             let sectionStr = String(section)
-            let linkRegex = try? NSRegularExpression(pattern: linkPattern)
             let nameAndLinkPattern = #"(?:LAB)?([^<\[\]]+?)(?:NEW)?\]\(https://www\.cined\.com/camera-database/\?camera=([\w\-\[\]/%.]+)\)"#
             let nameRegex = try? NSRegularExpression(pattern: nameAndLinkPattern)
 

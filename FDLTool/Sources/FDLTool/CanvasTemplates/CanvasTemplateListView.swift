@@ -13,13 +13,22 @@ struct CanvasTemplateListView: View {
                 Spacer()
 
                 Menu {
-                    Button("Custom") {
+                    Button("New Blank Template") {
                         viewModel.beginNewASCTemplate(config: CanvasTemplateConfig())
                     }
                     Divider()
-                    ForEach(TemplatePresets.all, id: \.name) { preset in
-                        Button(preset.name) {
-                            viewModel.beginNewASCTemplate(config: preset.config)
+                    Section("Scenario Presets") {
+                        ForEach(TemplatePresets.scenarioContexts, id: \.name) { preset in
+                            Button(preset.name) {
+                                viewModel.beginNewASCTemplate(config: preset.config)
+                            }
+                        }
+                    }
+                    Section("Delivery Presets") {
+                        ForEach(TemplatePresets.standardDeliverables, id: \.name) { preset in
+                            Button(preset.name) {
+                                viewModel.beginNewASCTemplate(config: preset.config)
+                            }
                         }
                     }
                     Divider()

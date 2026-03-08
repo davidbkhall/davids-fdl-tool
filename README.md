@@ -140,6 +140,9 @@ cd FDLTool && swift test
 
 # Python tests (from python_backend/)
 cd python_backend && pytest tests/ -v
+
+# ASC template parity regression tests (deterministic fixtures)
+cd python_backend && pytest tests/test_template_parity.py -v
 ```
 
 ## Project Structure
@@ -218,7 +221,10 @@ The Swift app communicates with the Python backend via JSON-RPC 2.0 over stdin/s
 {"jsonrpc": "2.0", "id": 1, "result": {"valid": true, "errors": [], "warnings": []}}
 ```
 
-Available methods: `fdl.create`, `fdl.validate`, `fdl.parse`, `fdl.export_json`, `template.validate`, `template.apply`, `template.preview`, `template.export`, `chart.generate_svg`, `chart.generate_png`, `chart.generate_fdl`, `image.load_and_overlay`, `image.get_info`, `clip.probe`, `clip.batch_probe`, `clip.generate_fdl`, `clip.validate_canvas`
+Available methods: `fdl.create`, `fdl.validate`, `fdl.parse`, `fdl.export_json`, `template.validate`, `template.apply`, `template.apply_fdl`, `template.preview`, `template.export`, `chart.generate_svg`, `chart.generate_png`, `chart.generate_tiff`, `chart.generate_pdf`, `chart.generate_fdl`, `image.load_and_overlay`, `image.get_info`, `clip.probe`, `clip.batch_probe`, `clip.generate_fdl`, `clip.validate_canvas`, `frameline.status`, `frameline.arri.list_cameras`, `frameline.arri.to_xml`, `frameline.arri.to_fdl`, `frameline.sony.list_cameras`, `frameline.sony.to_xml`, `frameline.sony.to_fdl`
+
+Frameline converter discovery order: installed Python package -> bundled `python_backend/vendor` module -> explicit environment variable path (`FDL_ARRI_FRAMELINE_PATH` / `FDL_SONY_FRAMELINE_PATH`). Query `frameline.status` to inspect availability and source.
+Frameline conversion responses include `report` metadata with `mapped_fields`, `mapping_details`, `dropped_fields`, `warnings`, and a `lossy` indicator for UI mapping summaries.
 
 ## ASC FDL Reference
 

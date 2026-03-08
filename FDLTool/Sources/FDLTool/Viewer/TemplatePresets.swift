@@ -42,7 +42,7 @@ struct CanvasTemplateConfig: Equatable {
 }
 
 enum TemplatePresets {
-    static let all: [(name: String, config: CanvasTemplateConfig)] = [
+    static let standardDeliverables: [(name: String, config: CanvasTemplateConfig)] = [
         ("HD 1080p", CanvasTemplateConfig(id: "preset_hd_1080p", label: "HD 1080p", targetWidth: 1920, targetHeight: 1080)),
         ("UHD 4K", CanvasTemplateConfig(id: "preset_uhd_4k", label: "UHD 4K", targetWidth: 3840, targetHeight: 2160)),
         ("DCI 2K", CanvasTemplateConfig(id: "preset_dci_2k", label: "DCI 2K", targetWidth: 2048, targetHeight: 1080)),
@@ -52,6 +52,106 @@ enum TemplatePresets {
         ("DCI 2K Scope", CanvasTemplateConfig(id: "preset_dci_2k_scope", label: "DCI 2K Scope", targetWidth: 2048, targetHeight: 858)),
         ("DCI 4K Scope", CanvasTemplateConfig(id: "preset_dci_4k_scope", label: "DCI 4K Scope", targetWidth: 4096, targetHeight: 1716)),
     ]
+
+    static let scenarioContexts: [(name: String, config: CanvasTemplateConfig)] = [
+        (
+            "Scenario: Dailies",
+            CanvasTemplateConfig(
+                id: "scenario_dailies",
+                label: "Scenario - Dailies",
+                targetWidth: 1920,
+                targetHeight: 1080,
+                targetAnamorphicSqueeze: 1.0,
+                fitSource: "framing_decision.dimensions",
+                fitMethod: "fit_all",
+                alignmentHorizontal: "center",
+                alignmentVertical: "center",
+                preserveFromSourceCanvas: "canvas.effective_dimensions",
+                maximumWidth: nil,
+                maximumHeight: nil,
+                padToMaximum: false,
+                roundEven: "even",
+                roundMode: "round"
+            )
+        ),
+        (
+            "Scenario: On-set",
+            CanvasTemplateConfig(
+                id: "scenario_onset",
+                label: "Scenario - On-set",
+                targetWidth: 2048,
+                targetHeight: 1152,
+                targetAnamorphicSqueeze: 1.0,
+                fitSource: "framing_decision.dimensions",
+                fitMethod: "fit_all",
+                alignmentHorizontal: "center",
+                alignmentVertical: "center",
+                preserveFromSourceCanvas: "canvas.dimensions",
+                maximumWidth: nil,
+                maximumHeight: nil,
+                padToMaximum: false,
+                roundEven: "even",
+                roundMode: "round"
+            )
+        ),
+        (
+            "Scenario: VFX Pull",
+            CanvasTemplateConfig(
+                id: "scenario_vfx_pull",
+                label: "Scenario - VFX Pull",
+                targetWidth: 4096,
+                targetHeight: 2160,
+                targetAnamorphicSqueeze: 1.0,
+                fitSource: "framing_decision.protection_dimensions",
+                fitMethod: "fit_all",
+                alignmentHorizontal: "center",
+                alignmentVertical: "center",
+                preserveFromSourceCanvas: "canvas.effective_dimensions",
+                maximumWidth: 4096,
+                maximumHeight: 2160,
+                padToMaximum: true,
+                roundEven: "even",
+                roundMode: "round"
+            )
+        ),
+        (
+            "Scenario: Editorial",
+            CanvasTemplateConfig(
+                id: "scenario_editorial",
+                label: "Scenario - Editorial",
+                targetWidth: 1920,
+                targetHeight: 1080,
+                targetAnamorphicSqueeze: 1.0,
+                fitSource: "framing_decision.dimensions",
+                fitMethod: "height",
+                alignmentHorizontal: "center",
+                alignmentVertical: "center",
+                preserveFromSourceCanvas: nil,
+                maximumWidth: nil,
+                maximumHeight: nil,
+                padToMaximum: false,
+                roundEven: "even",
+                roundMode: "round"
+            )
+        ),
+    ]
+
+    static let all: [(name: String, config: CanvasTemplateConfig)] = standardDeliverables + scenarioContexts
+
+    static func scenarioDescription(for name: String) -> String? {
+        switch name {
+        case "Scenario: Dailies":
+            return "Fast review output: fit framing decision to HD/UHD deliverable, centered, preserving effective canvas context."
+        case "Scenario: On-set":
+            return "Monitoring/output assist: fit framing decision into on-set friendly raster while preserving full canvas context."
+        case "Scenario: VFX Pull":
+            return "VFX-safe extraction: fit protection dimensions, then pad to target maximum for consistent pulls."
+        case "Scenario: Editorial":
+            return "Editorial framing normalization: fit by height into editorial raster with centered alignment."
+        default:
+            return nil
+        }
+    }
 
     static let fitSourceOptions: [(value: String, label: String)] = [
         ("framing_decision.dimensions", "Framing Decision"),

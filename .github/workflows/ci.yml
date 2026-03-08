@@ -62,6 +62,10 @@ jobs:
         working-directory: ./python_backend
         run: pytest tests/ -v --tb=short
 
+      - name: Verify ASC template parity fixtures
+        working-directory: ./python_backend
+        run: pytest tests/test_template_parity.py -v --tb=short
+
   swift-lint:
     name: SwiftLint
     runs-on: macos-15

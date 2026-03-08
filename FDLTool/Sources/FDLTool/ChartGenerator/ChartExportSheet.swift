@@ -5,38 +5,63 @@ struct ChartExportSheet: View {
     @ObservedObject var viewModel: ChartGeneratorViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var selectedFormat: ExportFormat = .svg
-    @State private var pngDPI: Int = 150
+    @State private var printSafeMarginPercent: Double = 0
 
     var body: some View {
         VStack(spacing: 16) {
             Text("Export Framing Chart")
                 .font(.headline)
 
-            // Format picker
-            ExportFormatPicker(selectedFormat: $selectedFormat)
+            HStack(alignment: .center, spacing: 8) {
+                Text("Format")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 52, alignment: .leading)
+                ExportFormatPicker(selectedFormat: $selectedFormat, options: availableFormats, compactMenuStyle: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             // Format-specific options
             switch selectedFormat {
             case .png:
-                HStack {
-                    Text("DPI")
-                        .foregroundStyle(.secondary)
-                    Picker("DPI", selection: $pngDPI) {
-                        Text("72").tag(72)
-                        Text("150").tag(150)
-                        Text("300").tag(300)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                }
+                Text("Exports high-quality raster output with automatic DPI.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .tiff:
+                Text("Exports production TIFF with automatic DPI.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             case .svg:
                 Text("Exports as scalable vector graphics.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            case .json:
-                Text("Exports as an ASC FDL JSON document.")
+            case .pdf:
+                Text("Exports as vector PDF for print and sharing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            case .arriXML:
+                Text("Exports the generated chart FDL as ARRI frameline XML.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .sonyXML:
+                Text("Exports the generated chart FDL as Sony frameline XML.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .json:
+                Text("Exports as an ASC FDL document with a .fdl extension.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if supportsPrintSafeOption {
+                HStack(spacing: 8) {
+                    Text("Print-safe margin")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Slider(value: $printSafeMarginPercent, in: 0...15, step: 0.5)
+                    Text("\(printSafeMarginPercent, specifier: "%.1f")%")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 44, alignment: .trailing)
+                }
             }
 
             // Summary
@@ -70,24 +95,64 @@ struct ChartExportSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Export") {
-                    performExport()
+                    let format = selectedFormat
+                    let margin = printSafeMarginPercent
                     dismiss()
+                    // Launch save panel after this modal sheet closes.
+                    DispatchQueue.main.async {
+                        performExport(format: format, printSafeMarginPercent: margin)
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding()
         .frame(width: 380)
+        .onAppear {
+            if !availableFormats.contains(selectedFormat) {
+                selectedFormat = .svg
+            }
+        }
     }
 
-    private func performExport() {
-        switch selectedFormat {
+    private func performExport(format: ExportFormat, printSafeMarginPercent: Double) {
+        switch format {
         case .svg:
-            viewModel.exportSVG()
+            viewModel.exportSVG(printSafeMarginPercent: printSafeMarginPercent)
         case .png:
-            viewModel.exportPNG(dpi: pngDPI)
+            viewModel.exportPNG(printSafeMarginPercent: printSafeMarginPercent)
+        case .tiff:
+            viewModel.exportTIFF(printSafeMarginPercent: printSafeMarginPercent)
+        case .pdf:
+            viewModel.exportPDF(printSafeMarginPercent: printSafeMarginPercent)
+        case .arriXML:
+            viewModel.exportArriXML()
+        case .sonyXML:
+            viewModel.exportSonyXML()
         case .json:
             viewModel.exportFDL()
+        }
+    }
+
+    private var availableFormats: [ExportFormat] {
+        var formats: [ExportFormat] = [.json, .svg, .png, .pdf, .tiff]
+        guard let camera = viewModel.selectedCamera else { return formats }
+        let manufacturer = camera.manufacturer.lowercased()
+        if manufacturer.contains("arri") {
+            formats.append(.arriXML)
+        }
+        if manufacturer.contains("sony") {
+            formats.append(.sonyXML)
+        }
+        return formats
+    }
+
+    private var supportsPrintSafeOption: Bool {
+        switch selectedFormat {
+        case .pdf:
+            return true
+        default:
+            return false
         }
     }
 }

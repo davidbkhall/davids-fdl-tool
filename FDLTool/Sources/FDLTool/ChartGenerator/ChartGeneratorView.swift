@@ -27,6 +27,10 @@ private struct ChartGeneratorContent: View {
 
             VStack(spacing: 0) {
                 HStack {
+                    Text("\(viewModel.framelines.count) frameline\(viewModel.framelines.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Spacer()
 
                     Button(action: {
@@ -37,18 +41,24 @@ private struct ChartGeneratorContent: View {
                         appState.pendingFDLFileName = "\(viewModel.chartTitle).fdl"
                         appState.selectedTool = .viewer
                     }) {
-                        Label("Open in Viewer", systemImage: "eye")
+                        Label("Open in Framing Workspace", systemImage: "eye")
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                     .disabled(viewModel.framelines.isEmpty)
 
                     Button(action: { viewModel.showExportSheet = true }) {
                         Label("Export", systemImage: "square.and.arrow.up")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(viewModel.framelines.isEmpty)
 
                     Button(action: { viewModel.showSaveToLibrary = true }) {
                         Label("Save to Library", systemImage: "folder.badge.plus")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(viewModel.framelines.isEmpty)
                 }
                 .padding(.horizontal)

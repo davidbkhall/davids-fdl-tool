@@ -237,6 +237,7 @@ struct ChartConfigPanel: View {
                         Toggle("Protection", isOn: $viewModel.showProtectionLayer)
                         Toggle("Dimension Labels", isOn: $viewModel.showDimensionLabels)
                         Toggle("Crosshairs", isOn: $viewModel.showCrosshairs)
+                        Toggle("Center Marker", isOn: $viewModel.showCenterMarker)
                         Toggle("Grid", isOn: $viewModel.showGridOverlay)
                         if viewModel.showGridOverlay {
                             Picker("Grid Spacing", selection: $viewModel.gridSpacing) {
@@ -249,6 +250,67 @@ struct ChartConfigPanel: View {
                         if viewModel.anamorphicSqueeze != 1.0 {
                             Toggle("Squeeze Circle", isOn: $viewModel.showSqueezeCircle)
                         }
+                        Toggle("Siemens stars", isOn: $viewModel.showSiemensStars)
+                        if viewModel.showSiemensStars {
+                            Picker("Siemens size", selection: $viewModel.siemensStarSize) {
+                                Text("Small").tag(SiemensStarSize.small)
+                                Text("Medium").tag(SiemensStarSize.medium)
+                                Text("Large").tag(SiemensStarSize.large)
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        Toggle("Frame markers", isOn: $viewModel.showChartMarkers)
+                        Toggle("Show logo", isOn: $viewModel.showLogoOverlay)
+                        if viewModel.showLogoOverlay {
+                            HStack(spacing: 8) {
+                                Button("Upload Logo...") {
+                                    viewModel.pickLogoImage()
+                                }
+                                .buttonStyle(.bordered)
+                                Button("Clear") {
+                                    viewModel.clearLogoImage()
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(viewModel.logoImageData == nil)
+                            }
+                            if !viewModel.logoImageFileName.isEmpty {
+                                Text("Loaded: \(viewModel.logoImageFileName)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            TextField("Fallback logo text", text: $viewModel.logoText)
+                                .textFieldStyle(.roundedBorder)
+                            HStack(spacing: 6) {
+                                Text("Size")
+                                    .foregroundStyle(.secondary)
+                                Slider(value: $viewModel.logoScale, in: 0.25...3.0, step: 0.05)
+                                Text("\(viewModel.logoScale, specifier: "%.2f")x")
+                                    .font(.caption2.monospacedDigit())
+                                    .frame(width: 44, alignment: .trailing)
+                            }
+                            HStack(spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("X")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Slider(value: $viewModel.logoOffsetX, in: -500...500, step: 1)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Y")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Slider(value: $viewModel.logoOffsetY, in: -500...500, step: 1)
+                                }
+                            }
+                            HStack(spacing: 8) {
+                                Text("X \(Int(viewModel.logoOffsetX))  Y \(Int(viewModel.logoOffsetY))")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Reset") { viewModel.resetLogoPlacement() }
+                                    .buttonStyle(.bordered)
+                            }
+                        }
                     }
                     .font(.caption)
                     .padding(.vertical, 2)
@@ -259,29 +321,59 @@ struct ChartConfigPanel: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
-                        Toggle("Show on chart", isOn: $viewModel.metadataOverlayShow)
+                        Toggle("Enable metadata / burn-ins", isOn: $viewModel.metadataBurnInEnabled)
                             .font(.caption)
-                        if viewModel.metadataOverlayShow {
-                            TextField("Show/Project Name", text: $viewModel.metadataShowName)
+                        if viewModel.metadataBurnInEnabled {
+                            TextField("Project Title", text: $viewModel.metadataShowName)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
                             TextField("DP / Cinematographer", text: $viewModel.metadataDOP)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
+                            TextField("Director", text: $viewModel.burnInDirector)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption)
+                            TextField("Sample Text 1", text: $viewModel.burnInSampleText1)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption)
+                            TextField("Sample Text 2", text: $viewModel.burnInSampleText2)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption)
+                            HStack(spacing: 6) {
+                                Text("Font size")
+                                    .foregroundStyle(.secondary)
+                                Slider(value: $viewModel.metadataFontSize, in: 9...30, step: 1)
+                                Text("\(Int(viewModel.metadataFontSize))")
+                                    .font(.caption2.monospacedDigit())
+                                    .frame(width: 28, alignment: .trailing)
+                            }
+                            HStack(spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("X")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Slider(value: $viewModel.metadataOffsetX, in: -500...500, step: 1)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Y")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Slider(value: $viewModel.metadataOffsetY, in: -500...500, step: 1)
+                                }
+                            }
+                            HStack(spacing: 8) {
+                                Text("X \(Int(viewModel.metadataOffsetX))  Y \(Int(viewModel.metadataOffsetY))")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Reset") { viewModel.resetMetadataPlacement() }
+                                    .buttonStyle(.bordered)
+                            }
                         }
                     }
                     .padding(.vertical, 2)
                 } label: {
-                    Label("Metadata Overlay", systemImage: "text.below.photo")
-                        .font(.headline)
-                }
-
-                GroupBox {
-                    Toggle("Show labels on chart", isOn: $viewModel.showLabels)
-                        .font(.caption)
-                        .padding(.vertical, 2)
-                } label: {
-                    Label("Options", systemImage: "slider.horizontal.3")
+                    Label("Metadata / Burn-ins", systemImage: "text.below.photo")
                         .font(.headline)
                 }
             }
@@ -717,6 +809,28 @@ struct FramelineRow: View {
                 )
 
                 Spacer()
+            }
+
+            HStack(spacing: 6) {
+                Text("Style")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Picker("Style", selection: $frameline.style) {
+                    Text("Full Box").tag(FramelineStyle.fullBox)
+                    Text("Corners").tag(FramelineStyle.corners)
+                }
+                .pickerStyle(.segmented)
+            }
+            if frameline.style == .corners {
+                HStack(spacing: 6) {
+                    Text("Corner length")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Slider(value: $frameline.styleLength, in: 0.03...0.25, step: 0.01)
+                    Text("\(Int(frameline.styleLength * 100))%")
+                        .font(.caption2.monospacedDigit())
+                        .frame(width: 36, alignment: .trailing)
+                }
             }
 
             if frameline.linkedIntentID == nil && !frameline.aspectLocked {

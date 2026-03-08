@@ -45,6 +45,25 @@ enum FDLVerticalAlignment: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum FramelineStyle: String, CaseIterable, Identifiable {
+    case fullBox = "full_box"
+    case corners = "corners"
+    var id: String { rawValue }
+}
+
+enum ChartBackgroundTheme: String, CaseIterable, Identifiable {
+    case dark
+    case white
+    var id: String { rawValue }
+}
+
+enum SiemensStarSize: String, CaseIterable, Identifiable {
+    case small
+    case medium
+    case large
+    var id: String { rawValue }
+}
+
 /// A single frameline entry in the chart configuration (represents a Framing Decision).
 struct Frameline: Identifiable {
     let id = UUID()
@@ -67,6 +86,8 @@ struct Frameline: Identifiable {
     var protectionHeight: Double?
     var protectionAnchorX: Double?
     var protectionAnchorY: Double?
+    var style: FramelineStyle = .fullBox
+    var styleLength: Double = 0.08
 
     var aspectRatioDescription: String {
         guard height > 0 else { return "N/A" }
@@ -99,7 +120,7 @@ struct FramelinePreset: Identifiable {
 }
 
 let commonPresets: [FramelinePreset] = [
-    FramelinePreset(label: "2.39:1 Scope", aspectWidth: 2.39, aspectHeight: 1),
+    FramelinePreset(label: "2.39:1 Scope", aspectWidth: 2048, aspectHeight: 858),
     FramelinePreset(label: "2.35:1 Scope", aspectWidth: 2.35, aspectHeight: 1),
     FramelinePreset(label: "1.85:1 Flat", aspectWidth: 1.85, aspectHeight: 1),
     FramelinePreset(label: "16:9 (1.78:1)", aspectWidth: 16, aspectHeight: 9),
@@ -150,18 +171,39 @@ class ChartGeneratorViewModel: ObservableObject {
     @Published var showDimensionLabels = true
     @Published var showCrosshairs = false
     @Published var showSqueezeCircle = false
+    @Published var showCenterMarker = false
+    @Published var showFormatArrows = false
     @Published var showGridOverlay = false
     @Published var gridSpacing: Double = 500
+    @Published var showLogoOverlay = false
+    @Published var logoText: String = ""
+    @Published var logoImageData: Data?
+    @Published var logoImageFileName: String = ""
+    @Published var logoScale: Double = 1.0
+    @Published var logoOffsetX: Double = 0
+    @Published var logoOffsetY: Double = -56
+    @Published var chartBackgroundTheme: ChartBackgroundTheme = .dark
+    @Published var showSiemensStars = false
+    @Published var siemensStarSize: SiemensStarSize = .small
+    @Published var showChartMarkers = false
 
     // Metadata
     @Published var metadataShowName: String = ""
     @Published var metadataDOP: String = ""
-    @Published var metadataOverlayShow = false
+    @Published var metadataBurnInEnabled = true
+    @Published var metadataFontSize: Double = 14
+    @Published var metadataOffsetX: Double = 0
+    @Published var metadataOffsetY: Double = 0
+    @Published var burnInTitle: String = ""
+    @Published var burnInDirector: String = ""
+    @Published var burnInSampleText1: String = ""
+    @Published var burnInSampleText2: String = ""
 
     // Preview state
     @Published var previewSVG: String?
     @Published var previewPNGData: Data?
     @Published var isGenerating = false
+    @Published var previewDesqueezed = false
 
     // Export
     @Published var showExportSheet = false
@@ -174,6 +216,7 @@ class ChartGeneratorViewModel: ObservableObject {
     private let cameraDBStore: CameraDBStore
     private let libraryStore: LibraryStore
     private var cancellables = Set<AnyCancellable>()
+    private var previewTask: Task<Void, Never>?
 
     init(pythonBridge: PythonBridge, cameraDBStore: CameraDBStore, libraryStore: LibraryStore) {
         self.pythonBridge = pythonBridge
@@ -206,6 +249,44 @@ class ChartGeneratorViewModel: ObservableObject {
                 self?.recalculateAllIntentFramelines()
             }
             .store(in: &cancellables)
+    }
+
+    func pickLogoImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [
+            .png,
+            .jpeg,
+            .tiff,
+            .gif,
+            UTType(filenameExtension: "webp") ?? .image,
+        ]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            logoImageData = try Data(contentsOf: url)
+            logoImageFileName = url.lastPathComponent
+            showLogoOverlay = true
+        } catch {
+            errorMessage = "Unable to load logo image: \(error.localizedDescription)"
+        }
+    }
+
+    func clearLogoImage() {
+        logoImageData = nil
+        logoImageFileName = ""
+    }
+
+    func resetLogoPlacement() {
+        logoOffsetX = 0
+        logoOffsetY = -56
+        logoScale = 1.0
+    }
+
+    func resetMetadataPlacement() {
+        metadataOffsetX = 0
+        metadataOffsetY = 0
     }
 
     // MARK: - Canvas Dimensions
@@ -403,26 +484,24 @@ class ChartGeneratorViewModel: ObservableObject {
     // MARK: - Preview Generation
 
     func generatePreview() {
-        previewSVG = nil
-        objectWillChange.send()
-
         isGenerating = true
-        let params = chartParams()
+        let params = chartParams(includePreviewFlags: true)
 
-        Task {
+        previewTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.isGenerating = false }
             do {
-                let response = try await pythonBridge.callForResult("chart.generate_svg", params: params)
-                previewSVG = response["svg"] as? String
+                let response = try await self.pythonBridge.callForResult("chart.generate_svg", params: params)
+                self.previewSVG = response["svg"] as? String
             } catch {
                 // SVG generation not available; native preview will be used
             }
-            isGenerating = false
         }
     }
 
     // MARK: - Export
 
-    func exportSVG() {
+    func exportSVG(printSafeMarginPercent: Double = 0) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "svg") ?? .data]
         panel.nameFieldStringValue = "\(chartTitle).svg"
@@ -431,7 +510,10 @@ class ChartGeneratorViewModel: ObservableObject {
 
         Task {
             do {
-                let response = try await pythonBridge.callForResult("chart.generate_svg", params: chartParams())
+                let response = try await pythonBridge.callForResult(
+                    "chart.generate_svg",
+                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+                )
                 if let svg = response["svg"] as? String {
                     try svg.data(using: .utf8)?.write(to: dest)
                 }
@@ -441,19 +523,19 @@ class ChartGeneratorViewModel: ObservableObject {
         }
     }
 
-    func exportPNG(dpi: Int = 150) {
+    func exportPNG(printSafeMarginPercent: Double = 0) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = "\(chartTitle).png"
 
         guard panel.runModal() == .OK, let dest = panel.url else { return }
 
-        var params = chartParams()
-        params["dpi"] = dpi
-
         Task {
             do {
-                let response = try await pythonBridge.callForResult("chart.generate_png", params: params)
+                let response = try await pythonBridge.callForResult(
+                    "chart.generate_png",
+                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+                )
                 if let b64 = response["png_base64"] as? String,
                    let data = Data(base64Encoded: b64) {
                     try data.write(to: dest)
@@ -464,10 +546,58 @@ class ChartGeneratorViewModel: ObservableObject {
         }
     }
 
+    func exportTIFF(printSafeMarginPercent: Double = 0) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "tiff") ?? .data]
+        panel.nameFieldStringValue = "\(chartTitle).tiff"
+
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+
+        Task {
+            do {
+                let response = try await pythonBridge.callForResult(
+                    "chart.generate_tiff",
+                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+                )
+                if let b64 = response["tiff_base64"] as? String,
+                   let data = Data(base64Encoded: b64)
+                {
+                    try data.write(to: dest)
+                }
+            } catch {
+                errorMessage = "TIFF export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func exportPDF(printSafeMarginPercent: Double = 0) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType.pdf]
+        panel.nameFieldStringValue = "\(chartTitle).pdf"
+
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+
+        Task {
+            do {
+                let response = try await pythonBridge.callForResult(
+                    "chart.generate_pdf",
+                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+                )
+                if let b64 = response["pdf_base64"] as? String,
+                   let data = Data(base64Encoded: b64)
+                {
+                    try data.write(to: dest)
+                }
+            } catch {
+                errorMessage = "PDF export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
     func exportFDL() {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "\(chartTitle).fdl.json"
+        panel.allowedContentTypes = [.fdl]
+        panel.nameFieldStringValue = "\(chartTitle).fdl"
 
         guard panel.runModal() == .OK, let dest = panel.url else { return }
 
@@ -480,6 +610,67 @@ class ChartGeneratorViewModel: ObservableObject {
                 }
             } catch {
                 errorMessage = "FDL export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func exportArriXML() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "xml") ?? .xml]
+        panel.nameFieldStringValue = "\(chartTitle).arri.xml"
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard let camera = selectedCamera else {
+            errorMessage = "Select an ARRI camera before exporting ARRI XML."
+            return
+        }
+        Task {
+            do {
+                let fdlResponse = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+                let payload: [String: Any] = [
+                    "fdl_json": fdlResponse["fdl"] as Any,
+                    "camera_type": camera.model,
+                    "sensor_mode": selectedRecordingMode?.name ?? "default",
+                    "include_protection": true,
+                    "include_effective": true,
+                ]
+                let response = try await pythonBridge.callForResult("frameline.arri.to_xml", params: payload)
+                if let xml = response["xml_string"] as? String {
+                    try xml.data(using: .utf8)?.write(to: dest)
+                } else {
+                    errorMessage = "ARRI XML export failed: no xml_string returned."
+                }
+            } catch {
+                errorMessage = "ARRI XML export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func exportSonyXML() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "xml") ?? .xml]
+        panel.nameFieldStringValue = "\(chartTitle).sony.xml"
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard let camera = selectedCamera else {
+            errorMessage = "Select a Sony camera before exporting Sony XML."
+            return
+        }
+        Task {
+            do {
+                let fdlResponse = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+                let payload: [String: Any] = [
+                    "fdl_json": fdlResponse["fdl"] as Any,
+                    "camera_type": camera.model,
+                    "imager_mode": selectedRecordingMode?.name ?? "default",
+                    "include_protection": true,
+                ]
+                let response = try await pythonBridge.callForResult("frameline.sony.to_xml", params: payload)
+                if let xml = response["xml_string"] as? String {
+                    try xml.data(using: .utf8)?.write(to: dest)
+                } else {
+                    errorMessage = "Sony XML export failed: no xml_string returned."
+                }
+            } catch {
+                errorMessage = "Sony XML export failed: \(error.localizedDescription)"
             }
         }
     }
@@ -631,7 +822,20 @@ class ChartGeneratorViewModel: ObservableObject {
 
     // MARK: - Param Builders
 
-    private func chartParams() -> [String: Any] {
+    private func chartParams(printSafeMarginPercent: Double = 0, includePreviewFlags: Bool = false) -> [String: Any] {
+        let framingSummary: String = {
+            guard let first = framelines.first else { return "N/A" }
+            return "\(Int(first.width))x\(Int(first.height))"
+        }()
+        let framingAspect: String = {
+            guard let first = framelines.first, first.height > 0 else { return "N/A" }
+            return String(format: "%.2f:1", first.width / first.height)
+        }()
+        let projectTitle = metadataShowName.isEmpty ? chartTitle : metadataShowName
+        let dopText = metadataDOP.isEmpty ? "—" : metadataDOP
+        let cameraModelText = selectedCamera.map { "\($0.manufacturer) \($0.model)" } ?? "Custom Canvas"
+        let cameraModeText = selectedRecordingMode?.name ?? "Custom Mode"
+
         var params: [String: Any] = [
             "canvas_width": Int(canvasWidth),
             "canvas_height": Int(canvasHeight),
@@ -650,6 +854,8 @@ class ChartGeneratorViewModel: ObservableObject {
                     "h_align": fl.hAlign.rawValue,
                     "v_align": fl.vAlign.rawValue,
                     "framing_intent": intentLabel,
+                    "style": fl.style.rawValue,
+                    "style_length": fl.styleLength,
                 ]
                 if let ax = fl.anchorX, let ay = fl.anchorY {
                     d["anchor_x"] = ax
@@ -670,6 +876,13 @@ class ChartGeneratorViewModel: ObservableObject {
             "grid_spacing": Int(gridSpacing),
             "anamorphic_squeeze": anamorphicSqueeze,
             "show_squeeze_circle": showSqueezeCircle,
+            "show_center_marker": showCenterMarker,
+            "show_format_arrows": false,
+            "show_siemens_stars": showSiemensStars,
+            "siemens_star_size": siemensStarSize.rawValue,
+            "show_chart_markers": showChartMarkers,
+            "background_theme": chartBackgroundTheme.rawValue,
+            "print_safe_margin_percent": max(0, printSafeMarginPercent),
             "layers": [
                 "canvas": showCanvasLayer,
                 "effective": showEffectiveLayer,
@@ -683,11 +896,42 @@ class ChartGeneratorViewModel: ObservableObject {
             params["effective_height"] = Int(eh)
         }
 
-        if metadataOverlayShow {
+        if metadataBurnInEnabled {
             params["metadata"] = [
-                "show_name": metadataShowName,
-                "dop": metadataDOP,
+                "show_name": projectTitle,
+                "dop": dopText,
+                "font_size": metadataFontSize,
+                "offset_x": metadataOffsetX,
+                "offset_y": metadataOffsetY,
+                "camera_model": cameraModelText,
+                "recording_mode": cameraModeText,
+                "framing_dimensions": framingSummary,
+                "framing_aspect_ratio": framingAspect,
             ] as [String: Any]
+            params["burn_in"] = [
+                "director": burnInDirector,
+                "dop": dopText,
+                "sample_text_1": burnInSampleText1,
+                "sample_text_2": burnInSampleText2,
+                "font_size": metadataFontSize,
+            ] as [String: Any]
+        }
+        if showLogoOverlay {
+            var logo: [String: Any] = [
+                "text": logoText,
+                "position": "center",
+                "scale": logoScale,
+                "offset_x": logoOffsetX,
+                "offset_y": logoOffsetY,
+            ]
+            if let data = logoImageData {
+                logo["image_base64"] = data.base64EncodedString()
+            }
+            params["logo"] = logo
+        }
+
+        if includePreviewFlags {
+            params["preview_desqueeze"] = previewDesqueezed
         }
 
         return params

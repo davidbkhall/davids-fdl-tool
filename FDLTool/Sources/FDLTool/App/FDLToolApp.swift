@@ -237,6 +237,20 @@ struct SettingsView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 220)
                 }
+                LabeledContent("Storage") {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(appState.isCinedPasswordStoredInKeychain ? .green : .orange)
+                            .frame(width: 8, height: 8)
+                        Text(appState.isCinedPasswordStoredInKeychain ? "Keychain" : "Not saved")
+                            .font(.caption)
+                        if appState.hasLegacyCinedPasswordInUserDefaults {
+                            Text("(legacy plaintext found)")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
                 Text("Optional. Required if CineD restricts access to full camera database content. Credentials are stored locally.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

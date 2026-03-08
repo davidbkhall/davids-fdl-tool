@@ -4,7 +4,7 @@ import SwiftUI
 enum Tool: String, CaseIterable, Identifiable {
     case library = "FDL Library"
     case chartGenerator = "Framing Charts"
-    case viewer = "FDL Viewer"
+    case viewer = "Framing Workspace"
     case clipID = "Clip ID"
     case cameraDB = "Camera Database"
 

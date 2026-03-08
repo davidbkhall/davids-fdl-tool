@@ -141,6 +141,9 @@ def apply_fdl_template(params: dict) -> dict:
 def _apply_with_library(params: dict) -> dict:
     """Apply using the native fdl library's CanvasTemplate."""
     from fdl import CanvasTemplate
+    from fdl.constants import FitMethod, GeometryPath, HAlign, RoundingEven, RoundingMode, VAlign
+    from fdl.fdl_types import DimensionsInt
+    from fdl.rounding import RoundStrategy
 
     fdl_json = params.get("fdl_json", "{}")
     template_json = params.get("template_json", "{}")
@@ -157,7 +160,41 @@ def _apply_with_library(params: dict) -> dict:
     source_canvas = list(source_ctx.canvases)[canvas_idx]
     source_fd = list(source_canvas.framing_decisions)[fd_idx]
 
-    template_obj = CanvasTemplate(**template_data)
+    target_dimensions = template_data.get("target_dimensions", {})
+    maximum_dimensions = template_data.get("maximum_dimensions")
+    round_dict = template_data.get("round", {})
+
+    template_kwargs: dict[str, Any] = {
+        "id": str(template_data.get("id") or str(uuid.uuid4())),
+        "label": str(template_data.get("label", "")),
+        "target_dimensions": DimensionsInt(
+            width=int(target_dimensions.get("width", 0)),
+            height=int(target_dimensions.get("height", 0)),
+        ),
+        "target_anamorphic_squeeze": float(template_data.get("target_anamorphic_squeeze", 1.0)),
+        "fit_source": GeometryPath(template_data.get("fit_source", "framing_decision.dimensions")),
+        "fit_method": FitMethod(template_data.get("fit_method", "fit_all")),
+        "alignment_method_horizontal": HAlign(
+            template_data.get("alignment_method_horizontal", "center")
+        ),
+        "alignment_method_vertical": VAlign(template_data.get("alignment_method_vertical", "center")),
+        "round": RoundStrategy(
+            even=RoundingEven(round_dict.get("even", "even")),
+            mode=RoundingMode(round_dict.get("mode", "round")),
+        ),
+        "pad_to_maximum": bool(template_data.get("pad_to_maximum", False)),
+    }
+
+    preserve_from_source_canvas = template_data.get("preserve_from_source_canvas")
+    if preserve_from_source_canvas:
+        template_kwargs["preserve_from_source_canvas"] = GeometryPath(preserve_from_source_canvas)
+    if maximum_dimensions:
+        template_kwargs["maximum_dimensions"] = DimensionsInt(
+            width=int(maximum_dimensions.get("width", 0)),
+            height=int(maximum_dimensions.get("height", 0)),
+        )
+
+    template_obj = CanvasTemplate(**template_kwargs)
     result = template_obj.apply(
         source_canvas=source_canvas,
         source_framing=source_fd,

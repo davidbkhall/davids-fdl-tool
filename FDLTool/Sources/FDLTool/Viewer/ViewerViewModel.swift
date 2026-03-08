@@ -1,9 +1,11 @@
 import Foundation
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
 class ViewerViewModel: ObservableObject {
+    private let logger = Logger(subsystem: "com.fdltool.app", category: "template-apply")
     // Document state
     @Published var loadedDocument: FDLDocument?
     @Published var validationResult: ValidationResult?
@@ -73,6 +75,14 @@ class ViewerViewModel: ObservableObject {
 
     // UI state
     @Published var errorMessage: String?
+    @Published var framelineStatus = FramelineInteropStatus()
+    @Published var framelineReport: FramelineConversionReport?
+    @Published var arriCameras: [FramelineCameraOption] = []
+    @Published var sonyCameras: [FramelineCameraOption] = []
+    @Published var selectedArriCameraType = ""
+    @Published var selectedArriSensorMode = ""
+    @Published var selectedSonyCameraType = ""
+    @Published var selectedSonyImagerMode = ""
 
     // MARK: - Selection Helpers
 
@@ -169,6 +179,15 @@ class ViewerViewModel: ObservableObject {
         templateConfig = preset.config
     }
 
+    func applyScenarioPresetAndTransform(
+        _ name: String,
+        pythonBridge: PythonBridge,
+        defaultCreator: String
+    ) {
+        applyPreset(name)
+        applyTemplate(pythonBridge: pythonBridge, defaultCreator: defaultCreator)
+    }
+
     func startCustomTemplate() {
         templateConfig = CanvasTemplateConfig(
             id: UUID().uuidString,
@@ -227,11 +246,7 @@ class ViewerViewModel: ObservableObject {
         libraryStore: LibraryStore,
         libraryViewModel: LibraryViewModel
     ) {
-        let dict = templateConfig.toDict()
-        guard let data = try? JSONSerialization.data(
-            withJSONObject: dict, options: [.prettyPrinted, .sortedKeys]
-        ),
-              let jsonStr = String(data: data, encoding: .utf8)
+        guard let jsonStr = currentTemplateJSONString()
         else {
             errorMessage = "Failed to serialize template"
             return
@@ -241,7 +256,7 @@ class ViewerViewModel: ObservableObject {
             name: templateConfig.label,
             description: nil,
             templateJSON: jsonStr,
-            source: "FDL Viewer"
+            source: "Framing Workspace"
         )
         do {
             try libraryStore.saveCanvasTemplate(template)
@@ -256,11 +271,7 @@ class ViewerViewModel: ObservableObject {
         libraryStore: LibraryStore,
         libraryViewModel: LibraryViewModel
     ) {
-        let dict = templateConfig.toDict()
-        guard let data = try? JSONSerialization.data(
-            withJSONObject: dict, options: [.prettyPrinted, .sortedKeys]
-        ),
-              let jsonStr = String(data: data, encoding: .utf8)
+        guard let jsonStr = currentTemplateJSONString()
         else {
             errorMessage = "Failed to serialize template"
             return
@@ -270,7 +281,7 @@ class ViewerViewModel: ObservableObject {
             name: templateConfig.label,
             description: nil,
             templateJSON: jsonStr,
-            source: "FDL Viewer"
+            source: "Framing Workspace"
         )
         do {
             try libraryStore.saveCanvasTemplate(template)
@@ -281,6 +292,93 @@ class ViewerViewModel: ObservableObject {
         } catch {
             errorMessage = "Assign failed: \(error.localizedDescription)"
         }
+    }
+
+    func saveOutputToProject(
+        projectID: String,
+        libraryStore: LibraryStore,
+        libraryViewModel: LibraryViewModel
+    ) {
+        guard let outputDoc = outputDocument else {
+            errorMessage = "No output document to save"
+            return
+        }
+        guard let outputJSON = outputRawJSON ?? FDLJSONSerializer.string(from: outputDoc),
+              let jsonData = outputJSON.data(using: .utf8)
+        else {
+            errorMessage = "Failed to serialize output document"
+            return
+        }
+
+        let templateJSON = currentTemplateJSONString()
+        let templateID = templateConfig.id.isEmpty ? UUID().uuidString : templateConfig.id
+        let templateName = templateConfig.label.isEmpty ? "Template" : templateConfig.label
+
+        let baseName: String = {
+            if let loadedFileName, !loadedFileName.isEmpty {
+                return loadedFileName.replacingOccurrences(of: ".fdl.json", with: "")
+            }
+            return "FDL Output"
+        }()
+        let entryName = "\(baseName) - \(templateName)"
+        let entryID = UUID().uuidString
+        let outputPath = LibraryStore.projectDirectoryURL(projectID: projectID)
+            .appendingPathComponent("\(entryID).fdl.json")
+            .path
+
+        let entry = FDLEntry(
+            id: entryID,
+            projectID: projectID,
+            fdlUUID: outputDoc.id,
+            name: entryName,
+            filePath: outputPath,
+            sourceTool: "viewer_output",
+            cameraModel: nil,
+            tags: ["viewer", "output", "template_applied"],
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+
+        do {
+            try libraryStore.addFDLEntry(entry, jsonData: jsonData)
+
+            if let templateJSON {
+                let template = CanvasTemplate(
+                    id: templateID,
+                    name: templateName,
+                    description: nil,
+                    templateJSON: templateJSON,
+                    source: "Framing Workspace",
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
+                try libraryStore.saveCanvasTemplate(template)
+                try libraryStore.assignTemplate(templateID: template.id, toProject: projectID)
+                let link = ProjectAssetLink(
+                    projectID: projectID,
+                    fromAssetID: "asset-fdl-\(entry.id)",
+                    toAssetID: "asset-template-\(projectID)-\(template.id)",
+                    linkType: .usesTemplate
+                )
+                try libraryStore.linkAssets(link)
+            }
+
+            if libraryViewModel.selectedProject?.id == projectID {
+                libraryViewModel.loadEntries()
+                libraryViewModel.refreshCanvasTemplates()
+            }
+        } catch {
+            errorMessage = "Save output failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func currentTemplateJSONString() -> String? {
+        let dict = templateConfig.toDict()
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: dict,
+            options: [.prettyPrinted, .sortedKeys]
+        ) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     func resetTemplateValues() {
@@ -382,16 +480,412 @@ class ViewerViewModel: ObservableObject {
         }
 
         isApplyingTemplate = true
+        Task {
+            do {
+                try await applyTemplateWithBackend(
+                    pythonBridge: pythonBridge,
+                    defaultCreator: defaultCreator
+                )
+            } catch {
+                // Backend-first path failed, fall back to the local
+                // implementation so users can keep working offline.
+                logger.error("Backend template apply failed; using local fallback: \(error.localizedDescription)")
+                applyTemplateLocally(
+                    ctxIndex: selectedContextIndex,
+                    canvasIndex: selectedCanvasIndex,
+                    fdIndex: selectedFramingIndex ?? 0,
+                    defaultCreator: defaultCreator
+                )
+                errorMessage = "Backend template apply failed; used local fallback. \(error.localizedDescription)"
+            }
+            buildTransformInfo()
+            activeTab = .output
+            isApplyingTemplate = false
+        }
+    }
 
-        applyTemplateLocally(
-            ctxIndex: selectedContextIndex,
-            canvasIndex: selectedCanvasIndex,
-            fdIndex: selectedFramingIndex ?? 0,
-            defaultCreator: defaultCreator
+    private func applyTemplateWithBackend(
+        pythonBridge: PythonBridge,
+        defaultCreator: String
+    ) async throws {
+        let doc = try await applyTemplateWithBackendDocument(
+            pythonBridge: pythonBridge,
+            defaultCreator: defaultCreator,
+            template: templateConfig
         )
-        buildTransformInfo()
-        activeTab = .output
-        isApplyingTemplate = false
+        outputDocument = doc
+        outputGeometry = computeGeometryLocally(from: doc)
+        outputRawJSON = FDLJSONSerializer.string(from: doc)
+    }
+
+    private func applyTemplateWithBackendDocument(
+        pythonBridge: PythonBridge,
+        defaultCreator: String,
+        template: CanvasTemplateConfig
+    ) async throws -> FDLDocument {
+        guard let sourceDoc = loadedDocument,
+              let fdlJSON = FDLJSONSerializer.string(from: sourceDoc)
+        else {
+            throw NSError(
+                domain: "FDLTool",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No source document for template apply"]
+            )
+        }
+
+        let templateDict = template.toDict()
+        let templateData = try JSONSerialization.data(withJSONObject: templateDict)
+        guard let templateJSON = String(data: templateData, encoding: .utf8) else {
+            throw NSError(
+                domain: "FDLTool",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to serialize template JSON"]
+            )
+        }
+
+        let response = try await pythonBridge.callForResult(
+            "template.apply_fdl",
+            params: [
+                "fdl_json": fdlJSON,
+                "template_json": templateJSON,
+                "context_index": selectedContextIndex,
+                "canvas_index": selectedCanvasIndex,
+                "fd_index": selectedFramingIndex ?? 0,
+            ]
+        )
+
+        guard let outputFDL = response["fdl"] as? [String: Any] else {
+            throw NSError(
+                domain: "FDLTool",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Backend did not return an FDL result"]
+            )
+        }
+
+        let outputData = try JSONSerialization.data(withJSONObject: outputFDL)
+        var doc = try JSONDecoder().decode(FDLDocument.self, from: outputData)
+
+        // Ensure output context creator follows app attribution convention.
+        let creatorString = outputContextCreator(defaultCreator: defaultCreator)
+        if !doc.contexts.isEmpty {
+            doc.contexts[doc.contexts.count - 1].contextCreator = creatorString
+        }
+
+        return doc
+    }
+
+    func exportScenarioPack(
+        presetNames: [String],
+        pythonBridge: PythonBridge,
+        defaultCreator: String,
+        includeZip: Bool = true,
+        projectID: String? = nil,
+        libraryStore: LibraryStore? = nil
+    ) {
+        guard let sourceDoc = loadedDocument else {
+            errorMessage = "Load a Source FDL before exporting a scenario pack."
+            return
+        }
+        guard !presetNames.isEmpty else {
+            errorMessage = "Select at least one scenario preset."
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose Folder"
+        panel.title = "Export Scenario Pack"
+
+        guard panel.runModal() == .OK, let parentURL = panel.url else { return }
+
+        Task {
+            do {
+                let timestamp = ISO8601DateFormatter().string(from: Date())
+                    .replacingOccurrences(of: ":", with: "-")
+                let packName = "scenario-pack-\(timestamp)"
+                let packURL = parentURL.appendingPathComponent(packName, isDirectory: true)
+                try FileManager.default.createDirectory(at: packURL, withIntermediateDirectories: true)
+
+                var manifest: [[String: Any]] = []
+
+                if let sourceJSON = FDLJSONSerializer.string(from: sourceDoc) {
+                    let sourceJSONURL = packURL.appendingPathComponent("source.fdl.json")
+                    try sourceJSON.write(to: sourceJSONURL, atomically: true, encoding: .utf8)
+                }
+
+                var sourceFDLAssetID: String?
+                var sourceChartAssetID: String?
+                if let sourceChartData = try await renderSourceChartPNGData(pythonBridge: pythonBridge) {
+                    let sourceChartURL = packURL.appendingPathComponent("source_chart.png")
+                    try sourceChartData.write(to: sourceChartURL)
+                }
+
+                if let projectID, let libraryStore {
+                    let sourceFDLPath = packURL.appendingPathComponent("source.fdl.json").path
+                    let sourceChartPath = packURL.appendingPathComponent("source_chart.png").path
+
+                    let sourceFDLAsset = ProjectAsset(
+                        projectID: projectID,
+                        assetType: .fdl,
+                        name: "Scenario Pack Source FDL",
+                        sourceTool: "viewer_scenario_pack",
+                        referenceID: nil,
+                        filePath: sourceFDLPath,
+                        payloadJSON: nil
+                    )
+                    try libraryStore.saveProjectAsset(sourceFDLAsset)
+                    sourceFDLAssetID = sourceFDLAsset.id
+
+                    let sourceChartAsset = ProjectAsset(
+                        projectID: projectID,
+                        assetType: .chart,
+                        name: "Scenario Pack Source Chart",
+                        sourceTool: "viewer_scenario_pack",
+                        referenceID: nil,
+                        filePath: sourceChartPath,
+                        payloadJSON: nil
+                    )
+                    try libraryStore.saveProjectAsset(sourceChartAsset)
+                    sourceChartAssetID = sourceChartAsset.id
+                }
+
+                for (index, presetName) in presetNames.enumerated() {
+                    guard let preset = TemplatePresets.scenarioContexts.first(where: { $0.name == presetName }) else {
+                        continue
+                    }
+                    let resultDoc = try await applyTemplateWithBackendDocument(
+                        pythonBridge: pythonBridge,
+                        defaultCreator: defaultCreator,
+                        template: preset.config
+                    )
+
+                    let scenarioDirName = String(format: "%02d_%@", index + 1, sanitizeFileName(presetName))
+                    let scenarioURL = packURL.appendingPathComponent(scenarioDirName, isDirectory: true)
+                    try FileManager.default.createDirectory(at: scenarioURL, withIntermediateDirectories: true)
+
+                    if let outputJSON = FDLJSONSerializer.string(from: resultDoc) {
+                        try outputJSON.write(
+                            to: scenarioURL.appendingPathComponent("output.fdl.json"),
+                            atomically: true,
+                            encoding: .utf8
+                        )
+                    }
+
+                    let templateDict = preset.config.toDict()
+                    let templateData = try JSONSerialization.data(withJSONObject: templateDict, options: [.prettyPrinted, .sortedKeys])
+                    let templateURL = scenarioURL.appendingPathComponent("template.json")
+                    try templateData.write(to: templateURL)
+
+                    if let chartData = try await renderOutputChartPNGData(resultDoc: resultDoc, pythonBridge: pythonBridge) {
+                        try chartData.write(to: scenarioURL.appendingPathComponent("output_chart.png"))
+                    }
+
+                    if let projectID, let libraryStore {
+                        let outputFDLURL = scenarioURL.appendingPathComponent("output.fdl.json")
+                        let outputChartURL = scenarioURL.appendingPathComponent("output_chart.png")
+
+                        let templateAsset = ProjectAsset(
+                            projectID: projectID,
+                            assetType: .template,
+                            name: preset.config.label,
+                            sourceTool: "viewer_scenario_pack",
+                            referenceID: preset.config.id,
+                            filePath: templateURL.path,
+                            payloadJSON: String(data: templateData, encoding: .utf8)
+                        )
+                        try libraryStore.saveProjectAsset(templateAsset)
+
+                        let outputFDLAsset = ProjectAsset(
+                            projectID: projectID,
+                            assetType: .fdl,
+                            name: "\(preset.config.label) Output FDL",
+                            sourceTool: "viewer_scenario_pack",
+                            referenceID: nil,
+                            filePath: outputFDLURL.path,
+                            payloadJSON: nil
+                        )
+                        try libraryStore.saveProjectAsset(outputFDLAsset)
+
+                        let outputChartAsset = ProjectAsset(
+                            projectID: projectID,
+                            assetType: .chart,
+                            name: "\(preset.config.label) Output Chart",
+                            sourceTool: "viewer_scenario_pack",
+                            referenceID: nil,
+                            filePath: outputChartURL.path,
+                            payloadJSON: nil
+                        )
+                        try libraryStore.saveProjectAsset(outputChartAsset)
+
+                        if let sourceFDLAssetID {
+                            try libraryStore.linkAssets(ProjectAssetLink(
+                                projectID: projectID,
+                                fromAssetID: outputFDLAsset.id,
+                                toAssetID: sourceFDLAssetID,
+                                linkType: .derivedFrom
+                            ))
+                        }
+                        try libraryStore.linkAssets(ProjectAssetLink(
+                            projectID: projectID,
+                            fromAssetID: outputFDLAsset.id,
+                            toAssetID: templateAsset.id,
+                            linkType: .usesTemplate
+                        ))
+                        try libraryStore.linkAssets(ProjectAssetLink(
+                            projectID: projectID,
+                            fromAssetID: outputChartAsset.id,
+                            toAssetID: outputFDLAsset.id,
+                            linkType: .inputOf
+                        ))
+                        if let sourceFDLAssetID, let sourceChartAssetID {
+                            try libraryStore.linkAssets(ProjectAssetLink(
+                                projectID: projectID,
+                                fromAssetID: sourceChartAssetID,
+                                toAssetID: sourceFDLAssetID,
+                                linkType: .inputOf
+                            ))
+                        }
+                    }
+
+                    manifest.append([
+                        "preset_name": presetName,
+                        "template_id": preset.config.id,
+                        "template_label": preset.config.label,
+                        "directory": scenarioDirName,
+                    ])
+                }
+
+                let manifestData = try JSONSerialization.data(
+                    withJSONObject: [
+                        "source_file": loadedFileName ?? "Source FDL",
+                        "exported_at": Date().ISO8601Format(),
+                        "scenarios": manifest,
+                    ],
+                    options: [.prettyPrinted, .sortedKeys]
+                )
+                try manifestData.write(to: packURL.appendingPathComponent("manifest.json"))
+
+                if includeZip {
+                    let zipURL = parentURL.appendingPathComponent("\(packName).zip")
+                    try zipDirectory(packURL, to: zipURL)
+                }
+            } catch {
+                errorMessage = "Scenario pack export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func renderSourceChartPNGData(pythonBridge: PythonBridge) async throws -> Data? {
+        guard let sourceCanvas = selectedCanvas,
+              let sourceFD = selectedFramingDecision ?? sourceCanvas.framingDecisions.first else {
+            return nil
+        }
+        let title = loadedFileName ?? "Source"
+        return try await renderChartPNGData(
+            canvas: sourceCanvas,
+            framingDecision: sourceFD,
+            title: "Source - \(title)",
+            pythonBridge: pythonBridge
+        )
+    }
+
+    private func renderOutputChartPNGData(
+        resultDoc: FDLDocument,
+        pythonBridge: PythonBridge
+    ) async throws -> Data? {
+        guard let outContext = resultDoc.contexts.last,
+              let outCanvas = outContext.canvases.first,
+              let outFD = outCanvas.framingDecisions.first else {
+            return nil
+        }
+        return try await renderChartPNGData(
+            canvas: outCanvas,
+            framingDecision: outFD,
+            title: outCanvas.label ?? "Output",
+            pythonBridge: pythonBridge
+        )
+    }
+
+    private func renderChartPNGData(
+        canvas: FDLCanvas,
+        framingDecision: FDLFramingDecision,
+        title: String,
+        pythonBridge: PythonBridge
+    ) async throws -> Data? {
+        var frameline: [String: Any] = [
+            "label": framingDecision.label ?? "Framing Decision",
+            "width": Int(framingDecision.dimensions.width.rounded()),
+            "height": Int(framingDecision.dimensions.height.rounded()),
+            "h_align": "center",
+            "v_align": "center",
+            "style": "full_box",
+        ]
+        if let anchor = framingDecision.anchorPoint {
+            frameline["anchor_x"] = anchor.x
+            frameline["anchor_y"] = anchor.y
+        }
+        if let prot = framingDecision.protectionDimensions {
+            frameline["protection_width"] = Int(prot.width.rounded())
+            frameline["protection_height"] = Int(prot.height.rounded())
+            if let protAnchor = framingDecision.protectionAnchorPoint {
+                frameline["protection_anchor_x"] = protAnchor.x
+                frameline["protection_anchor_y"] = protAnchor.y
+            }
+        }
+
+        var params: [String: Any] = [
+            "canvas_width": Int(canvas.dimensions.width.rounded()),
+            "canvas_height": Int(canvas.dimensions.height.rounded()),
+            "framelines": [frameline],
+            "title": title,
+            "show_labels": true,
+            "layers": [
+                "canvas": true,
+                "effective": true,
+                "protection": true,
+                "framing": true,
+            ],
+        ]
+        if let eff = canvas.effectiveDimensions {
+            params["effective_width"] = Int(eff.width.rounded())
+            params["effective_height"] = Int(eff.height.rounded())
+        }
+        params["anamorphic_squeeze"] = canvas.anamorphicSqueeze ?? 1.0
+
+        let response = try await pythonBridge.callForResult("chart.generate_png", params: params)
+        guard let b64 = response["png_base64"] as? String else { return nil }
+        return Data(base64Encoded: b64)
+    }
+
+    private func sanitizeFileName(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: ":", with: "")
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: " ", with: "_")
+    }
+
+    private func zipDirectory(_ source: URL, to destination: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-c", "-k", "--sequesterRsrc", source.path, destination.path]
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            throw NSError(
+                domain: "FDLTool",
+                code: Int(process.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create zip archive"]
+            )
+        }
+    }
+
+    func outputContextCreator(defaultCreator: String) -> String {
+        let base = "FDL Tool v1.0"
+        if defaultCreator.isEmpty { return base }
+        return "\(base) - \(defaultCreator)"
     }
 
     // MARK: - ASC FDL Template Application (10-step pipeline)
@@ -738,13 +1232,26 @@ class ViewerViewModel: ObservableObject {
         let srcCanvas = selectedCanvas
         let srcFD = selectedFramingDecision
             ?? selectedCanvas?.framingDecisions.first
+        transformInfo = makeTransformInfo(
+            sourceCanvas: srcCanvas,
+            sourceFramingDecision: srcFD,
+            outputDocument: outputDocument
+        )
+    }
+
+    func makeTransformInfo(
+        sourceCanvas: FDLCanvas?,
+        sourceFramingDecision: FDLFramingDecision?,
+        outputDocument: FDLDocument?
+    ) -> TransformInfo {
         var info = TransformInfo(
             sourceCanvas: formatDims(
-                srcCanvas?.dimensions.width,
-                srcCanvas?.dimensions.height
+                sourceCanvas?.dimensions.width,
+                sourceCanvas?.dimensions.height
             ),
             sourceFraming: formatDims(
-                srcFD?.dimensions.width, srcFD?.dimensions.height
+                sourceFramingDecision?.dimensions.width,
+                sourceFramingDecision?.dimensions.height
             )
         )
 
@@ -763,7 +1270,7 @@ class ViewerViewModel: ObservableObject {
             }
         }
 
-        transformInfo = info
+        return info
     }
 
     private func formatDims(_ w: Double?, _ h: Double?) -> String {
@@ -836,6 +1343,7 @@ class ViewerViewModel: ObservableObject {
             loadedDocument = try JSONDecoder().decode(
                 FDLDocument.self, from: data
             )
+            normalizeSelectionForCurrentDocument()
             computedGeometry = computeGeometryLocally(from: loadedDocument!)
         } catch {
             errorMessage = "Invalid FDL: \(error.localizedDescription)"
@@ -866,6 +1374,7 @@ class ViewerViewModel: ObservableObject {
                     FDLDocument.self, from: data
                 )
                 loadedDocument = bridgeDoc
+                normalizeSelectionForCurrentDocument()
             }
 
             let valResponse = try await pythonBridge.callForResult(
@@ -1008,6 +1517,7 @@ class ViewerViewModel: ObservableObject {
         transformInfo = nil
 
         loadedDocument = doc
+        normalizeSelectionForCurrentDocument()
         computedGeometry = computeGeometryLocally(from: doc)
 
         if let json = FDLJSONSerializer.string(from: doc) {
@@ -1021,6 +1531,42 @@ class ViewerViewModel: ObservableObject {
         let filePath = LibraryStore.projectDirectoryURL(projectID: entry.projectID)
             .appendingPathComponent("\(entry.id).fdl.json")
         loadFromURL(filePath, pythonBridge: pythonBridge)
+    }
+
+    private func normalizeSelectionForCurrentDocument() {
+        guard let doc = loadedDocument else {
+            selectedContextIndex = 0
+            selectedCanvasIndex = 0
+            selectedFramingIndex = nil
+            return
+        }
+        guard !doc.contexts.isEmpty else {
+            selectedContextIndex = 0
+            selectedCanvasIndex = 0
+            selectedFramingIndex = nil
+            return
+        }
+
+        selectedContextIndex = min(max(selectedContextIndex, 0), doc.contexts.count - 1)
+        let canvases = doc.contexts[selectedContextIndex].canvases
+        guard !canvases.isEmpty else {
+            selectedCanvasIndex = 0
+            selectedFramingIndex = nil
+            return
+        }
+
+        selectedCanvasIndex = min(max(selectedCanvasIndex, 0), canvases.count - 1)
+        let framingDecisions = canvases[selectedCanvasIndex].framingDecisions
+        guard !framingDecisions.isEmpty else {
+            selectedFramingIndex = nil
+            return
+        }
+
+        if let idx = selectedFramingIndex {
+            selectedFramingIndex = min(max(idx, 0), framingDecisions.count - 1)
+        } else {
+            selectedFramingIndex = 0
+        }
     }
 
     // MARK: - Reference Image
@@ -1133,5 +1679,330 @@ class ViewerViewModel: ObservableObject {
         zoomScale = 1.0
         panOffset = .zero
         activeTab = .source
+    }
+
+    // MARK: - Frameline Interop
+
+    func refreshFramelineInterop(pythonBridge: PythonBridge) async {
+        do {
+            let statusResult = try await pythonBridge.callForResult("frameline.status")
+            framelineStatus = mapFramelineStatus(from: statusResult)
+            if framelineStatus.arriAvailable {
+                try await refreshArriCatalog(pythonBridge: pythonBridge)
+            }
+            if framelineStatus.sonyAvailable {
+                try await refreshSonyCatalog(pythonBridge: pythonBridge)
+            }
+        } catch {
+            if error.localizedDescription.localizedCaseInsensitiveContains("python bridge not started") {
+                // Startup race: view can appear before backend bridge is ready.
+                return
+            }
+            errorMessage = "Failed to load frameline converter status: \(error.localizedDescription)"
+        }
+    }
+
+    func exportCurrentFDLToArriXML(pythonBridge: PythonBridge) {
+        guard !selectedArriCameraType.isEmpty, !selectedArriSensorMode.isEmpty else {
+            errorMessage = "Choose ARRI camera and sensor mode."
+            return
+        }
+        guard let sourceJSON = rawJSON else {
+            errorMessage = "Load a source FDL before exporting XML."
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.xml]
+        panel.nameFieldStringValue = "\(loadedFileName ?? "viewer").arri.xml"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+
+        Task {
+            do {
+                let response = try await pythonBridge.callForResult("frameline.arri.to_xml", params: [
+                    "fdl_json": sourceJSON,
+                    "camera_type": selectedArriCameraType,
+                    "sensor_mode": selectedArriSensorMode,
+                    "output_path": destination.path,
+                ])
+                let validation = try await validateFDLJSONString(sourceJSON, pythonBridge: pythonBridge)
+                framelineReport = buildConversionReport(
+                    from: response,
+                    title: "FDL -> ARRI XML",
+                    summary: "Exported XML for \(selectedArriCameraType) / \(selectedArriSensorMode)",
+                    validation: validation
+                )
+            } catch {
+                errorMessage = "ARRI export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func exportCurrentFDLToSonyXML(pythonBridge: PythonBridge) {
+        guard !selectedSonyCameraType.isEmpty, !selectedSonyImagerMode.isEmpty else {
+            errorMessage = "Choose Sony camera and imager mode."
+            return
+        }
+        guard let sourceJSON = rawJSON else {
+            errorMessage = "Load a source FDL before exporting XML."
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.xml]
+        panel.nameFieldStringValue = "\(loadedFileName ?? "viewer").sony.xml"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+
+        Task {
+            do {
+                let response = try await pythonBridge.callForResult("frameline.sony.to_xml", params: [
+                    "fdl_json": sourceJSON,
+                    "camera_type": selectedSonyCameraType,
+                    "imager_mode": selectedSonyImagerMode,
+                    "output_path": destination.path,
+                ])
+                let generated = (response["frame_lines_generated"] as? Int) ?? 1
+                let validation = try await validateFDLJSONString(sourceJSON, pythonBridge: pythonBridge)
+                framelineReport = buildConversionReport(
+                    from: response,
+                    title: "FDL -> Sony XML",
+                    summary: "Exported \(generated) Sony frameline XML file(s) for \(selectedSonyCameraType) / \(selectedSonyImagerMode)",
+                    validation: validation
+                )
+            } catch {
+                errorMessage = "Sony export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func importArriXMLAsSourceFDL(pythonBridge: PythonBridge) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.xml]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let source = panel.url else { return }
+
+        Task {
+            do {
+                let response = try await pythonBridge.callForResult("frameline.arri.to_fdl", params: [
+                    "xml_path": source.path,
+                    "context_label": "ARRI Frameline",
+                ])
+                try loadFramelineFDLResultAsSource(response, fileName: source.deletingPathExtension().lastPathComponent + ".fdl.json")
+                let validation = try await validateCurrentLoadedDocument(pythonBridge: pythonBridge)
+                framelineReport = buildConversionReport(
+                    from: response,
+                    title: "ARRI XML -> FDL",
+                    summary: "Imported \(source.lastPathComponent) as source FDL.",
+                    validation: validation
+                )
+            } catch {
+                errorMessage = "ARRI import failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func importSonyXMLAsSourceFDL(pythonBridge: PythonBridge) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.xml]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let source = panel.url else { return }
+
+        Task {
+            do {
+                let response = try await pythonBridge.callForResult("frameline.sony.to_fdl", params: [
+                    "xml_path": source.path,
+                    "context_label": "Sony Frameline",
+                ])
+                try loadFramelineFDLResultAsSource(response, fileName: source.deletingPathExtension().lastPathComponent + ".fdl.json")
+                let validation = try await validateCurrentLoadedDocument(pythonBridge: pythonBridge)
+                framelineReport = buildConversionReport(
+                    from: response,
+                    title: "Sony XML -> FDL",
+                    summary: "Imported \(source.lastPathComponent) as source FDL.",
+                    validation: validation
+                )
+            } catch {
+                errorMessage = "Sony import failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func refreshArriCatalog(pythonBridge: PythonBridge) async throws {
+        let result = try await pythonBridge.callForResult("frameline.arri.list_cameras")
+        arriCameras = parseFramelineCameras(result["cameras"])
+        if selectedArriCameraType.isEmpty, let first = arriCameras.first {
+            selectedArriCameraType = first.cameraType
+            selectedArriSensorMode = first.modes.first?.name ?? ""
+        }
+        if !selectedArriCameraType.isEmpty, selectedArriSensorMode.isEmpty {
+            selectedArriSensorMode = arriCameras.first(where: { $0.cameraType == selectedArriCameraType })?.modes.first?.name ?? ""
+        }
+    }
+
+    private func refreshSonyCatalog(pythonBridge: PythonBridge) async throws {
+        let result = try await pythonBridge.callForResult("frameline.sony.list_cameras")
+        sonyCameras = parseFramelineCameras(result["cameras"])
+        if selectedSonyCameraType.isEmpty, let first = sonyCameras.first {
+            selectedSonyCameraType = first.cameraType
+            selectedSonyImagerMode = first.modes.first?.name ?? ""
+        }
+        if !selectedSonyCameraType.isEmpty, selectedSonyImagerMode.isEmpty {
+            selectedSonyImagerMode = sonyCameras.first(where: { $0.cameraType == selectedSonyCameraType })?.modes.first?.name ?? ""
+        }
+    }
+
+    private func mapFramelineStatus(from dict: [String: Any]) -> FramelineInteropStatus {
+        var status = FramelineInteropStatus()
+        if let arri = dict["arri"] as? [String: Any] {
+            status.arriAvailable = (arri["available"] as? Bool) ?? false
+            status.arriSource = arri["source"] as? String
+        }
+        if let sony = dict["sony"] as? [String: Any] {
+            status.sonyAvailable = (sony["available"] as? Bool) ?? false
+            status.sonySource = sony["source"] as? String
+        }
+        return status
+    }
+
+    private func parseFramelineCameras(_ raw: Any?) -> [FramelineCameraOption] {
+        guard let rows = raw as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let cameraType = row["camera_type"] as? String else { return nil }
+            let modesRaw = row["sensor_modes"] as? [[String: Any]] ?? []
+            let modes = modesRaw.compactMap { mode -> FramelineModeOption? in
+                guard let name = mode["name"] as? String else { return nil }
+                return FramelineModeOption(
+                    name: name,
+                    hres: mode["hres"] as? Int,
+                    vres: mode["vres"] as? Int,
+                    aspect: mode["aspect"] as? String
+                )
+            }
+            return FramelineCameraOption(cameraType: cameraType, modes: modes)
+        }
+    }
+
+    private func loadFramelineFDLResultAsSource(_ response: [String: Any], fileName: String) throws {
+        guard let fdlDict = response["fdl"] as? [String: Any] else {
+            throw NSError(
+                domain: "FDLTool",
+                code: 100,
+                userInfo: [NSLocalizedDescriptionKey: "Frameline conversion did not return FDL JSON."]
+            )
+        }
+        let data = try JSONSerialization.data(withJSONObject: fdlDict)
+        let doc = try JSONDecoder().decode(FDLDocument.self, from: data)
+        loadDocument(doc, fileName: fileName)
+    }
+
+    private func validateCurrentLoadedDocument(pythonBridge: PythonBridge) async throws -> ValidationResult {
+        guard let json = rawJSON else {
+            return ValidationResult(valid: true, errors: [], warnings: [])
+        }
+        return try await validateFDLJSONString(json, pythonBridge: pythonBridge)
+    }
+
+    private func validateFDLJSONString(_ json: String, pythonBridge: PythonBridge) async throws -> ValidationResult {
+        let response = try await pythonBridge.callForResult("fdl.validate", params: [
+            "json_string": json,
+        ])
+        let data = try JSONSerialization.data(withJSONObject: response)
+        return try JSONDecoder().decode(ValidationResult.self, from: data)
+    }
+
+    func exportFramelineReportJSON() {
+        guard let report = framelineReport else {
+            errorMessage = "No conversion report available to export."
+            return
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "frameline-conversion-report.json"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        do {
+            let data = try JSONEncoder().encode(report)
+            try data.write(to: destination)
+        } catch {
+            errorMessage = "Failed to export report: \(error.localizedDescription)"
+        }
+    }
+
+    func saveFramelineReportToProject(projectID: String, libraryStore: LibraryStore) {
+        guard let report = framelineReport else {
+            errorMessage = "No conversion report available to save."
+            return
+        }
+        do {
+            let reportData = try JSONEncoder().encode(report)
+            let payload = String(data: reportData, encoding: .utf8)
+            let reportAsset = ProjectAsset(
+                projectID: projectID,
+                assetType: .report,
+                name: report.title,
+                sourceTool: "frameline_interop",
+                referenceID: loadedFileName,
+                filePath: nil,
+                payloadJSON: payload
+            )
+            try libraryStore.saveProjectAsset(reportAsset)
+            if let loadedFileName {
+                let assets = try libraryStore.projectAssets(forProject: projectID, ofType: .fdl)
+                if let sourceAsset = assets.first(where: { $0.name == loadedFileName || $0.referenceID == loadedFileName }) {
+                    try libraryStore.linkAssets(ProjectAssetLink(
+                        projectID: projectID,
+                        fromAssetID: reportAsset.id,
+                        toAssetID: sourceAsset.id,
+                        linkType: .inputOf
+                    ))
+                }
+            }
+        } catch {
+            errorMessage = "Failed to save report to project: \(error.localizedDescription)"
+        }
+    }
+
+    private func buildConversionReport(
+        from response: [String: Any],
+        title: String,
+        summary: String,
+        validation: ValidationResult
+    ) -> FramelineConversionReport {
+        let report = response["report"] as? [String: Any]
+        let mappedFields = report?["mapped_fields"] as? [String] ?? [
+            "canvas.dimensions",
+            "framing_decision.dimensions",
+            "framing_decision.anchor_point",
+        ]
+        let warnings = report?["warnings"] as? [String] ?? []
+        let droppedFields = report?["dropped_fields"] as? [String] ?? []
+        let lossy = (report?["lossy"] as? Bool) ?? (!warnings.isEmpty || !droppedFields.isEmpty)
+        let detailsRaw = report?["mapping_details"] as? [[String: Any]] ?? []
+        let details = detailsRaw.map { row in
+            FramelineMappingDetail(
+                sourceField: row["source_field"] as? String ?? "unknown",
+                sourceValue: row["source_value"] as? String,
+                targetField: row["target_field"] as? String ?? "unknown",
+                targetValue: row["target_value"] as? String,
+                note: row["note"] as? String,
+                status: row["status"] as? String
+            )
+        }
+        .sorted {
+            ($0.status ?? "mapped", $0.sourceField, $0.targetField) <
+            ($1.status ?? "mapped", $1.sourceField, $1.targetField)
+        }
+        return FramelineConversionReport(
+            title: title,
+            summary: summary,
+            mappedFields: mappedFields,
+            mappingDetails: details,
+            droppedFields: droppedFields,
+            warnings: warnings,
+            lossy: lossy,
+            validationErrorCount: validation.errors.count,
+            validationWarningCount: validation.warnings.count
+        )
     }
 }

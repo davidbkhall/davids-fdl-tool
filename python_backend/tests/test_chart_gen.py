@@ -1,6 +1,7 @@
 """Tests for chart generation handler."""
 
 from fdl_backend.handlers import chart_gen
+from fdl_backend.utils.chart_scene import ChartScene
 
 
 def test_generate_fdl_basic():
@@ -126,3 +127,173 @@ def test_generate_png():
         assert len(result["png_base64"]) > 100
     except ImportError:
         pass
+
+
+def test_generate_tiff():
+    """Generate TIFF chart (requires Pillow)."""
+    try:
+        result = chart_gen.generate_tiff(
+            {
+                "canvas_width": 4096,
+                "canvas_height": 2160,
+                "framelines": [
+                    {"label": "2.00:1", "width": 4096, "height": 2048},
+                ],
+                "title": "Test Chart",
+                "dpi": 300,
+            }
+        )
+        assert "tiff_base64" in result
+        assert len(result["tiff_base64"]) > 100
+    except ImportError:
+        pass
+
+
+def test_generate_pdf():
+    """Generate PDF chart (requires cairosvg + svgwrite)."""
+    try:
+        result = chart_gen.generate_pdf(
+            {
+                "canvas_width": 4096,
+                "canvas_height": 2160,
+                "framelines": [{"label": "2.00:1", "width": 4096, "height": 2048}],
+                "title": "Test Chart",
+            }
+        )
+        assert "pdf_base64" in result
+        assert len(result["pdf_base64"]) > 100
+    except ImportError:
+        pass
+
+
+def test_generate_svg_with_phase3_overlays():
+    """Generate SVG with markers, burn-ins, and print-safe margin."""
+    try:
+        result = chart_gen.generate_svg(
+            {
+                "canvas_width": 4096,
+                "canvas_height": 2160,
+                "framelines": [{"label": "2.39:1", "width": 4096, "height": 1716}],
+                "show_center_marker": True,
+                "show_format_arrows": True,
+                "print_safe_margin_percent": 5.0,
+                "burn_in": {
+                    "title": "Scene 12A",
+                    "director": "Director Name",
+                    "dop": "DP Name",
+                },
+            }
+        )
+        svg = result["svg"]
+        assert "<svg" in svg
+    except ImportError:
+        pass
+
+
+def test_generate_svg_with_white_background_and_siemens_stars():
+    """Generate SVG with white chart mode and four Siemens stars."""
+    try:
+        result = chart_gen.generate_svg(
+            {
+                "canvas_width": 4608,
+                "canvas_height": 3164,
+                "framelines": [{"label": "Main", "width": 4608, "height": 1928}],
+                "background_theme": "white",
+                "show_siemens_stars": True,
+                "show_chart_markers": True,
+            }
+        )
+        svg = result["svg"]
+        assert "<svg" in svg
+        assert 'fill="#FFFFFF"' in svg
+        # Siemens stars are now injected from bundled SVG path geometry.
+        assert svg.count("<path") >= 16
+    except ImportError:
+        pass
+
+
+def test_chart_scene_from_params_normalizes_defaults():
+    scene = ChartScene.from_params(
+        {
+            "canvas_width": 3000,
+            "canvas_height": 2000,
+            "framelines": [{"label": "Main", "width": 2400, "height": 1350}],
+            "layers": {"canvas": True, "effective": False},
+        },
+        default_colors=chart_gen.FRAMELINE_COLORS,
+    )
+    assert scene.canvas_width == 3000
+    assert scene.canvas_height == 2000
+    assert scene.layers["effective"] is False
+    assert scene.layers["framing"] is True
+    assert len(scene.framelines) == 1
+    assert scene.framelines[0].label == "Main"
+
+
+def test_chart_scene_phase3_fields():
+    scene = ChartScene.from_params(
+        {
+            "canvas_width": 2048,
+            "canvas_height": 1152,
+            "show_center_marker": True,
+            "show_format_arrows": True,
+            "print_safe_margin_percent": 7.5,
+            "burn_in": {"title": "Burn", "sample_text_1": "S1"},
+        },
+        default_colors=chart_gen.FRAMELINE_COLORS,
+    )
+    assert scene.show_center_marker is True
+    assert scene.show_format_arrows is True
+    assert scene.print_safe_margin_percent == 7.5
+    assert scene.burn_in is not None
+    assert scene.burn_in.title == "Burn"
+
+
+def test_chart_scene_style_and_logo_fields():
+    scene = ChartScene.from_params(
+        {
+            "canvas_width": 2048,
+            "canvas_height": 1080,
+            "framelines": [{"label": "Main", "width": 1920, "height": 1080, "style": "corners", "style_length": 0.12}],
+            "logo": {"text": "My Show", "position": "bottom_right"},
+        },
+        default_colors=chart_gen.FRAMELINE_COLORS,
+    )
+    assert scene.logo is not None
+    assert scene.logo.text == "My Show"
+    assert scene.logo.position == "bottom_right"
+    assert scene.framelines[0].style == "corners"
+    assert scene.framelines[0].style_length == 0.12
+
+
+def test_chart_scene_phase4_white_theme_and_star_fields():
+    scene = ChartScene.from_params(
+        {
+            "canvas_width": 4608,
+            "canvas_height": 3164,
+            "background_theme": "white",
+            "show_siemens_stars": True,
+            "show_chart_markers": True,
+            "logo": {
+                "text": "Test",
+                "position": "top_left",
+                "scale": 1.3,
+                "offset_x": 12,
+                "offset_y": -8,
+            },
+        },
+        default_colors=chart_gen.FRAMELINE_COLORS,
+    )
+    assert scene.background_theme == "white"
+    assert scene.show_siemens_stars is True
+    assert scene.show_chart_markers is True
+    assert scene.logo is not None
+    assert scene.logo.scale == 1.3
+    assert scene.logo.offset_x == 12
+    assert scene.logo.offset_y == -8
+
+
+def test_auto_dpi_selection():
+    assert chart_gen._auto_dpi(2048, 1152) == 600
+    assert chart_gen._auto_dpi(4096, 2160) == 300
+    assert chart_gen._auto_dpi(8192, 4320) == 240
