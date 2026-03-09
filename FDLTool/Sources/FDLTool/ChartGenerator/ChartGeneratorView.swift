@@ -69,7 +69,9 @@ private struct ChartGeneratorContent: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle("Framing Chart Generator")
-        .sheet(isPresented: $viewModel.showExportSheet) {
+        .sheet(isPresented: $viewModel.showExportSheet, onDismiss: {
+            viewModel.runPendingExportRequestIfNeeded()
+        }) {
             ChartExportSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $viewModel.showSaveToLibrary) {
@@ -77,11 +79,6 @@ private struct ChartGeneratorContent: View {
                 viewModel: viewModel,
                 projects: appState.libraryViewModel.projects
             )
-        }
-        .onChange(of: viewModel.showExportSheet) { _, isPresented in
-            if !isPresented {
-                viewModel.runPendingExportRequestIfNeeded()
-            }
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },

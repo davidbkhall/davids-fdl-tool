@@ -111,7 +111,6 @@ actor PythonBridge {
     private var stderrPipe: Pipe?
     private var nextID = 1
     private var pendingRequests: [Int: CheckedContinuation<JSONRPCResponse, Error>] = [:]
-    private var readTask: Task<Void, Never>?
     private var buffer = Data()
     private var isRunning = false
 
@@ -216,9 +215,12 @@ actor PythonBridge {
         self.stderrPipe = stderrPipe
         self.isRunning = true
 
-        // Start reading stdout for responses
-        readTask = Task { [weak self] in
-            await self?.readLoop()
+        // Non-blocking stdout reader. Avoid actor-blocking loops that can stall RPC calls.
+        stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            Task { [weak self] in
+                await self?.handleStdoutChunk(data)
+            }
         }
 
         // Log stderr
@@ -231,8 +233,7 @@ actor PythonBridge {
     }
 
     func shutdown() {
-        readTask?.cancel()
-        readTask = nil
+        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
 
         stdinPipe?.fileHandleForWriting.closeFile()
         process?.terminate()
@@ -291,19 +292,13 @@ actor PythonBridge {
 
     // MARK: - Private
 
-    private func readLoop() async {
-        guard let stdoutPipe = stdoutPipe else { return }
-        let handle = stdoutPipe.fileHandleForReading
-
-        while !Task.isCancelled {
-            let data = handle.availableData
-            if data.isEmpty {
-                // EOF — process likely exited
-                break
-            }
-            buffer.append(data)
-            processBuffer()
+    private func handleStdoutChunk(_ data: Data) {
+        if data.isEmpty {
+            // EOF; process termination handler will clean up.
+            return
         }
+        buffer.append(data)
+        processBuffer()
     }
 
     private func processBuffer() {
@@ -321,14 +316,20 @@ actor PythonBridge {
                 }
             } catch {
                 print("[PythonBridge] Failed to decode response: \(error)")
-                if let str = String(data: Data(lineData), encoding: .utf8) {
-                    print("[PythonBridge] Raw: \(str)")
+                let raw = String(data: Data(lineData), encoding: .utf8) ?? "<non-utf8 response>"
+                print("[PythonBridge] Raw: \(raw)")
+                // Never leave callers hanging on malformed output.
+                let decodeError = PythonBridgeError.decodingError(raw)
+                for (_, continuation) in pendingRequests {
+                    continuation.resume(throwing: decodeError)
                 }
+                pendingRequests.removeAll()
             }
         }
     }
 
     private func handleTermination(exitCode: Int32) {
+        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
         isRunning = false
         for (_, continuation) in pendingRequests {
             continuation.resume(throwing: PythonBridgeError.processExited(exitCode))

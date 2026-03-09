@@ -4,7 +4,6 @@ import SwiftUI
 struct ChartExportSheet: View {
     @ObservedObject var viewModel: ChartGeneratorViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedFormat: ExportFormat = .tiff
     @State private var selectedFormats: Set<ExportFormat> = [.tiff]
     @State private var printSafeMarginPercent: Double = 0
 
@@ -12,14 +11,6 @@ struct ChartExportSheet: View {
         VStack(spacing: 16) {
             Text("Export Framing Chart")
                 .font(.headline)
-
-            HStack(alignment: .center, spacing: 8) {
-                Text("Format")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(width: 52, alignment: .leading)
-                ExportFormatPicker(selectedFormat: $selectedFormat, options: availableFormats, compactMenuStyle: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Export one or more formats")
@@ -49,38 +40,9 @@ struct ChartExportSheet: View {
                     }
                 }
             }
-
-            // Format-specific options
-            switch selectedFormat {
-            case .png:
-                Text("Exports high-quality raster output with automatic DPI.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case .tiff:
-                Text("Exports production TIFF with automatic DPI.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case .svg:
-                Text("Exports as scalable vector graphics.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case .pdf:
-                Text("Exports as vector PDF for print and sharing.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case .arriXML:
-                Text("Exports the generated chart FDL as ARRI frameline XML.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case .sonyXML:
-                Text("Exports the generated chart FDL as Sony frameline XML.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case .json:
-                Text("Exports as an ASC FDL document with a .fdl extension.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text("FDL export uses ASC FDL JSON content with a .fdl extension.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             if supportsPrintSafeOption {
                 HStack(spacing: 8) {
@@ -125,35 +87,27 @@ struct ChartExportSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Export") {
-                    let formats = selectedFormats.isEmpty ? [selectedFormat] : Array(selectedFormats)
+                    let formats = Array(selectedFormats)
                     let margin = printSafeMarginPercent
                     viewModel.requestExport(formats: formats, printSafeMarginPercent: margin)
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(selectedFormats.isEmpty && availableFormats.isEmpty)
+                .disabled(selectedFormats.isEmpty || availableFormats.isEmpty)
             }
         }
         .padding()
         .frame(width: 380)
         .onAppear {
-            if !availableFormats.contains(selectedFormat) {
-                selectedFormat = .tiff
-            }
             selectedFormats = Set(selectedFormats.filter { availableFormats.contains($0) })
             if selectedFormats.isEmpty {
-                selectedFormats.insert(selectedFormat)
+                selectedFormats.insert(.tiff)
             }
-        }
-        .onDisappear {
-            // Fallback trigger: if parent sheet state onChange is skipped,
-            // run the queued export once the sheet is gone.
-            viewModel.runPendingExportRequestIfNeeded()
         }
     }
 
     private var availableFormats: [ExportFormat] {
-        var formats: [ExportFormat] = [.json, .svg, .png, .pdf, .tiff]
+        var formats: [ExportFormat] = [.tiff, .png, .pdf, .svg, .json]
         guard let camera = viewModel.selectedCamera else { return formats }
         let manufacturer = camera.manufacturer.lowercased()
         if manufacturer.contains("arri") {
@@ -166,7 +120,7 @@ struct ChartExportSheet: View {
     }
 
     private var supportsPrintSafeOption: Bool {
-        selectedFormats.contains(.pdf) || (selectedFormats.isEmpty && selectedFormat == .pdf)
+        selectedFormats.contains(.pdf)
     }
 }
 

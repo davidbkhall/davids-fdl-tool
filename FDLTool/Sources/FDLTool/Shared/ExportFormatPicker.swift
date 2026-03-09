@@ -13,7 +13,7 @@ enum ExportFormat: String, CaseIterable, Identifiable {
 
     var fileExtension: String {
         switch self {
-        case .json: return "fdl.json"
+        case .json: return "fdl"
         case .svg: return "svg"
         case .png: return "png"
         case .pdf: return "pdf"

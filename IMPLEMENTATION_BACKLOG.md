@@ -186,6 +186,9 @@ Compatibility note:
 - [ ] Protection label visibility bug at small percentages (e.g., 5%).
   - In `ChartCanvasView`, protection dimension/anchor labels can still clip or disappear in narrow bands despite placement guards.
   - Next pass should use deterministic center-based placement with explicit measured text frames and guaranteed in-bounds rendering (preview and export parity).
+- [ ] Canvas dimensions label visibility regression.
+  - In Chart Preview, the `Canvas: WxH` label is currently not rendering and should always appear when dimension labels are enabled.
+  - Restore visibility and verify placement remains inside canvas bounds across zoom levels.
 - [x] Chart Preview default theme should be `White` (not `Dark`).
 - [x] Remove `Squeeze Circle` and `Center Marker` from Layers options.
 - [x] Add boundary arrows for dimension regions similar to reference chart example.

@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 
 func roundToEven(_ value: Double) -> Double {
@@ -220,6 +221,7 @@ class ChartGeneratorViewModel: ObservableObject {
     // Error
     @Published var errorMessage: String?
     @Published var pendingExportRequest: PendingChartExportRequest?
+    private var isDispatchingPendingExport = false
 
     private let pythonBridge: PythonBridge
     private let cameraDBStore: CameraDBStore
@@ -510,6 +512,15 @@ class ChartGeneratorViewModel: ObservableObject {
 
     // MARK: - Export
 
+    func performExport(formats: [ExportFormat], printSafeMarginPercent: Double = 0) {
+        guard !formats.isEmpty else { return }
+        if formats.count == 1, let format = formats.first {
+            export(format: format, printSafeMarginPercent: printSafeMarginPercent)
+        } else {
+            exportMultiple(formats: formats, printSafeMarginPercent: printSafeMarginPercent)
+        }
+    }
+
     func requestExport(formats: [ExportFormat], printSafeMarginPercent: Double = 0) {
         guard !formats.isEmpty else { return }
         pendingExportRequest = PendingChartExportRequest(
@@ -519,10 +530,12 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     func runPendingExportRequestIfNeeded() {
-        guard let request = pendingExportRequest else { return }
+        guard !isDispatchingPendingExport, let request = pendingExportRequest else { return }
+        isDispatchingPendingExport = true
         pendingExportRequest = nil
-        // Wait for export sheet dismissal to complete before showing file dialogs.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        traceExport("dispatch pending export formats=\(request.formats.map(\.rawValue).joined(separator: ","))")
+        // Present save/folder panels on the next run loop after sheet dismissal.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             if request.formats.count == 1, let format = request.formats.first {
                 self.export(format: format, printSafeMarginPercent: request.printSafeMarginPercent)
             } else {
@@ -531,6 +544,7 @@ class ChartGeneratorViewModel: ObservableObject {
                     printSafeMarginPercent: request.printSafeMarginPercent
                 )
             }
+            self.isDispatchingPendingExport = false
         }
     }
 
@@ -554,14 +568,23 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     private func exportMultiple(formats: [ExportFormat], printSafeMarginPercent: Double) {
+        activateAppForExportDialog()
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose Folder"
         guard panel.runModal() == .OK, let folder = panel.url else { return }
+        traceExport("multi export folder selected path=\(folder.path)")
 
         Task {
+            let startedAccessing = folder.startAccessingSecurityScopedResource()
+            self.traceExport("multi export security scope started=\(startedAccessing)")
+            defer {
+                if startedAccessing {
+                    folder.stopAccessingSecurityScopedResource()
+                }
+            }
             for format in formats {
                 do {
                     try await exportToFolder(
@@ -570,12 +593,14 @@ class ChartGeneratorViewModel: ObservableObject {
                         printSafeMarginPercent: printSafeMarginPercent
                     )
                 } catch {
+                    self.traceExport("multi export failed format=\(format.rawValue) error=\(error.localizedDescription)")
                     await MainActor.run {
                         self.errorMessage = "\(format.rawValue) export failed: \(error.localizedDescription)"
                     }
                     return
                 }
             }
+            self.traceExport("multi export completed formats=\(formats.map(\.rawValue).joined(separator: ","))")
         }
     }
 
@@ -588,53 +613,69 @@ class ChartGeneratorViewModel: ObservableObject {
         let base = folder.appendingPathComponent(safeTitle)
         switch format {
         case .svg:
-            let response = try await pythonBridge.callForResult(
-                "chart.generate_svg",
+            traceExport("backend call start method=chart.generate_svg")
+            let response = try await callBackendWithTimeout(
+                method: "chart.generate_svg",
                 params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
             )
-            guard let svg = response["svg"] as? String else {
+            traceExport("backend call done method=chart.generate_svg")
+            let response2 = response
+            guard let svg = response2["svg"] as? String else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No SVG payload"])
             }
-            try svg.data(using: .utf8)?.write(to: base.appendingPathExtension("svg"))
+            guard let data = svg.data(using: .utf8) else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid SVG payload"])
+            }
+            try writeData(data, to: base.appendingPathExtension("svg"))
         case .png:
-            let response = try await pythonBridge.callForResult(
-                "chart.generate_png",
+            traceExport("backend call start method=chart.generate_png")
+            let response = try await callBackendWithTimeout(
+                method: "chart.generate_png",
                 params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
             )
+            traceExport("backend call done method=chart.generate_png")
             guard let b64 = response["png_base64"] as? String, let data = Data(base64Encoded: b64) else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No PNG payload"])
             }
-            try data.write(to: base.appendingPathExtension("png"))
+            try writeData(data, to: base.appendingPathExtension("png"))
         case .tiff:
-            let response = try await pythonBridge.callForResult(
-                "chart.generate_tiff",
+            traceExport("backend call start method=chart.generate_tiff")
+            let response = try await callBackendWithTimeout(
+                method: "chart.generate_tiff",
                 params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
             )
+            traceExport("backend call done method=chart.generate_tiff")
             guard let b64 = response["tiff_base64"] as? String, let data = Data(base64Encoded: b64) else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No TIFF payload"])
             }
-            try data.write(to: base.appendingPathExtension("tiff"))
+            try writeData(data, to: base.appendingPathExtension("tiff"))
         case .pdf:
-            let response = try await pythonBridge.callForResult(
-                "chart.generate_pdf",
+            traceExport("backend call start method=chart.generate_pdf")
+            let response = try await callBackendWithTimeout(
+                method: "chart.generate_pdf",
                 params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
             )
+            traceExport("backend call done method=chart.generate_pdf")
             guard let b64 = response["pdf_base64"] as? String, let data = Data(base64Encoded: b64) else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No PDF payload"])
             }
-            try data.write(to: base.appendingPathExtension("pdf"))
+            try writeData(data, to: base.appendingPathExtension("pdf"))
         case .json:
-            let response = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+            traceExport("backend call start method=chart.generate_fdl")
+            let response = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams())
+            traceExport("backend call done method=chart.generate_fdl")
             guard let fdl = response["fdl"] as? [String: Any] else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No FDL payload"])
             }
             let data = try JSONSerialization.data(withJSONObject: fdl, options: [.prettyPrinted, .sortedKeys])
-            try data.write(to: base.appendingPathExtension("fdl"))
+            try writeData(data, to: base.appendingPathExtension("fdl"))
         case .arriXML:
             guard let camera = selectedCamera else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select ARRI camera"])
             }
-            let fdlResponse = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+            traceExport("backend call start method=chart.generate_fdl")
+            let fdlResponse = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams())
+            traceExport("backend call done method=chart.generate_fdl")
             let payload: [String: Any] = [
                 "fdl_json": fdlResponse["fdl"] as Any,
                 "camera_type": camera.model,
@@ -642,152 +683,232 @@ class ChartGeneratorViewModel: ObservableObject {
                 "include_protection": true,
                 "include_effective": true,
             ]
-            let response = try await pythonBridge.callForResult("frameline.arri.to_xml", params: payload)
+            traceExport("backend call start method=frameline.arri.to_xml")
+            let response = try await callBackendWithTimeout(method: "frameline.arri.to_xml", params: payload)
+            traceExport("backend call done method=frameline.arri.to_xml")
             guard let xml = response["xml_string"] as? String else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No ARRI XML payload"])
             }
-            try xml.data(using: .utf8)?.write(to: base.appendingPathExtension("arri.xml"))
+            guard let data = xml.data(using: .utf8) else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid ARRI XML payload"])
+            }
+            try writeData(data, to: base.appendingPathExtension("arri.xml"))
         case .sonyXML:
             guard let camera = selectedCamera else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select Sony camera"])
             }
-            let fdlResponse = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+            traceExport("backend call start method=chart.generate_fdl")
+            let fdlResponse = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams())
+            traceExport("backend call done method=chart.generate_fdl")
             let payload: [String: Any] = [
                 "fdl_json": fdlResponse["fdl"] as Any,
                 "camera_type": camera.model,
                 "imager_mode": selectedRecordingMode?.name ?? "default",
                 "include_protection": true,
             ]
-            let response = try await pythonBridge.callForResult("frameline.sony.to_xml", params: payload)
+            traceExport("backend call start method=frameline.sony.to_xml")
+            let response = try await callBackendWithTimeout(method: "frameline.sony.to_xml", params: payload)
+            traceExport("backend call done method=frameline.sony.to_xml")
             guard let xml = response["xml_string"] as? String else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Sony XML payload"])
             }
-            try xml.data(using: .utf8)?.write(to: base.appendingPathExtension("sony.xml"))
+            guard let data = xml.data(using: .utf8) else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid Sony XML payload"])
+            }
+            try writeData(data, to: base.appendingPathExtension("sony.xml"))
         }
     }
 
-    func exportSVG(printSafeMarginPercent: Double = 0) {
+    private func exportSVG(printSafeMarginPercent: Double = 0) {
+        traceExport("single export start format=SVG")
+        activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "svg") ?? .data]
         panel.nameFieldStringValue = "\(chartTitle).svg"
 
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard panel.runModal() == .OK, let dest = panel.url else {
+            traceExport("single export cancelled format=SVG")
+            return
+        }
+        traceExport("single export selected format=SVG path=\(dest.path)")
 
         Task {
             do {
-                let response = try await pythonBridge.callForResult(
-                    "chart.generate_svg",
+                traceExport("single export task begin format=SVG")
+                traceExport("backend call start method=chart.generate_svg")
+                let response = try await callBackendWithTimeout(
+                    method: "chart.generate_svg",
                     params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
                 )
+                traceExport("backend call done method=chart.generate_svg")
                 if let svg = response["svg"] as? String {
-                    try svg.data(using: .utf8)?.write(to: dest)
+                    guard let data = svg.data(using: .utf8) else {
+                        errorMessage = "SVG export failed: invalid SVG payload."
+                        traceExport("single export failed format=SVG invalid payload")
+                        return
+                    }
+                    try writeData(data, to: dest)
+                    traceExport("single export wrote format=SVG path=\(dest.path) bytes=\(data.count)")
                 } else {
                     errorMessage = "SVG export failed: backend returned no SVG payload."
+                    traceExport("single export failed format=SVG missing payload")
                 }
             } catch {
                 errorMessage = "SVG export failed: \(error.localizedDescription)"
+                traceExport("single export failed format=SVG error=\(error.localizedDescription)")
             }
         }
     }
 
     func exportPNG(printSafeMarginPercent: Double = 0) {
+        traceExport("single export start format=PNG")
+        activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = "\(chartTitle).png"
 
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard panel.runModal() == .OK, let dest = panel.url else {
+            traceExport("single export cancelled format=PNG")
+            return
+        }
+        traceExport("single export selected format=PNG path=\(dest.path)")
 
         Task {
             do {
-                let response = try await pythonBridge.callForResult(
-                    "chart.generate_png",
+                traceExport("single export task begin format=PNG")
+                traceExport("backend call start method=chart.generate_png")
+                let response = try await callBackendWithTimeout(
+                    method: "chart.generate_png",
                     params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
                 )
+                traceExport("backend call done method=chart.generate_png")
                 if let b64 = response["png_base64"] as? String,
                    let data = Data(base64Encoded: b64) {
-                    try data.write(to: dest)
+                    try writeData(data, to: dest)
+                    traceExport("single export wrote format=PNG path=\(dest.path) bytes=\(data.count)")
                 } else {
                     errorMessage = "PNG export failed: backend returned no PNG payload."
+                    traceExport("single export failed format=PNG missing payload")
                 }
             } catch {
                 errorMessage = "PNG export failed: \(error.localizedDescription)"
+                traceExport("single export failed format=PNG error=\(error.localizedDescription)")
             }
         }
     }
 
     func exportTIFF(printSafeMarginPercent: Double = 0) {
+        traceExport("single export start format=TIFF")
+        activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "tiff") ?? .data]
         panel.nameFieldStringValue = "\(chartTitle).tiff"
 
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard panel.runModal() == .OK, let dest = panel.url else {
+            traceExport("single export cancelled format=TIFF")
+            return
+        }
+        traceExport("single export selected format=TIFF path=\(dest.path)")
 
         Task {
             do {
-                let response = try await pythonBridge.callForResult(
-                    "chart.generate_tiff",
+                traceExport("single export task begin format=TIFF")
+                traceExport("backend call start method=chart.generate_tiff")
+                let response = try await callBackendWithTimeout(
+                    method: "chart.generate_tiff",
                     params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
                 )
+                traceExport("backend call done method=chart.generate_tiff")
                 if let b64 = response["tiff_base64"] as? String,
                    let data = Data(base64Encoded: b64)
                 {
-                    try data.write(to: dest)
+                    try writeData(data, to: dest)
+                    traceExport("single export wrote format=TIFF path=\(dest.path) bytes=\(data.count)")
                 } else {
                     errorMessage = "TIFF export failed: backend returned no TIFF payload."
+                    traceExport("single export failed format=TIFF missing payload")
                 }
             } catch {
                 errorMessage = "TIFF export failed: \(error.localizedDescription)"
+                traceExport("single export failed format=TIFF error=\(error.localizedDescription)")
             }
         }
     }
 
     func exportPDF(printSafeMarginPercent: Double = 0) {
+        traceExport("single export start format=PDF")
+        activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType.pdf]
         panel.nameFieldStringValue = "\(chartTitle).pdf"
 
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard panel.runModal() == .OK, let dest = panel.url else {
+            traceExport("single export cancelled format=PDF")
+            return
+        }
+        traceExport("single export selected format=PDF path=\(dest.path)")
 
         Task {
             do {
-                let response = try await pythonBridge.callForResult(
-                    "chart.generate_pdf",
+                traceExport("single export task begin format=PDF")
+                traceExport("backend call start method=chart.generate_pdf")
+                let response = try await callBackendWithTimeout(
+                    method: "chart.generate_pdf",
                     params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
                 )
+                traceExport("backend call done method=chart.generate_pdf")
                 if let b64 = response["pdf_base64"] as? String,
                    let data = Data(base64Encoded: b64)
                 {
-                    try data.write(to: dest)
+                    try writeData(data, to: dest)
+                    traceExport("single export wrote format=PDF path=\(dest.path) bytes=\(data.count)")
                 } else {
                     errorMessage = "PDF export failed: backend returned no PDF payload."
+                    traceExport("single export failed format=PDF missing payload")
                 }
             } catch {
                 errorMessage = "PDF export failed: \(error.localizedDescription)"
+                traceExport("single export failed format=PDF error=\(error.localizedDescription)")
             }
         }
     }
 
     func exportFDL() {
+        traceExport("single export start format=FDL")
+        activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.fdl]
         panel.nameFieldStringValue = "\(chartTitle).fdl"
 
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard panel.runModal() == .OK, let dest = panel.url else {
+            traceExport("single export cancelled format=FDL")
+            return
+        }
+        traceExport("single export selected format=FDL path=\(dest.path)")
 
         Task {
             do {
-                let response = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+                traceExport("single export task begin format=FDL")
+                traceExport("backend call start method=chart.generate_fdl")
+                let response = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams())
+                traceExport("backend call done method=chart.generate_fdl")
                 if let fdl = response["fdl"] as? [String: Any] {
                     let data = try JSONSerialization.data(withJSONObject: fdl, options: [.prettyPrinted, .sortedKeys])
-                    try data.write(to: dest)
+                    try writeData(data, to: dest)
+                    traceExport("single export wrote format=FDL path=\(dest.path) bytes=\(data.count)")
+                } else {
+                    errorMessage = "FDL export failed: backend returned no FDL payload."
+                    traceExport("single export failed format=FDL missing payload")
                 }
             } catch {
                 errorMessage = "FDL export failed: \(error.localizedDescription)"
+                traceExport("single export failed format=FDL error=\(error.localizedDescription)")
             }
         }
     }
 
     func exportArriXML() {
+        activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "xml") ?? .xml]
         panel.nameFieldStringValue = "\(chartTitle).arri.xml"
@@ -808,7 +929,11 @@ class ChartGeneratorViewModel: ObservableObject {
                 ]
                 let response = try await pythonBridge.callForResult("frameline.arri.to_xml", params: payload)
                 if let xml = response["xml_string"] as? String {
-                    try xml.data(using: .utf8)?.write(to: dest)
+                    guard let data = xml.data(using: .utf8) else {
+                        errorMessage = "ARRI XML export failed: invalid xml_string payload."
+                        return
+                    }
+                    try writeData(data, to: dest)
                 } else {
                     errorMessage = "ARRI XML export failed: no xml_string returned."
                 }
@@ -819,6 +944,7 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     func exportSonyXML() {
+        activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "xml") ?? .xml]
         panel.nameFieldStringValue = "\(chartTitle).sony.xml"
@@ -838,7 +964,11 @@ class ChartGeneratorViewModel: ObservableObject {
                 ]
                 let response = try await pythonBridge.callForResult("frameline.sony.to_xml", params: payload)
                 if let xml = response["xml_string"] as? String {
-                    try xml.data(using: .utf8)?.write(to: dest)
+                    guard let data = xml.data(using: .utf8) else {
+                        errorMessage = "Sony XML export failed: invalid xml_string payload."
+                        return
+                    }
+                    try writeData(data, to: dest)
                 } else {
                     errorMessage = "Sony XML export failed: no xml_string returned."
                 }
@@ -1124,5 +1254,95 @@ class ChartGeneratorViewModel: ObservableObject {
             params["effective_height"] = Int(eh)
         }
         return params
+    }
+
+    private func activateAppForExportDialog() {
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+
+    private func writeData(_ data: Data, to url: URL) throws {
+        let startedAccessing = url.startAccessingSecurityScopedResource()
+        traceExport("write security scope started=\(startedAccessing) path=\(url.path)")
+        defer {
+            if startedAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        try data.write(to: url, options: .atomic)
+    }
+
+    private func callBackendWithTimeout(
+        method: String,
+        params: [String: Any],
+        timeoutSeconds: UInt64 = 20
+    ) async throws -> [String: Any] {
+        let bridge = pythonBridge
+        func oneAttempt() async throws -> [String: Any] {
+            let callTask = Task.detached(priority: .userInitiated) {
+                try await bridge.callForResult(method, params: params)
+            }
+            let timeoutTask = Task.detached(priority: .userInitiated) {
+                try await Task.sleep(nanoseconds: timeoutSeconds * 1_000_000_000)
+                throw PythonBridgeError.timeout
+            }
+            defer {
+                callTask.cancel()
+                timeoutTask.cancel()
+            }
+
+            return try await withThrowingTaskGroup(of: [String: Any].self) { group in
+                group.addTask {
+                    try await callTask.value
+                }
+                group.addTask {
+                    _ = try await timeoutTask.value
+                    return [:]
+                }
+                let first = try await group.next()!
+                group.cancelAll()
+                return first
+            }
+        }
+
+        do {
+            try await bridge.start()
+        } catch {
+            traceExport("backend bridge start failed error=\(error.localizedDescription)")
+            throw error
+        }
+
+        do {
+            return try await oneAttempt()
+        } catch {
+            traceExport("backend call timeout/failure method=\(method) error=\(error.localizedDescription)")
+            traceExport("backend restart/retry method=\(method)")
+            await bridge.shutdown()
+            try await bridge.start()
+            return try await oneAttempt()
+        }
+    }
+
+    private func traceExport(_ message: String) {
+        let formatter = ISO8601DateFormatter()
+        let line = "\(formatter.string(from: Date())) \(message)\n"
+        let logsDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("FDLTool", isDirectory: true)
+        let logFile = logsDir?.appendingPathComponent("export_trace.log")
+        if let dir = logsDir {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        if let fileURL = logFile {
+            if let data = line.data(using: .utf8) {
+                if FileManager.default.fileExists(atPath: fileURL.path) {
+                    if let handle = try? FileHandle(forWritingTo: fileURL) {
+                        _ = try? handle.seekToEnd()
+                        try? handle.write(contentsOf: data)
+                        try? handle.close()
+                    }
+                } else {
+                    try? data.write(to: fileURL)
+                }
+            }
+        }
     }
 }
