@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import base64
 import io
-import os
 import re
 import tempfile
 import uuid
@@ -27,6 +26,14 @@ if HAS_FDL:
         build_fdl,
         fdl_to_dict,
     )
+
+    try:
+        from fdl import FramingIntent as _FramingIntent
+        from fdl.types import DimensionsInt as _DimensionsInt
+
+        _HAS_FDL_INTENT = True
+    except ImportError:
+        _HAS_FDL_INTENT = False
 
 try:
     import svgwrite
@@ -110,7 +117,6 @@ def generate_svg(params: dict) -> dict:
     canvas_h = scene.canvas_height
     title = scene.title
     show_labels = scene.show_labels
-    padding = scene.padding
     eff_w = scene.effective_width
     eff_h = scene.effective_height
     show_crosshairs = scene.show_crosshairs
@@ -129,8 +135,6 @@ def generate_svg(params: dict) -> dict:
     display_x = squeeze if preview_desqueeze and squeeze > 1.0 else 1.0
     # Draw in native canvas-pixel coordinate space so the SVG scales correctly
     # at any display size. A viewBox makes it resolution-independent.
-    scale = 1.0
-    padding = 0
     title_offset = 40 if title else 0
     cw, ch = int(canvas_w * display_x), canvas_h
     # Font scale for native canvas coordinates (mirrors Swift ChartExportContentView)
@@ -173,9 +177,9 @@ def generate_svg(params: dict) -> dict:
 
     if show_effective and eff_w and eff_h:
         ew = int(eff_w * display_x)
-        eh = int(eff_h )
+        eh = int(eff_h)
         ex = cx + int(((canvas_w - eff_w) / 2.0) * display_x)
-        ey = cy + int(((canvas_h - eff_h) / 2.0) )
+        ey = cy + int((canvas_h - eff_h) / 2.0)
         exi, eyi, ewi, ehi = _adjusted_rect_for_stroke(ex, ey, ew, eh, _line_width(1.5, cw, ch))
         dwg.add(
             dwg.rect(
@@ -234,7 +238,7 @@ def generate_svg(params: dict) -> dict:
         prot_h = fl.protection_height
         if show_protection and prot_w and prot_h:
             pw = int(prot_w * display_x)
-            ph = int(prot_h )
+            ph = int(prot_h)
             prot_h_align = h_align
             prot_v_align = v_align
             px, py, _, _ = _compute_frameline_position(
@@ -338,7 +342,10 @@ def generate_svg(params: dict) -> dict:
                 dwg.add(
                     dwg.text(
                         f"Framing Decision: {int(fw)}\u00d7{int(fh)}",
-                        insert=(label_x, min(max(sy + sh - int(label_size) * 0.2, cy + label_size), cy + ch - int(label_size) * 0.2)),
+                        insert=(
+                            label_x,
+                            min(max(sy + sh - int(label_size) * 0.2, cy + label_size), cy + ch - int(label_size) * 0.2),
+                        ),
                         fill=label_fg,
                         font_size=f"{max(8.0, label_size - 1):.0f}px",
                         font_family="monospace",
@@ -355,7 +362,10 @@ def generate_svg(params: dict) -> dict:
                     dwg.add(
                         dwg.text(
                             f"Protection: {int(prot_w)}\u00d7{int(prot_h)}",
-                            insert=(min(max(px + (pw / 2), cx + 32), cx + cw - 32), min(py + ph - int(label_size) * 0.3, cy + ch - int(label_size) * 0.3)),
+                            insert=(
+                                min(max(px + (pw / 2), cx + 32), cx + cw - 32),
+                                min(py + ph - int(label_size) * 0.3, cy + ch - int(label_size) * 0.3),
+                            ),
                             fill=label_fg,
                             font_size=f"{max(8.0, label_size - 1):.0f}px",
                             font_family="monospace",
@@ -365,7 +375,10 @@ def generate_svg(params: dict) -> dict:
                     dwg.add(
                         dwg.text(
                             f"Anchor: {pa_x}, {pa_y}",
-                            insert=(min(px + pw - 4, cx + cw - 4), max(py + ph - int(label_size) * 0.1, cy + label_size)),
+                            insert=(
+                                min(px + pw - 4, cx + cw - 4),
+                                max(py + ph - int(label_size) * 0.1, cy + label_size),
+                            ),
                             fill=label_fg,
                             font_size=f"{max(8.0, label_size - 2):.0f}px",
                             font_family="monospace",
@@ -413,9 +426,8 @@ def generate_svg(params: dict) -> dict:
         )
     )
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".svg", delete=False, mode="w", encoding="utf-8")
-    tmp.write(dwg.tostring())
-    tmp.close()
+    with tempfile.NamedTemporaryFile(suffix=".svg", delete=False, mode="w", encoding="utf-8") as tmp:
+        tmp.write(dwg.tostring())
     return {"file_path": tmp.name, "format": "svg"}
 
 
@@ -431,9 +443,7 @@ def generate_png(params: dict) -> dict:
     scene = ChartScene.from_params(params, default_colors=FRAMELINE_COLORS)
     canvas_w = scene.canvas_width
     canvas_h = scene.canvas_height
-    title = scene.title
     dpi = _auto_dpi(scene.canvas_width, scene.canvas_height)
-    padding = scene.padding
     eff_w = scene.effective_width
     eff_h = scene.effective_height
     show_crosshairs = scene.show_crosshairs
@@ -578,9 +588,8 @@ def generate_png(params: dict) -> dict:
 
     _draw_png_common_overlays(draw, scene, cx, cy, cw, ch)
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    img.save(tmp.name, format="PNG", dpi=(dpi, dpi))
-    tmp.close()
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        img.save(tmp.name, format="PNG", dpi=(dpi, dpi))
     return {"file_path": tmp.name, "format": "png"}
 
 
@@ -592,9 +601,7 @@ def generate_tiff(params: dict) -> dict:
     scene = ChartScene.from_params(params, default_colors=FRAMELINE_COLORS)
     canvas_w = scene.canvas_width
     canvas_h = scene.canvas_height
-    title = scene.title
     dpi = _auto_dpi(scene.canvas_width, scene.canvas_height)
-    padding = scene.padding
     eff_w = scene.effective_width
     eff_h = scene.effective_height
     show_crosshairs = scene.show_crosshairs
@@ -737,9 +744,8 @@ def generate_tiff(params: dict) -> dict:
 
     _draw_png_common_overlays(draw, scene, cx, cy, cw, ch)
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".tiff", delete=False)
-    img.save(tmp.name, format="TIFF", compression="tiff_lzw", dpi=(dpi, dpi))
-    tmp.close()
+    with tempfile.NamedTemporaryFile(suffix=".tiff", delete=False) as tmp:
+        img.save(tmp.name, format="TIFF", compression="tiff_lzw", dpi=(dpi, dpi))
     return {"file_path": tmp.name, "format": "tiff"}
 
 
@@ -747,11 +753,12 @@ def generate_pdf(params: dict) -> dict:
     """Generate a framing chart as PDF (base64-encoded)."""
     if cairosvg is None:
         raise ImportError("cairosvg is required for PDF generation. Install with: pip install cairosvg")
-    svg = generate_svg(params)["svg"]
+    svg_result = generate_svg(params)
+    with open(svg_result["file_path"], encoding="utf-8") as _f:
+        svg = _f.read()
     pdf_bytes = cairosvg.svg2pdf(bytestring=svg.encode("utf-8"))
-    tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-    tmp.write(pdf_bytes)
-    tmp.close()
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(pdf_bytes)
     return {"file_path": tmp.name, "format": "pdf"}
 
 
@@ -1036,11 +1043,10 @@ def _draw_png_common_overlays(draw: Any, scene: ChartScene, cx: int, cy: int, cw
             draw.text((x - 40, y), logo.text, fill=overlay_color)
 
 
-def _draw_svg_boundary_arrows(
-    dwg: Any, scene: ChartScene, cx: int, cy: int, cw: int, ch: int
-) -> None:
+def _draw_svg_boundary_arrows(dwg: Any, scene: ChartScene, cx: int, cy: int, cw: int, ch: int) -> None:
     """Draw boundary arrows in SVG pointing from canvas edges toward first frameline."""
     import math as _math
+
     if not scene.framelines:
         return
     fl = scene.framelines[0]
@@ -1080,11 +1086,10 @@ def _draw_svg_boundary_arrows(
         _svg_arrow(cx + cw - gap, canvas_cy, sx + fw + gap, canvas_cy)
 
 
-def _draw_png_boundary_arrows(
-    draw: Any, scene: ChartScene, cx: int, cy: int, cw: int, ch: int
-) -> None:
+def _draw_png_boundary_arrows(draw: Any, scene: ChartScene, cx: int, cy: int, cw: int, ch: int) -> None:
     """Draw boundary arrows pointing from canvas edges toward the first frameline."""
     import math as _math
+
     if not scene.framelines:
         return
     fl = scene.framelines[0]
@@ -1389,13 +1394,54 @@ def _generate_fdl_with_library(
         anamorphic_squeeze=squeeze,
     )
 
+    # Ensure every framing_intent_id referenced by a frameline exists in the
+    # doc's framing_intents list. FDL schema requires: non-empty, alphanumeric,
+    # max 32 chars. For framelines without an intent, synthesize one from the
+    # aspect ratio (e.g. "ar_239_1") so the ID is valid and human-readable.
+    registered_intent_ids: set[str] = set()
+
+    def _ensure_intent(intent_id: str, label: str, fw: float, fh: float) -> str:
+        """Return a sanitised intent id, registering a FramingIntent if needed."""
+        import re
+
+        # Sanitise: keep alphanumeric + underscore only, max 32 chars.
+        safe = re.sub(r"[^A-Za-z0-9_]", "_", intent_id or "")[:32] if intent_id else ""
+        if not safe:
+            # Build a stable id from the aspect ratio, e.g. "ar_239_1"
+            from math import gcd
+
+            iw, ih = int(round(fw * 100)), int(round(fh * 100))
+            g = gcd(iw, ih) if ih else 1
+            safe = f"ar_{iw // g}_{ih // g}"[:32]
+        if safe not in registered_intent_ids and _HAS_FDL_INTENT:
+            iw, ih = int(round(fw)), int(round(fh))
+            from math import gcd as _gcd
+
+            g = _gcd(iw, ih) if ih else 1
+            try:
+                fi = _FramingIntent(
+                    id=safe,
+                    label=label or safe,
+                    aspect_ratio=_DimensionsInt(width=iw // g, height=ih // g),
+                    protection=0.0,
+                )
+                doc.framing_intents.append(fi)
+            except Exception:
+                pass
+        registered_intent_ids.add(safe)
+        return safe
+
+    canvas_id = canvas.id  # needed to form fd ids: "{canvas_id}-{intent_id}"
+
     for fl in framelines:
+        intent_id = _ensure_intent(fl.framing_intent, fl.label, float(fl.width), float(fl.height))
         fd = add_framing_decision_to_canvas(
             canvas,
             label=fl.label,
             width=float(fl.width),
             height=float(fl.height),
-            framing_intent_id=fl.framing_intent,
+            fd_id=f"{canvas_id}-{intent_id}",  # FDL spec: fd id = canvas_id + - + intent_id
+            framing_intent_id=intent_id,
             anchor_x=fl.anchor_x,
             anchor_y=fl.anchor_y,
             protection_width=fl.protection_width,
@@ -1412,6 +1458,23 @@ def _generate_fdl_with_library(
     return {"fdl": fdl_to_dict(doc)}
 
 
+def _sanitise_intent_id(intent_id: str | None, fw: float, fh: float) -> str:
+    """Return a schema-valid framing_intent_id (alphanumeric+underscore, 1-32 chars).
+
+    When *intent_id* is empty/None, synthesise a stable id from the aspect
+    ratio, e.g. 'ar_239_1' for 2.39:1.
+    """
+    import re
+    from math import gcd
+
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", intent_id or "").strip("_")[:32] if intent_id else ""
+    if not safe:
+        iw, ih = int(round(fw * 100)), int(round(fh * 100))
+        g = gcd(iw, ih) if ih else 1
+        safe = f"ar_{iw // g}_{ih // g}"[:32]
+    return safe or "intent_default"
+
+
 def _generate_fdl_fallback(
     canvas_w: int,
     canvas_h: int,
@@ -1419,6 +1482,7 @@ def _generate_fdl_fallback(
     description: str,
 ) -> dict:
     """Generate FDL in v2.0.1 format using raw dicts (no fdl library)."""
+    cid = uuid.uuid4().hex  # canvas id (32 hex chars); fd ids = "{cid}-{intent_id}"
     framing_decisions = []
     for fl in framelines:
         fw = float(fl.width)
@@ -1438,10 +1502,11 @@ def _generate_fdl_fallback(
         else:
             ax, ay = _compute_anchor_from_alignment(canvas_w, canvas_h, fw, fh, "center", "center")
 
+        intent_id = _sanitise_intent_id(fl.framing_intent, fw, fh)
         fd: dict = {
-            "id": str(uuid.uuid4()),
+            "id": f"{cid}-{intent_id}",  # FDL spec: fd id = canvas_id + "-" + intent_id
             "label": fl.label,
-            "framing_intent_id": fl.framing_intent,
+            "framing_intent_id": intent_id,
             "dimensions": {"width": fw, "height": fh},
             "anchor_point": {"x": ax, "y": ay},
         }
@@ -1462,16 +1527,26 @@ def _generate_fdl_fallback(
         "uuid": str(uuid.uuid4()),
         "version": {"major": 2, "minor": 0},
         "fdl_creator": "FDL Tool",
-        "framing_intents": [],
+        "framing_intents": [
+            {
+                "id": _sanitise_intent_id(fl.framing_intent, float(fl.width), float(fl.height)),
+                "label": fl.label,
+                "aspect_ratio": {"width": int(round(float(fl.width))), "height": int(round(float(fl.height)))},
+                "protection": 0.0,
+            }
+            for fl in {
+                _sanitise_intent_id(fl.framing_intent, float(fl.width), float(fl.height)): fl for fl in framelines
+            }.values()
+        ],
         "contexts": [
             {
                 "label": "Chart Generated",
                 "context_creator": "FDL Tool Chart Generator",
                 "canvases": [
                     {
-                        "id": str(uuid.uuid4()),
+                        "id": cid,  # 32 chars (hex), within FDL schema max
                         "label": f"{canvas_w}x{canvas_h}",
-                        "source_canvas_id": "",
+                        "source_canvas_id": cid,  # self-reference for original canvas; min 1 char required
                         "dimensions": {"width": canvas_w, "height": canvas_h},
                         "anamorphic_squeeze": 1.0,
                         "framing_decisions": framing_decisions,

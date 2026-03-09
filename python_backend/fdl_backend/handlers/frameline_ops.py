@@ -254,7 +254,7 @@ def arri_to_xml(params: dict) -> dict:
     mod = _load_arri_module()
 
     with tempfile.TemporaryDirectory() as tmp:
-        source_path = Path(fdl_path) if fdl_path else Path(tmp) / "source.fdl.json"
+        source_path = Path(fdl_path) if fdl_path else Path(tmp) / "source.fdl"
         if fdl_json:
             _write_text_file(source_path, _coerce_json_string(fdl_json))
 
@@ -463,7 +463,7 @@ def sony_to_xml(params: dict) -> dict:
     mod = _load_sony_module()
 
     with tempfile.TemporaryDirectory() as tmp:
-        source_path = Path(fdl_path) if fdl_path else Path(tmp) / "source.fdl.json"
+        source_path = Path(fdl_path) if fdl_path else Path(tmp) / "source.fdl"
         if fdl_json:
             _write_text_file(source_path, _coerce_json_string(fdl_json))
 

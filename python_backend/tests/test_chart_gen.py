@@ -68,7 +68,9 @@ def test_generate_fdl_with_protection():
 
 
 def test_generate_svg():
-    """Generate SVG chart (requires svgwrite)."""
+    """Generate SVG chart (requires svgwrite); returns a temp file path."""
+    import os
+
     try:
         result = chart_gen.generate_svg(
             {
@@ -80,14 +82,20 @@ def test_generate_svg():
                 "title": "Test Chart",
             }
         )
-        assert "svg" in result
-        assert "<svg" in result["svg"]
+        assert "file_path" in result
+        assert result["format"] == "svg"
+        assert os.path.isfile(result["file_path"])
+        with open(result["file_path"]) as f:
+            svg_content = f.read()
+        assert "<svg" in svg_content
     except ImportError:
         pass
 
 
 def test_generate_svg_with_layers():
     """Generate SVG with grid, crosshairs, and effective area."""
+    import os
+
     try:
         result = chart_gen.generate_svg(
             {
@@ -104,14 +112,17 @@ def test_generate_svg_with_layers():
                 "grid_spacing": 500,
             }
         )
-        assert "svg" in result
-        assert "<svg" in result["svg"]
+        assert "file_path" in result
+        assert result["format"] == "svg"
+        assert os.path.isfile(result["file_path"])
     except ImportError:
         pass
 
 
 def test_generate_png():
-    """Generate PNG chart (requires Pillow)."""
+    """Generate PNG chart (requires Pillow); returns a temp file path."""
+    import os
+
     try:
         result = chart_gen.generate_png(
             {
@@ -123,14 +134,17 @@ def test_generate_png():
                 "title": "Test Chart",
             }
         )
-        assert "png_base64" in result
-        assert len(result["png_base64"]) > 100
+        assert "file_path" in result
+        assert result["format"] == "png"
+        assert os.path.isfile(result["file_path"])
     except ImportError:
         pass
 
 
 def test_generate_tiff():
-    """Generate TIFF chart (requires Pillow)."""
+    """Generate TIFF chart (requires Pillow); returns a temp file path."""
+    import os
+
     try:
         result = chart_gen.generate_tiff(
             {
@@ -143,14 +157,17 @@ def test_generate_tiff():
                 "dpi": 300,
             }
         )
-        assert "tiff_base64" in result
-        assert len(result["tiff_base64"]) > 100
+        assert "file_path" in result
+        assert result["format"] == "tiff"
+        assert os.path.isfile(result["file_path"])
     except ImportError:
         pass
 
 
 def test_generate_pdf():
-    """Generate PDF chart (requires cairosvg + svgwrite)."""
+    """Generate PDF chart (requires cairosvg + svgwrite); returns a temp file path."""
+    import os
+
     try:
         result = chart_gen.generate_pdf(
             {
@@ -160,14 +177,17 @@ def test_generate_pdf():
                 "title": "Test Chart",
             }
         )
-        assert "pdf_base64" in result
-        assert len(result["pdf_base64"]) > 100
+        assert "file_path" in result
+        assert result["format"] == "pdf"
+        assert os.path.isfile(result["file_path"])
     except ImportError:
         pass
 
 
 def test_generate_svg_with_phase3_overlays():
     """Generate SVG with markers, burn-ins, and print-safe margin."""
+    import os
+
     try:
         result = chart_gen.generate_svg(
             {
@@ -184,7 +204,10 @@ def test_generate_svg_with_phase3_overlays():
                 },
             }
         )
-        svg = result["svg"]
+        assert "file_path" in result
+        assert os.path.isfile(result["file_path"])
+        with open(result["file_path"]) as f:
+            svg = f.read()
         assert "<svg" in svg
     except ImportError:
         pass
@@ -192,6 +215,8 @@ def test_generate_svg_with_phase3_overlays():
 
 def test_generate_svg_with_white_background_and_siemens_stars():
     """Generate SVG with white chart mode and four Siemens stars."""
+    import os
+
     try:
         result = chart_gen.generate_svg(
             {
@@ -203,7 +228,10 @@ def test_generate_svg_with_white_background_and_siemens_stars():
                 "show_chart_markers": True,
             }
         )
-        svg = result["svg"]
+        assert "file_path" in result
+        assert os.path.isfile(result["file_path"])
+        with open(result["file_path"]) as f:
+            svg = f.read()
         assert "<svg" in svg
         assert 'fill="#FFFFFF"' in svg
         # Siemens stars are now injected from bundled SVG path geometry.

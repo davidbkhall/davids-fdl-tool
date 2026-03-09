@@ -143,7 +143,7 @@ def add_canvas_to_context(
     width: int = 0,
     height: int = 0,
     canvas_id: str | None = None,
-    source_canvas_id: str = "",
+    source_canvas_id: str | None = None,
     effective_width: int | None = None,
     effective_height: int | None = None,
     effective_anchor_x: float = 0.0,
@@ -152,10 +152,14 @@ def add_canvas_to_context(
 ) -> Any:
     """Add a canvas to a context and return it."""
     require_fdl()
+    # FDL schema: id max 32 chars — use hex UUID (no hyphens = 32 chars).
+    cid = (canvas_id or _uuid.uuid4().hex)[:32]
+    # source_canvas_id min 1 char — self-reference for original canvases.
+    src_id = source_canvas_id if source_canvas_id else cid
     canvas = ctx.add_canvas(
-        canvas_id or str(_uuid.uuid4()),
+        cid,
         label,
-        source_canvas_id,
+        src_id,
         DimensionsInt(width=width, height=height),
         anamorphic_squeeze,
     )
@@ -187,8 +191,11 @@ def add_framing_decision_to_canvas(
 
     anchor = PointFloat(x=anchor_x or 0.0, y=anchor_y or 0.0)
 
+    # FDL schema: fd id must match ^[A-Za-z0-9_]+-[A-Za-z0-9_]+$ (3-65 chars).
+    # Use "fd-<hex16>" format: "fd" + hyphen + 16 hex chars = 19 chars total.
+    fid = fd_id if fd_id else f"fd-{_uuid.uuid4().hex[:16]}"
     fd = canvas.add_framing_decision(
-        fd_id or str(_uuid.uuid4()),
+        fid,
         label,
         framing_intent_id or "",
         DimensionsFloat(width=width, height=height),
