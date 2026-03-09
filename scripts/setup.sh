@@ -38,7 +38,7 @@ echo "Installing additional runtime dependencies..."
 # cairosvg + svgwrite: required for chart PDF/SVG export
 # Force public PyPI to avoid corporate mirror timeouts
 python3 -m pip install --break-system-packages --index-url https://pypi.org/simple \
-    pydantic cairosvg svgwrite \
+    pydantic cairosvg svgwrite rpds-py \
     && echo "✓ Installed pydantic, cairosvg, svgwrite" \
     || echo "⚠︎  Some optional packages unavailable; PDF/SVG chart export and ARRI/Sony XML conversion may not work"
 

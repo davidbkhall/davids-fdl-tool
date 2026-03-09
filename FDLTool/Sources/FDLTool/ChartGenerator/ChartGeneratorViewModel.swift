@@ -614,41 +614,29 @@ class ChartGeneratorViewModel: ObservableObject {
         let base = folder.appendingPathComponent(safeTitle)
         switch format {
         case .svg:
-            traceExport("backend call start method=chart.generate_svg")
             let response = try await callBackendWithTimeout(
                 method: "chart.generate_svg",
                 params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
             )
-            traceExport("backend call done method=chart.generate_svg")
-            let response2 = response
-            guard let svg = response2["svg"] as? String else {
-                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No SVG payload"])
-            }
-            guard let data = svg.data(using: .utf8) else {
-                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid SVG payload"])
-            }
-            try writeData(data, to: base.appendingPathExtension("svg"))
+            try copyFromTempFile(response, to: base.appendingPathExtension("svg"))
         case .png:
-            traceExport("backend call start method=chart.generate_png")
-            let response = try await callBackendWithTimeout(
-                method: "chart.generate_png",
-                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
-            )
-            try copyFromTempFile(response, to: base.appendingPathExtension("png"))
+            guard let data = await MainActor.run(body: { self.renderExportImageData(format: .png) }) else {
+                throw NSError(domain: "FDLTool", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "PNG render failed"])
+            }
+            try writeData(data, to: base.appendingPathExtension("png"))
         case .tiff:
-            traceExport("backend call start method=chart.generate_tiff")
-            let response = try await callBackendWithTimeout(
-                method: "chart.generate_tiff",
-                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
-            )
-            try copyFromTempFile(response, to: base.appendingPathExtension("tiff"))
+            guard let data = await MainActor.run(body: { self.renderExportImageData(format: .tiff) }) else {
+                throw NSError(domain: "FDLTool", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "TIFF render failed"])
+            }
+            try writeData(data, to: base.appendingPathExtension("tiff"))
         case .pdf:
-            traceExport("backend call start method=chart.generate_pdf")
-            let response = try await callBackendWithTimeout(
-                method: "chart.generate_pdf",
-                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
-            )
-            try copyFromTempFile(response, to: base.appendingPathExtension("pdf"))
+            guard let data = await MainActor.run(body: { self.renderExportImageData(format: .pdf) }) else {
+                throw NSError(domain: "FDLTool", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "PDF render failed"])
+            }
+            try writeData(data, to: base.appendingPathExtension("pdf"))
         case .json:
             // FDL export is purely native — no Python bridge needed.
             let doc = buildLocalFDLDocument()
@@ -708,6 +696,41 @@ class ChartGeneratorViewModel: ObservableObject {
         }
     }
 
+
+    /// Render the chart using the same SwiftUI view as the Chart Preview at native canvas resolution.
+    /// Returns image data in the requested format. Must be called on MainActor.
+    @MainActor
+    private func renderExportImageData(format: ExportFormat) -> Data? {
+        let exportView = ChartExportContentView(viewModel: self)
+        let renderer = ImageRenderer(content: exportView)
+        renderer.proposedSize = ProposedViewSize(width: canvasWidth, height: canvasHeight)
+        renderer.scale = 1.0
+        guard let nsImage = renderer.nsImage,
+              let tiffData = nsImage.tiffRepresentation,
+              let bitmapRep = NSBitmapImageRep(data: tiffData) else { return nil }
+        switch format {
+        case .png:
+            return bitmapRep.representation(using: .png, properties: [:])
+        case .tiff:
+            return bitmapRep.representation(using: .tiff,
+                properties: [.compressionFactor: NSNumber(value: 0.9)])
+        case .pdf:
+            var canvasRect = CGRect(x: 0, y: 0, width: canvasWidth, height: canvasHeight)
+            let pdfData = NSMutableData()
+            guard let consumer = CGDataConsumer(data: pdfData),
+                  let ctx = CGContext(consumer: consumer, mediaBox: &canvasRect, nil) else { return nil }
+            ctx.beginPDFPage(nil)
+            if let cgImage = nsImage.cgImage(forProposedRect: &canvasRect, context: nil, hints: nil) {
+                ctx.draw(cgImage, in: canvasRect)
+            }
+            ctx.endPDFPage()
+            ctx.closePDF()
+            return pdfData as Data
+        default:
+            return nil
+        }
+    }
+
     private func exportSVG(printSafeMarginPercent: Double = 0) {
         traceExport("single export start format=SVG")
         activateAppForExportDialog()
@@ -731,18 +754,8 @@ class ChartGeneratorViewModel: ObservableObject {
                     method: "chart.generate_svg",
                     params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
                 )
-                if let svg = response["svg"] as? String {
-                    guard let data = svg.data(using: .utf8) else {
-                        errorMessage = "SVG export failed: invalid SVG payload."
-                        traceExport("single export failed format=SVG invalid payload")
-                        return
-                    }
-                    try writeData(data, to: dest)
-                    traceExport("single export wrote format=SVG path=\(dest.path) bytes=\(data.count)")
-                } else {
-                    errorMessage = "SVG export failed: backend returned no SVG payload."
-                    traceExport("single export failed format=SVG missing payload")
-                }
+                try copyFromTempFile(response, to: dest)
+                traceExport("single export wrote format=SVG path=\(dest.path)")
             } catch {
                 errorMessage = "SVG export failed: \(error.localizedDescription)"
                 traceExport("single export failed format=SVG error=\(error.localizedDescription)")
@@ -764,19 +777,19 @@ class ChartGeneratorViewModel: ObservableObject {
         traceExport("single export selected format=PNG path=\(dest.path)")
 
         isExporting = true
-        Task {
-            defer { Task { @MainActor in self.isExporting = false } }
+        Task { @MainActor in
+            defer { self.isExporting = false }
+            guard let data = self.renderExportImageData(format: .png) else {
+                self.errorMessage = "PNG export failed: could not render chart image."
+                self.traceExport("single export failed format=PNG render error")
+                return
+            }
             do {
-                traceExport("single export task begin format=PNG")
-                let response = try await callBackendWithTimeout(
-                    method: "chart.generate_png",
-                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
-                )
-                try copyFromTempFile(response, to: dest)
-                traceExport("single export wrote format=PNG path=\(dest.path)")
+                try self.writeData(data, to: dest)
+                self.traceExport("single export wrote format=PNG path=\(dest.path) bytes=\(data.count)")
             } catch {
-                errorMessage = "PNG export failed: \(error.localizedDescription)"
-                traceExport("single export failed format=PNG error=\(error.localizedDescription)")
+                self.errorMessage = "PNG export failed: \(error.localizedDescription)"
+                self.traceExport("single export failed format=PNG error=\(error.localizedDescription)")
             }
         }
     }
@@ -795,19 +808,19 @@ class ChartGeneratorViewModel: ObservableObject {
         traceExport("single export selected format=TIFF path=\(dest.path)")
 
         isExporting = true
-        Task {
-            defer { Task { @MainActor in self.isExporting = false } }
+        Task { @MainActor in
+            defer { self.isExporting = false }
+            guard let data = self.renderExportImageData(format: .tiff) else {
+                self.errorMessage = "TIFF export failed: could not render chart image."
+                self.traceExport("single export failed format=TIFF render error")
+                return
+            }
             do {
-                traceExport("single export task begin format=TIFF")
-                let response = try await callBackendWithTimeout(
-                    method: "chart.generate_tiff",
-                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
-                )
-                try copyFromTempFile(response, to: dest)
-                traceExport("single export wrote format=TIFF path=\(dest.path)")
+                try self.writeData(data, to: dest)
+                self.traceExport("single export wrote format=TIFF path=\(dest.path) bytes=\(data.count)")
             } catch {
-                errorMessage = "TIFF export failed: \(error.localizedDescription)"
-                traceExport("single export failed format=TIFF error=\(error.localizedDescription)")
+                self.errorMessage = "TIFF export failed: \(error.localizedDescription)"
+                self.traceExport("single export failed format=TIFF error=\(error.localizedDescription)")
             }
         }
     }
@@ -826,19 +839,19 @@ class ChartGeneratorViewModel: ObservableObject {
         traceExport("single export selected format=PDF path=\(dest.path)")
 
         isExporting = true
-        Task {
-            defer { Task { @MainActor in self.isExporting = false } }
+        Task { @MainActor in
+            defer { self.isExporting = false }
+            guard let data = self.renderExportImageData(format: .pdf) else {
+                self.errorMessage = "PDF export failed: could not render chart image."
+                self.traceExport("single export failed format=PDF render error")
+                return
+            }
             do {
-                traceExport("single export task begin format=PDF")
-                let response = try await callBackendWithTimeout(
-                    method: "chart.generate_pdf",
-                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
-                )
-                try copyFromTempFile(response, to: dest)
-                traceExport("single export wrote format=PDF path=\(dest.path)")
+                try self.writeData(data, to: dest)
+                self.traceExport("single export wrote format=PDF path=\(dest.path) bytes=\(data.count)")
             } catch {
-                errorMessage = "PDF export failed: \(error.localizedDescription)"
-                traceExport("single export failed format=PDF error=\(error.localizedDescription)")
+                self.errorMessage = "PDF export failed: \(error.localizedDescription)"
+                self.traceExport("single export failed format=PDF error=\(error.localizedDescription)")
             }
         }
     }
@@ -1148,7 +1161,6 @@ class ChartGeneratorViewModel: ObservableObject {
             "anamorphic_squeeze": anamorphicSqueeze,
             "show_squeeze_circle": false,
             "show_center_marker": showCenterMarker,
-            "show_format_arrows": false,
             "show_siemens_stars": showSiemensStars,
             "siemens_star_size": siemensStarSize.rawValue,
             "show_chart_markers": false,

@@ -74,6 +74,8 @@ class ChartScene:
     show_squeeze_circle: bool = False
     show_center_marker: bool = False
     show_format_arrows: bool = False
+    show_boundary_arrows: bool = False
+    boundary_arrow_scale: float = 1.0
     print_safe_margin_percent: float = 0.0
     show_siemens_stars: bool = False
     siemens_star_size: str = "small"
@@ -112,6 +114,8 @@ class ChartScene:
             show_squeeze_circle=bool(params.get("show_squeeze_circle", False)),
             show_center_marker=bool(params.get("show_center_marker", False)),
             show_format_arrows=bool(params.get("show_format_arrows", False)),
+            show_boundary_arrows=bool(params.get("show_boundary_arrows", False)),
+            boundary_arrow_scale=float(params.get("boundary_arrow_scale", 1.0)),
             print_safe_margin_percent=float(params.get("print_safe_margin_percent", 0.0)),
             show_siemens_stars=bool(params.get("show_siemens_stars", False)),
             siemens_star_size=str(params.get("siemens_star_size", "small")),

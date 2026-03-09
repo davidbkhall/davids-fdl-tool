@@ -407,7 +407,10 @@ def generate_svg(params: dict) -> dict:
         )
     )
 
-    return {"svg": dwg.tostring()}
+    tmp = tempfile.NamedTemporaryFile(suffix=".svg", delete=False, mode="w", encoding="utf-8")
+    tmp.write(dwg.tostring())
+    tmp.close()
+    return {"file_path": tmp.name, "format": "svg"}
 
 
 def generate_png(params: dict) -> dict:
@@ -442,21 +445,16 @@ def generate_png(params: dict) -> dict:
     preview_desqueeze = bool(params.get("preview_desqueeze", False))
     display_x = squeeze if preview_desqueeze and squeeze > 1.0 else 1.0
     scale = 1.0
-    img_w = int(canvas_w * scale) + padding * 2
-    img_h = int(canvas_h * scale) + padding * 2 + (40 if title else 0)
+    # Export at exact canvas dimensions; no padding or title border.
+    img_w = int(canvas_w * display_x)
+    img_h = canvas_h
 
-    bg = "#1a1a1a"
-    fg = "#222222" if scene.background_theme == "white" else "white"
+    bg = "#1a1a1a" if scene.background_theme != "white" else "#FFFFFF"
     img = Image.new("RGB", (img_w, img_h), bg)
     draw = ImageDraw.Draw(img)
 
-    title_offset = 0
-    if title:
-        title_offset = 40
-        draw.text((img_w // 2, 10), title, fill=fg, anchor="mt")
-
-    cx, cy = padding, padding + title_offset
-    cw, ch = int(canvas_w * scale * display_x), int(canvas_h * scale)
+    cx, cy = 0, 0
+    cw, ch = img_w, img_h
 
     if show_canvas:
         if scene.background_theme == "white":
@@ -608,21 +606,16 @@ def generate_tiff(params: dict) -> dict:
     preview_desqueeze = bool(params.get("preview_desqueeze", False))
     display_x = squeeze if preview_desqueeze and squeeze > 1.0 else 1.0
     scale = 1.0
-    img_w = int(canvas_w * scale) + padding * 2
-    img_h = int(canvas_h * scale) + padding * 2 + (40 if title else 0)
+    # Export at exact canvas dimensions; no padding or title border.
+    img_w = int(canvas_w * display_x)
+    img_h = canvas_h
 
-    bg = "#1a1a1a"
-    fg = "#222222" if scene.background_theme == "white" else "white"
+    bg = "#1a1a1a" if scene.background_theme != "white" else "#FFFFFF"
     img = Image.new("RGB", (img_w, img_h), bg)
     draw = ImageDraw.Draw(img)
 
-    title_offset = 0
-    if title:
-        title_offset = 40
-        draw.text((img_w // 2, 10), title, fill=fg, anchor="mt")
-
-    cx, cy = padding, padding + title_offset
-    cw, ch = int(canvas_w * scale * display_x), int(canvas_h * scale)
+    cx, cy = 0, 0
+    cw, ch = img_w, img_h
 
     if show_canvas:
         if scene.background_theme == "white":
@@ -836,6 +829,9 @@ def _draw_svg_common_overlays(dwg: Any, scene: ChartScene, cx: int, cy: int, cw:
             )
         )
 
+    if getattr(scene, "show_boundary_arrows", False) and scene.framelines:
+        _draw_svg_boundary_arrows(dwg, scene, cx, cy, cw, ch)
+
     if scene.show_siemens_stars:
         stars = _siemens_star_centers(scene, cx, cy, cw, ch)
         star_size = _siemens_star_size(scene, cw, ch, small=34.0, large=68.0)
@@ -952,6 +948,10 @@ def _draw_png_common_overlays(draw: Any, scene: ChartScene, cx: int, cy: int, cw
         draw.line([(cx, center_y), (cx + 14, center_y)], fill=overlay_color, width=line_minor)
         draw.line([(cx + cw, center_y), (cx + cw - 14, center_y)], fill=overlay_color, width=line_minor)
 
+    # Boundary arrows: point from canvas edges toward the first frameline's edges
+    if getattr(scene, "show_boundary_arrows", False) and scene.framelines:
+        _draw_png_boundary_arrows(draw, scene, cx, cy, cw, ch)
+
     if scene.show_siemens_stars:
         stars = _siemens_star_centers(scene, cx, cy, cw, ch)
         star_size = _siemens_star_size(scene, cw, ch, small=50.0, large=112.0)
@@ -1028,6 +1028,105 @@ def _draw_png_common_overlays(draw: Any, scene: ChartScene, cx: int, cy: int, cw
                     draw.text((x - 40, y), logo.text, fill=overlay_color)
         elif logo.text:
             draw.text((x - 40, y), logo.text, fill=overlay_color)
+
+
+def _draw_svg_boundary_arrows(
+    dwg: Any, scene: ChartScene, cx: int, cy: int, cw: int, ch: int
+) -> None:
+    """Draw boundary arrows in SVG pointing from canvas edges toward first frameline."""
+    import math as _math
+    if not scene.framelines:
+        return
+    fl = scene.framelines[0]
+    fw = fl.width
+    fh = fl.height
+    if fw <= 0 or fh <= 0:
+        return
+
+    ax = fl.anchor_x if fl.anchor_x is not None else (scene.canvas_width - fw) / 2.0
+    ay = fl.anchor_y if fl.anchor_y is not None else (scene.canvas_height - fh) / 2.0
+    sx = cx + ax
+    sy = cy + ay
+
+    arrow_color = fl.color
+    scale = getattr(scene, "boundary_arrow_scale", 1.0) or 1.0
+    ah = max(8.0, min(cw, ch) * 0.008 * scale)
+    sw2 = max(2.0, ah * 0.35)
+    canvas_cx = cx + cw / 2
+    canvas_cy = cy + ch / 2
+
+    def _svg_arrow(x1: float, y1: float, x2: float, y2: float) -> None:
+        dwg.add(dwg.line(start=(x1, y1), end=(x2, y2), stroke=arrow_color, stroke_width=sw2))
+        angle = _math.atan2(y2 - y1, x2 - x1)
+        for da in (0.45, -0.45):
+            bx = x2 - ah * _math.cos(angle + da)
+            by = y2 - ah * _math.sin(angle + da)
+            dwg.add(dwg.line(start=(x2, y2), end=(bx, by), stroke=arrow_color, stroke_width=sw2))
+
+    gap = max(4.0, ah)
+    if sy > cy + gap * 2:
+        _svg_arrow(canvas_cx, cy + gap, canvas_cx, sy - gap)
+    if sy + fh < cy + ch - gap * 2:
+        _svg_arrow(canvas_cx, cy + ch - gap, canvas_cx, sy + fh + gap)
+    if sx > cx + gap * 2:
+        _svg_arrow(cx + gap, canvas_cy, sx - gap, canvas_cy)
+    if sx + fw < cx + cw - gap * 2:
+        _svg_arrow(cx + cw - gap, canvas_cy, sx + fw + gap, canvas_cy)
+
+
+def _draw_png_boundary_arrows(
+    draw: Any, scene: ChartScene, cx: int, cy: int, cw: int, ch: int
+) -> None:
+    """Draw boundary arrows pointing from canvas edges toward the first frameline."""
+    import math as _math
+    if not scene.framelines:
+        return
+    fl = scene.framelines[0]
+    fw = fl.width
+    fh = fl.height
+    if fw <= 0 or fh <= 0:
+        return
+
+    # Anchor of first frameline (centered on canvas by default)
+    ax = fl.anchor_x if fl.anchor_x is not None else (scene.canvas_width - fw) / 2.0
+    ay = fl.anchor_y if fl.anchor_y is not None else (scene.canvas_height - fh) / 2.0
+
+    # Scale to image coordinates
+    sx = cx + int(ax)
+    sy = cy + int(ay)
+    sw = int(fw)
+    sh = int(fh)
+
+    arrow_color = fl.color
+    scale = getattr(scene, "boundary_arrow_scale", 1.0) or 1.0
+    arrow_head = max(8, int(min(cw, ch) * 0.008 * scale))
+    shaft_w = max(2, int(arrow_head * 0.35))
+
+    canvas_cx = cx + cw // 2
+    canvas_cy = cy + ch // 2
+
+    def _arrow(x1: float, y1: float, x2: float, y2: float) -> None:
+        draw.line([(int(x1), int(y1)), (int(x2), int(y2))], fill=arrow_color, width=shaft_w)
+        # arrowhead at (x2, y2) pointing in direction from (x1,y1)
+        angle = _math.atan2(y2 - y1, x2 - x1)
+        for da in (0.45, -0.45):
+            bx = x2 - arrow_head * _math.cos(angle + da)
+            by = y2 - arrow_head * _math.sin(angle + da)
+            draw.line([(int(x2), int(y2)), (int(bx), int(by))], fill=arrow_color, width=shaft_w)
+
+    gap = max(4, arrow_head)
+    # Top arrow: from top canvas edge down to top frameline edge
+    if sy > cy + gap * 2:
+        _arrow(canvas_cx, cy + gap, canvas_cx, sy - gap)
+    # Bottom arrow
+    if sy + sh < cy + ch - gap * 2:
+        _arrow(canvas_cx, cy + ch - gap, canvas_cx, sy + sh + gap)
+    # Left arrow
+    if sx > cx + gap * 2:
+        _arrow(cx + gap, canvas_cy, sx - gap, canvas_cy)
+    # Right arrow
+    if sx + sw < cx + cw - gap * 2:
+        _arrow(cx + cw - gap, canvas_cy, sx + sw + gap, canvas_cy)
 
 
 def _siemens_star_centers(scene: ChartScene, cx: int, cy: int, cw: int, ch: int) -> list[tuple[float, float]]:

@@ -818,7 +818,7 @@ struct ChartCanvasView: View {
 
 // MARK: - SVG Web View (NSViewRepresentable)
 
-private struct SiemensStarShape: View {
+struct SiemensStarShape: View {
     let theme: ChartBackgroundTheme
 
     var body: some View {

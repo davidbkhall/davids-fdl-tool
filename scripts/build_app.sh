@@ -45,34 +45,13 @@ if [ -d "$PROJECT_DIR/python_backend" ]; then
     echo "Bundling Python backend..."
     mkdir -p "$APP_DIR/Contents/Resources/python_backend"
     cp -r "$PROJECT_DIR/python_backend/fdl_backend" "$APP_DIR/Contents/Resources/python_backend/"
-    mkdir -p "$APP_DIR/Contents/Resources/python_backend/vendor"
     # Copy setup files needed for imports
     [ -f "$PROJECT_DIR/python_backend/pyproject.toml" ] && cp "$PROJECT_DIR/python_backend/pyproject.toml" "$APP_DIR/Contents/Resources/python_backend/"
-fi
-
-# Bundle optional manufacturer conversion libraries so end users do not need local installs.
-# Source paths can be provided through env vars or pre-populated vendor source folders.
-ARRI_SRC="${FDL_ARRI_FRAMELINE_SRC:-$PROJECT_DIR/vendor_sources/fdl_arri_frameline}"
-SONY_SRC="${FDL_SONY_FRAMELINE_SRC:-$PROJECT_DIR/vendor_sources/fdl_sony_frameline}"
-resolve_module_dir() {
-    local src="$1"
-    local module="$2"
-    if [ -d "$src/$module" ]; then echo "$src/$module"; return; fi
-    if [ -d "$src/src/$module" ]; then echo "$src/src/$module"; return; fi
-    if [ -d "$src/site-packages/$module" ]; then echo "$src/site-packages/$module"; return; fi
-    if [ "$(basename "$src")" = "$module" ] && [ -d "$src" ]; then echo "$src"; return; fi
-    echo ""
-}
-
-ARRI_MODULE_DIR="$(resolve_module_dir "$ARRI_SRC" "fdl_arri_frameline")"
-SONY_MODULE_DIR="$(resolve_module_dir "$SONY_SRC" "fdl_sony_frameline")"
-if [ -n "$ARRI_MODULE_DIR" ]; then
-    echo "Bundling fdl_arri_frameline from $ARRI_MODULE_DIR..."
-    cp -r "$ARRI_MODULE_DIR" "$APP_DIR/Contents/Resources/python_backend/vendor/"
-fi
-if [ -n "$SONY_MODULE_DIR" ]; then
-    echo "Bundling fdl_sony_frameline from $SONY_MODULE_DIR..."
-    cp -r "$SONY_MODULE_DIR" "$APP_DIR/Contents/Resources/python_backend/vendor/"
+    # Bundle vendored pure-Python packages (fdl, fdl_arri_frameline, fdl_sony_frameline, jsonschema, etc.)
+    if [ -d "$PROJECT_DIR/python_backend/vendor" ]; then
+        echo "Bundling vendored Python packages..."
+        cp -r "$PROJECT_DIR/python_backend/vendor" "$APP_DIR/Contents/Resources/python_backend/"
+    fi
 fi
 
 # Write Info.plist
