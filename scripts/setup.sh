@@ -30,12 +30,17 @@ fi
 echo ""
 echo "Installing Python backend dependencies..."
 cd "$(dirname "$0")/../python_backend"
-if pip3 install -e ".[dev,frameline]"; then
-    echo "✓ Installed optional frameline conversion dependencies"
-else
-    echo "⚠︎ Optional frameline packages unavailable; core backend installed without ARRI/Sony converters"
-    pip3 install -e ".[dev]"
-fi
+pip3 install -e ".[dev]"
+
+echo ""
+echo "Installing additional runtime dependencies..."
+# pydantic: required by vendored fdl / fdl_arri_frameline / fdl_sony_frameline packages
+# cairosvg + svgwrite: required for chart PDF/SVG export
+# Force public PyPI to avoid corporate mirror timeouts
+python3 -m pip install --break-system-packages --index-url https://pypi.org/simple \
+    pydantic cairosvg svgwrite \
+    && echo "✓ Installed pydantic, cairosvg, svgwrite" \
+    || echo "⚠︎  Some optional packages unavailable; PDF/SVG chart export and ARRI/Sony XML conversion may not work"
 
 echo ""
 echo "=== Setup complete ==="
