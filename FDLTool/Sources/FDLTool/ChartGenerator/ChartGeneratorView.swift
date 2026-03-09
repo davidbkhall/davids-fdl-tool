@@ -78,6 +78,11 @@ private struct ChartGeneratorContent: View {
                 projects: appState.libraryViewModel.projects
             )
         }
+        .onChange(of: viewModel.showExportSheet) { _, isPresented in
+            if !isPresented {
+                viewModel.runPendingExportRequestIfNeeded()
+            }
+        }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }

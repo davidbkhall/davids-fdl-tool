@@ -880,14 +880,14 @@ def _draw_svg_common_overlays(dwg: Any, scene: ChartScene, cx: int, cy: int, cw:
         lines.extend([burn.sample_text_1, burn.sample_text_2])
     lines = [line for line in lines if line]
     if lines:
+        auto_meta_font_scale = 0.88 if scene.logo is not None else 1.0
+        auto_meta_offset_y = max(18.0, 28.0 * scene.logo.scale) if scene.logo is not None else 0.0
         center_x = cx + cw / 2 + (metadata.offset_x if metadata else 0.0)
-        center_y = cy + ch / 2 + (metadata.offset_y if metadata else 0.0)
-        line_gap = max(
-            12,
-            int(
-                _font_size(max((metadata.font_size if metadata else 12.0), (burn.font_size if burn else 12.0)), cw, ch)
-            ),
+        center_y = cy + ch / 2 + (metadata.offset_y if metadata else 0.0) + auto_meta_offset_y
+        base_font = (
+            max((metadata.font_size if metadata else 12.0), (burn.font_size if burn else 12.0)) * auto_meta_font_scale
         )
+        line_gap = max(8, int(_font_size(base_font, cw, ch)))
         y = center_y - ((len(lines) - 1) * line_gap) / 2
         for line in lines:
             dwg.add(
@@ -904,18 +904,22 @@ def _draw_svg_common_overlays(dwg: Any, scene: ChartScene, cx: int, cy: int, cw:
 
     logo = scene.logo
     if logo is not None:
+        logo_scale_x = max(
+            1.0, (cw / max(1, scene.canvas_width)) / max(0.0001, ch / max(1, scene.canvas_height))
+        ) / max(1.0, scene.anamorphic_squeeze)
         x = cx + cw / 2 + logo.offset_x
         y = cy + ch / 2 - 64 + logo.offset_y
         anchor = "middle"
         if logo.image_base64:
-            width = 140 * max(0.1, logo.scale)
+            width = 140 * max(0.1, logo.scale) * logo_scale_x
             height = 52 * max(0.1, logo.scale)
             ix = x - (width / 2)
             iy = y - height + 6
             href = f"data:image/png;base64,{logo.image_base64}"
             dwg.add(dwg.image(href=href, insert=(ix, iy), size=(width, height), opacity=0.95))
         elif logo.text:
-            dwg.add(
+            text_group = dwg.g(transform=f"translate({x},{y}) scale({logo_scale_x},1) translate({-x},{-y})")
+            text_group.add(
                 dwg.text(
                     logo.text,
                     insert=(x, y),
@@ -925,6 +929,7 @@ def _draw_svg_common_overlays(dwg: Any, scene: ChartScene, cx: int, cy: int, cw:
                     text_anchor=anchor,
                 )
             )
+            dwg.add(text_group)
 
 
 def _draw_png_common_overlays(draw: Any, scene: ChartScene, cx: int, cy: int, cw: int, ch: int) -> None:
@@ -976,9 +981,23 @@ def _draw_png_common_overlays(draw: Any, scene: ChartScene, cx: int, cy: int, cw
         lines.extend([burn.sample_text_1, burn.sample_text_2])
     lines = [line for line in lines if line]
     if lines:
-        line_gap = max(12, int(max((metadata.font_size if metadata else 12.0), (burn.font_size if burn else 12.0))))
+        auto_meta_font_scale = 0.88 if scene.logo is not None else 1.0
+        auto_meta_offset_y = max(18.0, 28.0 * scene.logo.scale) if scene.logo is not None else 0.0
+        line_gap = max(
+            8,
+            int(
+                max((metadata.font_size if metadata else 12.0), (burn.font_size if burn else 12.0))
+                * auto_meta_font_scale
+            ),
+        )
         center_x = int(cx + cw / 2 + (metadata.offset_x if metadata else 0.0))
-        y = int(cy + ch / 2 + (metadata.offset_y if metadata else 0.0) - ((len(lines) - 1) * line_gap) / 2)
+        y = int(
+            cy
+            + ch / 2
+            + (metadata.offset_y if metadata else 0.0)
+            + auto_meta_offset_y
+            - ((len(lines) - 1) * line_gap) / 2
+        )
         for line in lines:
             text_w = len(line) * max(5, int(line_gap * 0.55))
             draw.text((int(center_x - text_w / 2), y), line, fill=overlay_color)
@@ -986,13 +1005,16 @@ def _draw_png_common_overlays(draw: Any, scene: ChartScene, cx: int, cy: int, cw
 
     logo = scene.logo
     if logo is not None:
+        logo_scale_x = max(
+            1.0, (cw / max(1, scene.canvas_width)) / max(0.0001, ch / max(1, scene.canvas_height))
+        ) / max(1.0, scene.anamorphic_squeeze)
         x = int(cx + cw / 2 + logo.offset_x)
         y = int(cy + ch / 2 - 64 + logo.offset_y)
         if logo.image_base64:
             try:
                 blob = base64.b64decode(logo.image_base64)
                 logo_img = Image.open(io.BytesIO(blob)).convert("RGBA")
-                target_w = max(8, int(logo_img.width * logo.scale))
+                target_w = max(8, int(logo_img.width * logo.scale * logo_scale_x))
                 target_h = max(8, int(logo_img.height * logo.scale))
                 logo_img = logo_img.resize((target_w, target_h))
                 img_ref = draw._image  # Pillow internal backing image

@@ -57,6 +57,11 @@ enum ChartBackgroundTheme: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct PendingChartExportRequest {
+    let formats: [ExportFormat]
+    let printSafeMarginPercent: Double
+}
+
 enum SiemensStarSize: String, CaseIterable, Identifiable {
     case small
     case medium
@@ -182,16 +187,19 @@ class ChartGeneratorViewModel: ObservableObject {
     @Published var logoScale: Double = 1.0
     @Published var logoOffsetX: Double = 0
     @Published var logoOffsetY: Double = -56
-    @Published var chartBackgroundTheme: ChartBackgroundTheme = .dark
+    @Published var chartBackgroundTheme: ChartBackgroundTheme = .white
     @Published var showSiemensStars = false
-    @Published var siemensStarSize: SiemensStarSize = .small
+    @Published var siemensStarSize: SiemensStarSize = .medium
     @Published var showChartMarkers = false
+    @Published var showBoundaryArrows = true
+    @Published var boundaryArrowScale: Double = 1.0
+    @Published var declutterMultipleFramelines = true
 
     // Metadata
     @Published var metadataShowName: String = ""
     @Published var metadataDOP: String = ""
     @Published var metadataBurnInEnabled = true
-    @Published var metadataFontSize: Double = 14
+    @Published var metadataFontSize: Double = 10
     @Published var metadataOffsetX: Double = 0
     @Published var metadataOffsetY: Double = 0
     @Published var burnInTitle: String = ""
@@ -211,6 +219,7 @@ class ChartGeneratorViewModel: ObservableObject {
 
     // Error
     @Published var errorMessage: String?
+    @Published var pendingExportRequest: PendingChartExportRequest?
 
     private let pythonBridge: PythonBridge
     private let cameraDBStore: CameraDBStore
@@ -501,6 +510,162 @@ class ChartGeneratorViewModel: ObservableObject {
 
     // MARK: - Export
 
+    func requestExport(formats: [ExportFormat], printSafeMarginPercent: Double = 0) {
+        guard !formats.isEmpty else { return }
+        pendingExportRequest = PendingChartExportRequest(
+            formats: formats,
+            printSafeMarginPercent: printSafeMarginPercent
+        )
+    }
+
+    func runPendingExportRequestIfNeeded() {
+        guard let request = pendingExportRequest else { return }
+        pendingExportRequest = nil
+        // Wait for export sheet dismissal to complete before showing file dialogs.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            if request.formats.count == 1, let format = request.formats.first {
+                self.export(format: format, printSafeMarginPercent: request.printSafeMarginPercent)
+            } else {
+                self.exportMultiple(
+                    formats: request.formats,
+                    printSafeMarginPercent: request.printSafeMarginPercent
+                )
+            }
+        }
+    }
+
+    func export(format: ExportFormat, printSafeMarginPercent: Double = 0) {
+        switch format {
+        case .svg:
+            exportSVG(printSafeMarginPercent: printSafeMarginPercent)
+        case .png:
+            exportPNG(printSafeMarginPercent: printSafeMarginPercent)
+        case .tiff:
+            exportTIFF(printSafeMarginPercent: printSafeMarginPercent)
+        case .pdf:
+            exportPDF(printSafeMarginPercent: printSafeMarginPercent)
+        case .arriXML:
+            exportArriXML()
+        case .sonyXML:
+            exportSonyXML()
+        case .json:
+            exportFDL()
+        }
+    }
+
+    private func exportMultiple(formats: [ExportFormat], printSafeMarginPercent: Double) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose Folder"
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+
+        Task {
+            for format in formats {
+                do {
+                    try await exportToFolder(
+                        format: format,
+                        folder: folder,
+                        printSafeMarginPercent: printSafeMarginPercent
+                    )
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "\(format.rawValue) export failed: \(error.localizedDescription)"
+                    }
+                    return
+                }
+            }
+        }
+    }
+
+    private func exportToFolder(
+        format: ExportFormat,
+        folder: URL,
+        printSafeMarginPercent: Double
+    ) async throws {
+        let safeTitle = chartTitle.replacingOccurrences(of: "/", with: "-")
+        let base = folder.appendingPathComponent(safeTitle)
+        switch format {
+        case .svg:
+            let response = try await pythonBridge.callForResult(
+                "chart.generate_svg",
+                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+            )
+            guard let svg = response["svg"] as? String else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No SVG payload"])
+            }
+            try svg.data(using: .utf8)?.write(to: base.appendingPathExtension("svg"))
+        case .png:
+            let response = try await pythonBridge.callForResult(
+                "chart.generate_png",
+                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+            )
+            guard let b64 = response["png_base64"] as? String, let data = Data(base64Encoded: b64) else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No PNG payload"])
+            }
+            try data.write(to: base.appendingPathExtension("png"))
+        case .tiff:
+            let response = try await pythonBridge.callForResult(
+                "chart.generate_tiff",
+                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+            )
+            guard let b64 = response["tiff_base64"] as? String, let data = Data(base64Encoded: b64) else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No TIFF payload"])
+            }
+            try data.write(to: base.appendingPathExtension("tiff"))
+        case .pdf:
+            let response = try await pythonBridge.callForResult(
+                "chart.generate_pdf",
+                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+            )
+            guard let b64 = response["pdf_base64"] as? String, let data = Data(base64Encoded: b64) else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No PDF payload"])
+            }
+            try data.write(to: base.appendingPathExtension("pdf"))
+        case .json:
+            let response = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+            guard let fdl = response["fdl"] as? [String: Any] else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No FDL payload"])
+            }
+            let data = try JSONSerialization.data(withJSONObject: fdl, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: base.appendingPathExtension("fdl"))
+        case .arriXML:
+            guard let camera = selectedCamera else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select ARRI camera"])
+            }
+            let fdlResponse = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+            let payload: [String: Any] = [
+                "fdl_json": fdlResponse["fdl"] as Any,
+                "camera_type": camera.model,
+                "sensor_mode": selectedRecordingMode?.name ?? "default",
+                "include_protection": true,
+                "include_effective": true,
+            ]
+            let response = try await pythonBridge.callForResult("frameline.arri.to_xml", params: payload)
+            guard let xml = response["xml_string"] as? String else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No ARRI XML payload"])
+            }
+            try xml.data(using: .utf8)?.write(to: base.appendingPathExtension("arri.xml"))
+        case .sonyXML:
+            guard let camera = selectedCamera else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select Sony camera"])
+            }
+            let fdlResponse = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+            let payload: [String: Any] = [
+                "fdl_json": fdlResponse["fdl"] as Any,
+                "camera_type": camera.model,
+                "imager_mode": selectedRecordingMode?.name ?? "default",
+                "include_protection": true,
+            ]
+            let response = try await pythonBridge.callForResult("frameline.sony.to_xml", params: payload)
+            guard let xml = response["xml_string"] as? String else {
+                throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Sony XML payload"])
+            }
+            try xml.data(using: .utf8)?.write(to: base.appendingPathExtension("sony.xml"))
+        }
+    }
+
     func exportSVG(printSafeMarginPercent: Double = 0) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "svg") ?? .data]
@@ -516,6 +681,8 @@ class ChartGeneratorViewModel: ObservableObject {
                 )
                 if let svg = response["svg"] as? String {
                     try svg.data(using: .utf8)?.write(to: dest)
+                } else {
+                    errorMessage = "SVG export failed: backend returned no SVG payload."
                 }
             } catch {
                 errorMessage = "SVG export failed: \(error.localizedDescription)"
@@ -539,6 +706,8 @@ class ChartGeneratorViewModel: ObservableObject {
                 if let b64 = response["png_base64"] as? String,
                    let data = Data(base64Encoded: b64) {
                     try data.write(to: dest)
+                } else {
+                    errorMessage = "PNG export failed: backend returned no PNG payload."
                 }
             } catch {
                 errorMessage = "PNG export failed: \(error.localizedDescription)"
@@ -563,6 +732,8 @@ class ChartGeneratorViewModel: ObservableObject {
                    let data = Data(base64Encoded: b64)
                 {
                     try data.write(to: dest)
+                } else {
+                    errorMessage = "TIFF export failed: backend returned no TIFF payload."
                 }
             } catch {
                 errorMessage = "TIFF export failed: \(error.localizedDescription)"
@@ -587,6 +758,8 @@ class ChartGeneratorViewModel: ObservableObject {
                    let data = Data(base64Encoded: b64)
                 {
                     try data.write(to: dest)
+                } else {
+                    errorMessage = "PDF export failed: backend returned no PDF payload."
                 }
             } catch {
                 errorMessage = "PDF export failed: \(error.localizedDescription)"
@@ -871,17 +1044,19 @@ class ChartGeneratorViewModel: ObservableObject {
             },
             "title": chartTitle,
             "show_labels": showLabels,
-            "show_crosshairs": showCrosshairs,
+            "show_crosshairs": false,
             "show_grid": showGridOverlay,
             "grid_spacing": Int(gridSpacing),
             "anamorphic_squeeze": anamorphicSqueeze,
-            "show_squeeze_circle": showSqueezeCircle,
+            "show_squeeze_circle": false,
             "show_center_marker": showCenterMarker,
             "show_format_arrows": false,
             "show_siemens_stars": showSiemensStars,
             "siemens_star_size": siemensStarSize.rawValue,
-            "show_chart_markers": showChartMarkers,
-            "background_theme": chartBackgroundTheme.rawValue,
+            "show_chart_markers": false,
+            "show_boundary_arrows": showBoundaryArrows,
+            "boundary_arrow_scale": boundaryArrowScale,
+            "background_theme": ChartBackgroundTheme.white.rawValue,
             "print_safe_margin_percent": max(0, printSafeMarginPercent),
             "layers": [
                 "canvas": showCanvasLayer,

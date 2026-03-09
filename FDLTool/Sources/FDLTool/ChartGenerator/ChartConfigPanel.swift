@@ -236,7 +236,6 @@ struct ChartConfigPanel: View {
                         Toggle("Framing Decisions", isOn: $viewModel.showFramingLayer)
                         Toggle("Protection", isOn: $viewModel.showProtectionLayer)
                         Toggle("Dimension Labels", isOn: $viewModel.showDimensionLabels)
-                        Toggle("Crosshairs", isOn: $viewModel.showCrosshairs)
                         Toggle("Center Marker", isOn: $viewModel.showCenterMarker)
                         Toggle("Grid", isOn: $viewModel.showGridOverlay)
                         if viewModel.showGridOverlay {
@@ -247,9 +246,6 @@ struct ChartConfigPanel: View {
                             }
                             .pickerStyle(.segmented)
                         }
-                        if viewModel.anamorphicSqueeze != 1.0 {
-                            Toggle("Squeeze Circle", isOn: $viewModel.showSqueezeCircle)
-                        }
                         Toggle("Siemens stars", isOn: $viewModel.showSiemensStars)
                         if viewModel.showSiemensStars {
                             Picker("Siemens size", selection: $viewModel.siemensStarSize) {
@@ -259,7 +255,32 @@ struct ChartConfigPanel: View {
                             }
                             .pickerStyle(.segmented)
                         }
-                        Toggle("Frame markers", isOn: $viewModel.showChartMarkers)
+                        Toggle("Boundary arrows", isOn: $viewModel.showBoundaryArrows)
+                        if viewModel.showBoundaryArrows {
+                            Picker(
+                                "Arrow size",
+                                selection: Binding(
+                                    get: {
+                                        if viewModel.boundaryArrowScale < 0.95 { return 0 }
+                                        if viewModel.boundaryArrowScale < 1.2 { return 1 }
+                                        return 2
+                                    },
+                                    set: { value in
+                                        switch value {
+                                        case 0: viewModel.boundaryArrowScale = 0.82
+                                        case 2: viewModel.boundaryArrowScale = 1.28
+                                        default: viewModel.boundaryArrowScale = 1.0
+                                        }
+                                    }
+                                )
+                            ) {
+                                Text("Small").tag(0)
+                                Text("Medium").tag(1)
+                                Text("Large").tag(2)
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        Toggle("Declutter multi-frameline preview", isOn: $viewModel.declutterMultipleFramelines)
                         Toggle("Show logo", isOn: $viewModel.showLogoOverlay)
                         if viewModel.showLogoOverlay {
                             HStack(spacing: 8) {
@@ -342,7 +363,7 @@ struct ChartConfigPanel: View {
                             HStack(spacing: 6) {
                                 Text("Font size")
                                     .foregroundStyle(.secondary)
-                                Slider(value: $viewModel.metadataFontSize, in: 9...30, step: 1)
+                                Slider(value: $viewModel.metadataFontSize, in: 6...30, step: 1)
                                 Text("\(Int(viewModel.metadataFontSize))")
                                     .font(.caption2.monospacedDigit())
                                     .frame(width: 28, alignment: .trailing)

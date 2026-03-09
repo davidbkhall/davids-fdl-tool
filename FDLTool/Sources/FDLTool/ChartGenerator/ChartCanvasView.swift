@@ -1,11 +1,15 @@
 import SwiftUI
 import WebKit
+import AppKit
 
 /// Live-rendered chart preview. Displays SVG from Python backend or a native SwiftUI approximation.
 struct ChartCanvasView: View {
     @ObservedObject var viewModel: ChartGeneratorViewModel
+    @Environment(\.displayScale) private var displayScale
     @State private var zoomScale: CGFloat = 1.0
     @State private var panOffset: CGSize = .zero
+    @State private var accumulatedPanOffset: CGSize = .zero
+    @State private var pinchStartZoomScale: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,33 +19,27 @@ struct ChartCanvasView: View {
                     .font(.headline)
                 Spacer()
 
-                Picker("", selection: $viewModel.chartBackgroundTheme) {
-                    Text("Dark").tag(ChartBackgroundTheme.dark)
-                    Text("White").tag(ChartBackgroundTheme.white)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 140)
-                .onChange(of: viewModel.chartBackgroundTheme) { _, _ in
-                    viewModel.previewSVG = nil
-                }
-
-                Button(action: { zoomScale = max(zoomScale / 1.25, 0.1) }) {
+                Button(action: { zoomScale = max(zoomScale / 1.25, 0.05) }) {
                     Image(systemName: "minus.magnifyingglass")
                 }
                 .buttonStyle(.borderless)
                 Text(verbatim: "\(Int(zoomScale * 100))%")
                     .font(.caption)
                     .frame(width: 36)
-                Button(action: { zoomScale = min(zoomScale * 1.25, 10) }) {
+                Button(action: { zoomScale = min(zoomScale * 1.25, 48) }) {
                     Image(systemName: "plus.magnifyingglass")
                 }
                 .buttonStyle(.borderless)
-                Button(action: { zoomScale = 1.0; panOffset = .zero }) {
+                Button(action: {
+                    zoomScale = 1.0
+                    panOffset = .zero
+                    accumulatedPanOffset = .zero
+                    pinchStartZoomScale = nil
+                }) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                 }
                 .buttonStyle(.borderless)
-                .help("Fit to view")
+                .help("Fit all")
 
                 Group {
                     if viewModel.previewDesqueezed {
@@ -71,11 +69,6 @@ struct ChartCanvasView: View {
                     ProgressView()
                         .controlSize(.small)
                 }
-
-                Button(action: { viewModel.generatePreview() }) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .disabled(viewModel.isGenerating)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -83,12 +76,7 @@ struct ChartCanvasView: View {
             Divider()
 
             // Canvas area
-            if let svg = viewModel.previewSVG {
-                SVGWebView(svg: svg)
-                    .gesture(previewGestures)
-                    .clipped()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !viewModel.framelines.isEmpty {
+            if !viewModel.framelines.isEmpty {
                 // Native SwiftUI preview fallback
                 nativePreview
                     .gesture(previewGestures)
@@ -107,6 +95,12 @@ struct ChartCanvasView: View {
         }
         .onChange(of: viewModel.showSiemensStars) { _, _ in
             viewModel.previewSVG = nil
+        }
+        .onAppear {
+            if viewModel.chartBackgroundTheme != .white {
+                viewModel.chartBackgroundTheme = .white
+                viewModel.previewSVG = nil
+            }
         }
     }
 
@@ -135,6 +129,9 @@ struct ChartCanvasView: View {
             GeometryReader { geo in
                 let desqueezeFactor = (viewModel.previewDesqueezed && viewModel.anamorphicSqueeze > 1.0) ? viewModel.anamorphicSqueeze : 1.0
                 let baseScale = min(geo.size.width / (cw * desqueezeFactor), geo.size.height / ch) * 0.85 * Double(zoomScale)
+                let zoomFontFactor = max(0.6, min(8.0, Double(zoomScale)))
+                let canvasLabelFont = max(7.0, (9.0 / sqrt(desqueezeFactor)) * zoomFontFactor)
+                let detailFont = max(6.5, (8.0 / sqrt(desqueezeFactor)) * zoomFontFactor)
                 let scaleX = baseScale * desqueezeFactor
                 let scaleY = baseScale
                 let scaledW = cw * scaleX
@@ -143,37 +140,31 @@ struct ChartCanvasView: View {
                 let originY = (geo.size.height - scaledH) / 2 + Double(panOffset.height)
 
                 ZStack(alignment: .topLeading) {
-                    Color(nsColor: NSColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
+                    Color(nsColor: NSColor(red: 0.24, green: 0.24, blue: 0.24, alpha: 1))
 
                     // Canvas boundary
                     if viewModel.showCanvasLayer {
                         if viewModel.chartBackgroundTheme == .white {
                             Rectangle()
-                                .fill(Color.white)
+                                .fill(Color(white: 0.68))
+                                .frame(width: scaledW, height: scaledH)
+                                .offset(x: originX, y: originY)
+                        } else {
+                            Rectangle()
+                                .stroke(Color.gray.opacity(0.5), lineWidth: 1)
                                 .frame(width: scaledW, height: scaledH)
                                 .offset(x: originX, y: originY)
                         }
 
-                        Rectangle()
-                            .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-                            .frame(width: scaledW, height: scaledH)
-                            .offset(x: originX, y: originY)
-
                         if viewModel.showDimensionLabels {
-                            let labelPos = canvasDimensionLabelPosition(
-                                originX: originX,
-                                originY: originY,
-                                scaledW: scaledW,
-                                scaledH: scaledH,
-                                canvasW: cw,
-                                canvasH: ch,
-                                scaleX: scaleX,
-                                scaleY: scaleY
-                            )
                             Text(verbatim: "Canvas: \(Int(cw))\u{00D7}\(Int(ch))")
-                                .font(.system(size: 9, design: .monospaced))
+                                .font(.system(size: canvasLabelFont, design: .monospaced))
                                 .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.7) : .gray)
-                                .offset(x: labelPos.x, y: labelPos.y)
+                                .rotationEffect(.degrees(-90))
+                                .position(
+                                    x: max(originX + 8, min(originX + scaledW - 8, originX + scaledW - 8)),
+                                    y: max(originY + 52, min(originY + scaledH - 52, originY + scaledH / 2))
+                                )
                         }
                     }
 
@@ -186,30 +177,6 @@ struct ChartCanvasView: View {
                         )
                     }
 
-                    if viewModel.showChartMarkers {
-                        let markerColor: Color = viewModel.chartBackgroundTheme == .white ? .black.opacity(0.65) : .white.opacity(0.65)
-                        Path { p in
-                            p.move(to: CGPoint(x: originX + scaledW / 2, y: originY))
-                            p.addLine(to: CGPoint(x: originX + scaledW / 2, y: originY + 14))
-                            p.move(to: CGPoint(x: originX + scaledW / 2, y: originY + scaledH))
-                            p.addLine(to: CGPoint(x: originX + scaledW / 2, y: originY + scaledH - 14))
-                            p.move(to: CGPoint(x: originX, y: originY + scaledH / 2))
-                            p.addLine(to: CGPoint(x: originX + 14, y: originY + scaledH / 2))
-                            p.move(to: CGPoint(x: originX + scaledW, y: originY + scaledH / 2))
-                            p.addLine(to: CGPoint(x: originX + scaledW - 14, y: originY + scaledH / 2))
-                        }
-                        .stroke(markerColor, lineWidth: 1)
-                    }
-
-                    if viewModel.showSiemensStars {
-                        let starRects = siemensStarRects(originX: originX, originY: originY, canvasW: cw, canvasH: ch, scaleX: scaleX, scaleY: scaleY)
-                        ForEach(Array(starRects.enumerated()), id: \.offset) { _, rect in
-                            SiemensStarShape(theme: viewModel.chartBackgroundTheme)
-                                .frame(width: rect.width, height: rect.height)
-                                .position(x: rect.midX, y: rect.midY)
-                        }
-                    }
-
                     // Effective area
                     if viewModel.showEffectiveLayer,
                        let ew = viewModel.canvasEffectiveWidth,
@@ -218,28 +185,41 @@ struct ChartCanvasView: View {
                         let esh = eh * scaleY
                         let ex = originX + viewModel.canvasEffectiveAnchorX * scaleX
                         let ey = originY + viewModel.canvasEffectiveAnchorY * scaleY
-                        let effectiveRect = adjustedForInsideStroke(CGRect(x: ex, y: ey, width: esw, height: esh), lineWidth: 1.5)
-
-                        Rectangle()
-                            .stroke(Color.teal, lineWidth: 1.5)
-                            .frame(width: effectiveRect.width, height: effectiveRect.height)
-                            .offset(x: effectiveRect.minX, y: effectiveRect.minY)
+                        let effectiveRectRaw = CGRect(x: ex, y: ey, width: esw, height: esh)
+                        let effectiveRect = adjustedForInsideStroke(effectiveRectRaw, lineWidth: 1.5)
+                        if viewModel.chartBackgroundTheme == .white {
+                            Rectangle()
+                                .fill(Color(white: 0.78))
+                                .frame(width: esw, height: esh)
+                                .offset(x: ex, y: ey)
+                        } else {
+                            Rectangle()
+                                .stroke(Color.teal, lineWidth: 1.5)
+                                .frame(width: effectiveRect.width, height: effectiveRect.height)
+                                .offset(x: effectiveRect.minX, y: effectiveRect.minY)
+                        }
+                        if viewModel.chartBackgroundTheme == .white && viewModel.showBoundaryArrows {
+                            boundaryArrows(for: effectiveRectRaw, color: .teal, insetScale: 0)
+                        }
 
                         if viewModel.showDimensionLabels {
                             Text(verbatim: "Effective: \(Int(ew))\u{00D7}\(Int(eh))")
-                                .font(.system(size: 8, design: .monospaced))
+                                    .font(.system(size: detailFont, design: .monospaced))
                                 .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.8) : .white.opacity(0.8))
                                 .offset(x: ex + 4, y: ey + esh - 16)
                             Text(verbatim: "Anchor: \(Int(viewModel.canvasEffectiveAnchorX)), \(Int(viewModel.canvasEffectiveAnchorY))")
-                                .font(.system(size: 8, design: .monospaced))
+                                .font(.system(size: detailFont, design: .monospaced))
                                 .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.8) : .white.opacity(0.8))
                                 .offset(x: ex + 4, y: ey + esh - 30)
                         }
                     }
 
                     // Framelines (protection + framing)
-                    ForEach(viewModel.framelines) { fl in
+                    ForEach(Array(viewModel.framelines.enumerated()), id: \.element.id) { idx, fl in
                         let color = Color(hex: fl.color) ?? .gray
+                        let isPrimary = !viewModel.declutterMultipleFramelines || viewModel.framelines.count <= 1 || idx == 0
+                        let layerOpacity = isPrimary ? 1.0 : 0.52
+                        let labelLaneOffset = Double(idx) * 12.0
                         let pos = framelinePosition(fl, canvasW: cw, canvasH: ch, scaleX: scaleX, scaleY: scaleY, originX: originX, originY: originY)
 
                         if viewModel.showProtectionLayer,
@@ -248,12 +228,28 @@ struct ChartCanvasView: View {
                             let psh = prot.height * scaleY
                             let px = originX + (fl.protectionAnchorX.map { $0 * scaleX } ?? (scaledW - psw) / 2)
                             let py = originY + (fl.protectionAnchorY.map { $0 * scaleY } ?? (scaledH - psh) / 2)
-                            let protectionRect = adjustedForInsideStroke(CGRect(x: px, y: py, width: psw, height: psh), lineWidth: 1)
-
-                            Rectangle()
-                                .stroke(Color.orange, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                                .frame(width: protectionRect.width, height: protectionRect.height)
-                                .offset(x: protectionRect.minX, y: protectionRect.minY)
+                            let protectionRectRaw = CGRect(x: px, y: py, width: psw, height: psh)
+                            let protectionRect = adjustedForInsideStroke(protectionRectRaw, lineWidth: 1)
+                            if viewModel.chartBackgroundTheme == .white {
+                                Rectangle()
+                                    .fill(Color(white: 0.86))
+                                    .frame(width: psw, height: psh)
+                                    .offset(x: px, y: py)
+                                    .opacity(layerOpacity)
+                            } else {
+                                Rectangle()
+                                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                                    .frame(width: protectionRect.width, height: protectionRect.height)
+                                    .offset(x: protectionRect.minX, y: protectionRect.minY)
+                                    .opacity(layerOpacity)
+                            }
+                            if viewModel.chartBackgroundTheme == .white && viewModel.showBoundaryArrows {
+                                boundaryArrows(
+                                    for: protectionRectRaw,
+                                    color: .orange.opacity(layerOpacity),
+                                    insetScale: 0
+                                )
+                            }
 
                             if viewModel.showDimensionLabels {
                                 let protectionAnchorX = Int(
@@ -264,21 +260,58 @@ struct ChartCanvasView: View {
                                     fl.protectionAnchorY
                                         ?? (viewModel.canvasHeight - prot.height) / 2
                                 )
-                                Text(verbatim: "Protection: \(Int(prot.width))\u{00D7}\(Int(prot.height))")
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.8) : .white.opacity(0.8))
-                                    .offset(x: protectionRect.minX + 4, y: protectionRect.minY + 2)
+                                let dimText = "Protection: \(Int(prot.width))\u{00D7}\(Int(prot.height))"
                                 let protectionAnchorText = "Anchor: \(protectionAnchorX), \(protectionAnchorY)"
+                                let protectionFont = fittedProtectionFontSize(
+                                    requested: detailFont,
+                                    protectionRect: protectionRect,
+                                    dimText: dimText,
+                                    anchorText: protectionAnchorText
+                                )
+                                let protectionLabelPlacement = protectionLabelPositions(
+                                    protectionRect: protectionRect,
+                                    framingRect: pos,
+                                    canvasRect: CGRect(x: originX, y: originY, width: scaledW, height: scaledH),
+                                    dimText: dimText,
+                                    anchorText: protectionAnchorText,
+                                    fontSize: protectionFont
+                                )
+                                Text(verbatim: dimText)
+                                    .font(.system(size: protectionFont, design: .monospaced))
+                                    .foregroundStyle(
+                                        viewModel.chartBackgroundTheme == .white
+                                            ? Color.orange.opacity(0.9 * layerOpacity)
+                                            : Color.white.opacity(0.8)
+                                    )
+                                    .rotationEffect(protectionLabelPlacement.dim.rotate ? .degrees(-90) : .zero)
+                                    .position(
+                                        x: protectionLabelPlacement.dim.rect.midX,
+                                        y: protectionLabelPlacement.dim.rect.midY
+                                    )
                                 Text(verbatim: protectionAnchorText)
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.8) : .white.opacity(0.8))
-                                    .offset(x: max(originX + 2, protectionRect.maxX - 126), y: max(originY + 2, protectionRect.maxY - 16))
+                                    .font(.system(size: protectionFont, design: .monospaced))
+                                    .foregroundStyle(
+                                        viewModel.chartBackgroundTheme == .white
+                                            ? Color.orange.opacity(0.9 * layerOpacity)
+                                            : Color.white.opacity(0.8)
+                                    )
+                                    .rotationEffect(protectionLabelPlacement.anchor.rotate ? .degrees(-90) : .zero)
+                                    .position(
+                                        x: protectionLabelPlacement.anchor.rect.midX,
+                                        y: protectionLabelPlacement.anchor.rect.midY
+                                    )
                             }
                         }
 
                         if viewModel.showFramingLayer {
                             let drawRect = adjustedForInsideStroke(pos, lineWidth: 2)
-                            if fl.style == .corners {
+                            if viewModel.chartBackgroundTheme == .white {
+                                Rectangle()
+                                    .fill(Color.white)
+                                    .frame(width: pos.width, height: pos.height)
+                                    .offset(x: pos.minX, y: pos.minY)
+                                    .opacity(layerOpacity)
+                            } else if fl.style == .corners {
                                 let c = max(6, min(drawRect.width, drawRect.height) * fl.styleLength)
                                 Path { p in
                                     // top-left
@@ -302,34 +335,28 @@ struct ChartCanvasView: View {
                                     p.move(to: CGPoint(x: drawRect.maxX, y: drawRect.maxY))
                                     p.addLine(to: CGPoint(x: drawRect.maxX, y: drawRect.maxY - c))
                                 }
-                                .stroke(color, lineWidth: 2)
-                            } else {
+                                .stroke(color.opacity(layerOpacity), lineWidth: 2)
+                            } else if viewModel.chartBackgroundTheme != .white {
                                 Rectangle()
-                                    .stroke(color, lineWidth: 2)
+                                    .stroke(color.opacity(layerOpacity), lineWidth: 2)
                                     .frame(width: drawRect.width, height: drawRect.height)
                                     .offset(x: drawRect.minX, y: drawRect.minY)
                             }
-
-                            // Crosshair
-                            if viewModel.showCrosshairs {
-                                let cx = pos.midX
-                                let cy = pos.midY
-                                Path { p in
-                                    p.move(to: CGPoint(x: cx - 8, y: cy))
-                                    p.addLine(to: CGPoint(x: cx + 8, y: cy))
-                                    p.move(to: CGPoint(x: cx, y: cy - 8))
-                                    p.addLine(to: CGPoint(x: cx, y: cy + 8))
-                                }
-                                .stroke(color.opacity(0.6), lineWidth: 1)
+                            if viewModel.chartBackgroundTheme == .white && viewModel.showBoundaryArrows {
+                                boundaryArrows(
+                                    for: pos,
+                                    color: color.opacity(layerOpacity),
+                                    insetScale: 0
+                                )
                             }
 
                             if viewModel.showLabels && !fl.label.isEmpty {
-                                let labelSize = max(8.0, min(14.0, min(pos.width, pos.height) * 0.05))
-                                let labelX = pos.midX - 40
-                                let labelY = pos.minY + 2
+                                let labelSize = max(8.0, min(38.0, min(pos.width, pos.height) * 0.05))
+                                let labelX = min(pos.maxX - 90, max(pos.minX + 6, pos.minX + 8))
+                                let labelY = pos.minY + 2 + labelLaneOffset
                                 Text(fl.label)
                                     .font(.system(size: labelSize))
-                                    .foregroundStyle(color)
+                                    .foregroundStyle(color.opacity(layerOpacity))
                                     .offset(x: labelX, y: labelY)
                             }
 
@@ -337,100 +364,142 @@ struct ChartCanvasView: View {
                                 let anchorX = Int(fl.anchorX ?? (fl.hAlign == .left ? 0 : (fl.hAlign == .right ? (viewModel.canvasWidth - fl.width) : (viewModel.canvasWidth - fl.width) / 2)))
                                 let anchorY = Int(fl.anchorY ?? (fl.vAlign == .top ? 0 : (fl.vAlign == .bottom ? (viewModel.canvasHeight - fl.height) : (viewModel.canvasHeight - fl.height) / 2)))
                                 let dimText = "Framing Decision: \(Int(fl.width))\u{00D7}\(Int(fl.height))"
-                                let dimX = pos.midX - 72
+                                let dimX = pos.minX + 4
                                 let dimY = pos.maxY - 14
                                 Text(verbatim: dimText)
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.85) : .white.opacity(0.85))
-                                    .offset(x: dimX, y: dimY)
+                                    .font(.system(size: detailFont, design: .monospaced))
+                                    .foregroundStyle(
+                                        viewModel.chartBackgroundTheme == .white
+                                            ? color.opacity(0.95 * layerOpacity)
+                                            : Color.white.opacity(0.85)
+                                    )
+                                    .offset(
+                                        x: max(originX + 4, min(originX + scaledW - 156, dimX)),
+                                        y: max(originY + 4, min(originY + scaledH - 16, dimY + labelLaneOffset))
+                                    )
                                     .help(dimText)
                                 Text(verbatim: "Anchor: \(anchorX), \(anchorY)")
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.85) : .white.opacity(0.85))
-                                    .offset(x: max(originX + 2, pos.maxX - 126), y: max(originY + 2, pos.maxY - 16))
+                                    .font(.system(size: detailFont, design: .monospaced))
+                                    .foregroundStyle(
+                                        viewModel.chartBackgroundTheme == .white
+                                            ? color.opacity(0.95 * layerOpacity)
+                                            : Color.white.opacity(0.85)
+                                    )
+                                    .offset(
+                                        x: max(originX + 2, min(originX + scaledW - 126, pos.maxX - 126 - labelLaneOffset)),
+                                        y: max(originY + 2, min(originY + scaledH - 16, pos.minY + 2 + labelLaneOffset))
+                                    )
                             }
                         }
                     }
 
-                    // Squeeze reference ellipse
-                    if viewModel.showSqueezeCircle && viewModel.anamorphicSqueeze != 1.0 {
-                        let centerX = originX + scaledW / 2
-                        let centerY = originY + scaledH / 2
-                        let radius = min(scaledW, scaledH) * 0.4
-                        let rx = radius / viewModel.anamorphicSqueeze
-                        let ry = radius
-
-                        Path { p in
-                            p.addEllipse(in: CGRect(
-                                x: centerX - rx,
-                                y: centerY - ry,
-                                width: rx * 2,
-                                height: ry * 2
-                            ))
+                    if viewModel.showSiemensStars {
+                        let starRects = siemensStarRects(
+                            originX: originX,
+                            originY: originY,
+                            canvasW: cw,
+                            canvasH: ch,
+                            scaleX: scaleX,
+                            scaleY: scaleY
+                        )
+                        ForEach(Array(starRects.enumerated()), id: \.offset) { _, rect in
+                            SiemensStarShape(theme: viewModel.chartBackgroundTheme)
+                                .frame(width: rect.width, height: rect.height)
+                                .position(x: rect.midX, y: rect.midY)
                         }
-                        .stroke(Color.gray.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                    }
-
-                    if viewModel.showCenterMarker {
-                        let cx = originX + scaledW / 2
-                        let cy = originY + scaledH / 2
-                        Path { p in
-                            p.move(to: CGPoint(x: cx - 12, y: cy))
-                            p.addLine(to: CGPoint(x: cx + 12, y: cy))
-                            p.move(to: CGPoint(x: cx, y: cy - 12))
-                            p.addLine(to: CGPoint(x: cx, y: cy + 12))
-                        }
-                        .stroke(Color.white.opacity(0.8), lineWidth: 1)
                     }
 
                     // Title
                     if !viewModel.chartTitle.isEmpty {
                         Text(viewModel.chartTitle)
                             .font(.caption)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(
+                                viewModel.chartBackgroundTheme == .white
+                                    ? Color.black.opacity(0.8)
+                                    : Color.white
+                            )
                             .frame(maxWidth: .infinity)
                             .offset(y: 8)
                     }
 
                     // Metadata / burn-ins
                     if viewModel.metadataBurnInEnabled {
+                        let zoomMetaFactor = max(0.6, min(8.0, Double(zoomScale)))
+                        let metadataFont = max(
+                            6.0,
+                            viewModel.metadataFontSize * zoomMetaFactor * (viewModel.showLogoOverlay ? 0.88 : 1.0)
+                        )
+                        let metadataAutoYOffset = viewModel.showLogoOverlay
+                            ? max(18.0, 28.0 * viewModel.logoScale)
+                            : 0.0
                         let framingSummary = viewModel.framelines.first.map { "\(Int($0.width))x\(Int($0.height))" } ?? "N/A"
                         let aspectSummary = viewModel.framelines.first.map { $0.height > 0 ? String(format: "%.2f:1", $0.width / $0.height) : "N/A" } ?? "N/A"
                         let cameraModel = viewModel.selectedCamera.map { "\($0.manufacturer) \($0.model)" } ?? "Custom Canvas"
                         let recordingMode = viewModel.selectedRecordingMode?.name ?? "Custom Mode"
                         VStack(alignment: .center, spacing: 2) {
-                            Text(viewModel.metadataShowName.isEmpty ? viewModel.chartTitle : viewModel.metadataShowName).font(.system(size: viewModel.metadataFontSize))
-                            if !viewModel.burnInDirector.isEmpty { Text("Dir: \(viewModel.burnInDirector)").font(.system(size: viewModel.metadataFontSize)) }
-                            Text("DP: \(viewModel.metadataDOP.isEmpty ? "—" : viewModel.metadataDOP)").font(.system(size: viewModel.metadataFontSize))
-                            Text("Camera: \(cameraModel)").font(.system(size: viewModel.metadataFontSize))
-                            Text("Mode: \(recordingMode)").font(.system(size: viewModel.metadataFontSize))
-                            Text("Framing Decision: \(framingSummary)").font(.system(size: viewModel.metadataFontSize))
-                            Text("Aspect Ratio: \(aspectSummary)").font(.system(size: viewModel.metadataFontSize))
-                            if !viewModel.burnInSampleText1.isEmpty { Text(viewModel.burnInSampleText1).font(.system(size: viewModel.metadataFontSize)) }
-                            if !viewModel.burnInSampleText2.isEmpty { Text(viewModel.burnInSampleText2).font(.system(size: viewModel.metadataFontSize)) }
+                            Text(viewModel.metadataShowName.isEmpty ? viewModel.chartTitle : viewModel.metadataShowName).font(.system(size: metadataFont))
+                            if !viewModel.burnInDirector.isEmpty { Text("Dir: \(viewModel.burnInDirector)").font(.system(size: metadataFont)) }
+                            Text("DP: \(viewModel.metadataDOP.isEmpty ? "—" : viewModel.metadataDOP)").font(.system(size: metadataFont))
+                            Text("Camera: \(cameraModel)").font(.system(size: metadataFont))
+                            Text("Mode: \(recordingMode)").font(.system(size: metadataFont))
+                            Text("Framing Decision: \(framingSummary)").font(.system(size: metadataFont))
+                            Text("Aspect Ratio: \(aspectSummary)").font(.system(size: metadataFont))
+                            if !viewModel.burnInSampleText1.isEmpty { Text(viewModel.burnInSampleText1).font(.system(size: metadataFont)) }
+                            if !viewModel.burnInSampleText2.isEmpty { Text(viewModel.burnInSampleText2).font(.system(size: metadataFont)) }
                         }
                         .multilineTextAlignment(.center)
                         .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.75) : .white.opacity(0.7))
                         .frame(width: scaledW, height: scaledH, alignment: .center)
-                        .offset(x: originX + viewModel.metadataOffsetX, y: originY + viewModel.metadataOffsetY)
+                        .offset(
+                            x: originX + viewModel.metadataOffsetX,
+                            y: originY + viewModel.metadataOffsetY + metadataAutoYOffset
+                        )
+                    }
+
+                    if viewModel.showCenterMarker {
+                        let cx = originX + scaledW / 2
+                        let cy = originY + scaledH / 2
+                        let markerLen = 12.0 * max(0.6, min(8.0, Double(zoomScale)))
+                        let markerWidth = max(1.0, 1.0 * max(0.6, min(8.0, Double(zoomScale))))
+                        Path { p in
+                            p.move(to: CGPoint(x: cx - markerLen, y: cy))
+                            p.addLine(to: CGPoint(x: cx + markerLen, y: cy))
+                            p.move(to: CGPoint(x: cx, y: cy - markerLen))
+                            p.addLine(to: CGPoint(x: cx, y: cy + markerLen))
+                        }
+                        .stroke(
+                            viewModel.chartBackgroundTheme == .white
+                                ? Color.black.opacity(0.7)
+                                : Color.white.opacity(0.8),
+                            lineWidth: markerWidth
+                        )
                     }
 
                     if viewModel.showLogoOverlay {
                         let centerX = originX + scaledW / 2
                         let centerY = originY + scaledH / 2
+                        let squeeze = max(1.0, viewModel.anamorphicSqueeze)
+                        let previewFactor = (viewModel.previewDesqueezed && squeeze > 1.0) ? squeeze : 1.0
+                        let logoScaleX = previewFactor / squeeze
                         Group {
                             if let data = viewModel.logoImageData,
                                let nsImage = NSImage(data: data) {
+                                let zoomLogoFactor = max(0.6, min(8.0, Double(zoomScale)))
                                 Image(nsImage: nsImage)
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(width: 80 * viewModel.logoScale, height: 30 * viewModel.logoScale)
+                                    .frame(
+                                        width: 80 * viewModel.logoScale * zoomLogoFactor,
+                                        height: 30 * viewModel.logoScale * zoomLogoFactor
+                                    )
                             } else if !viewModel.logoText.isEmpty {
+                                let zoomLogoFactor = max(0.6, min(8.0, Double(zoomScale)))
                                 Text(viewModel.logoText)
-                                    .font(.system(size: 10 * viewModel.logoScale))
+                                    .font(.system(size: 10 * viewModel.logoScale * zoomLogoFactor))
                                     .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.75) : .white.opacity(0.7))
                             }
                         }
+                        .scaleEffect(x: logoScaleX, y: 1.0, anchor: .center)
                         .position(x: centerX + viewModel.logoOffsetX, y: centerY + viewModel.logoOffsetY)
                     }
                 }
@@ -478,7 +547,8 @@ struct ChartCanvasView: View {
             }
             return framelinePosition(first, canvasW: canvasW, canvasH: canvasH, scaleX: scaleX, scaleY: scaleY, originX: originX, originY: originY)
         }()
-        let base = max(34.0, min(68.0, min(target.width, target.height) * 0.125))
+        // Keep stars proportional to current visible chart geometry.
+        let base = max(6.0, min(68.0, min(target.width, target.height) * 0.125))
         let factor: Double
         switch viewModel.siemensStarSize {
         case .small: factor = 1.15
@@ -491,8 +561,8 @@ struct ChartCanvasView: View {
         // In sensor/squeezed view stars follow source anamorphic squeeze.
         // In de-squeezed preview they morph with canvas back to 1:1.
         let w = (h / squeeze) * previewFactor
-        let insetX = (w / 2) + max(18.0, target.width * 0.12)
-        let insetY = (h / 2) + max(18.0, target.height * 0.12)
+        let insetX = (w / 2) + max(4.0, target.width * 0.12)
+        let insetY = (h / 2) + max(4.0, target.height * 0.12)
         return [
             CGRect(x: target.minX + insetX - w / 2, y: target.minY + insetY - h / 2, width: w, height: h),
             CGRect(x: target.maxX - insetX - w / 2, y: target.minY + insetY - h / 2, width: w, height: h),
@@ -501,34 +571,190 @@ struct ChartCanvasView: View {
         ]
     }
 
-    private func canvasDimensionLabelPosition(
-        originX: Double,
-        originY: Double,
-        scaledW: Double,
-        scaledH: Double,
-        canvasW: Double,
-        canvasH: Double,
-        scaleX: Double,
-        scaleY: Double
-    ) -> (x: Double, y: Double) {
-        var x = originX + scaledW - 150
-        var y = originY + scaledH - 16
-        for fl in viewModel.framelines {
-            let rect = framelinePosition(fl, canvasW: canvasW, canvasH: canvasH, scaleX: scaleX, scaleY: scaleY, originX: originX, originY: originY)
-            let overlaps = x + 146 > rect.minX && x < rect.maxX && y + 12 > rect.minY && y < rect.maxY
-            if overlaps {
-                y = max(originY + 4, rect.minY - 14)
-                x = min(x, rect.minX - 150)
-            }
-        }
-        x = min(max(x, originX + 4), originX + scaledW - 146)
-        y = min(max(y, originY + 10), originY + scaledH - 4)
-        return (x, y)
-    }
-
     private func adjustedForInsideStroke(_ rect: CGRect, lineWidth: Double) -> CGRect {
         let half = lineWidth / 2.0
         return rect.insetBy(dx: half, dy: half)
+    }
+
+    @ViewBuilder
+    private func boundaryArrows(
+        for rect: CGRect,
+        color: Color,
+        insetScale: Int
+    ) -> some View {
+        let size = max(0.72, min(1.5, viewModel.boundaryArrowScale))
+        let zoomFactor = max(0.6, min(8.0, Double(zoomScale)))
+        let arrow = 16.0 * size * zoomFactor
+        let halfBase = 9.0 * size * zoomFactor
+        let laneInset = Double(insetScale) * max(2.0, 2.0 * size)
+        let minX = snap(rect.minX)
+        let maxX = snap(rect.maxX)
+        let minY = snap(rect.minY)
+        let maxY = snap(rect.maxY)
+        let midX = snap(rect.midX)
+        let midY = snap(rect.midY)
+        // Primary lane (insetScale = 0) has tips exactly on edge pixels.
+        let topTip = CGPoint(x: midX, y: snap(minY + laneInset))
+        let bottomTip = CGPoint(x: midX, y: snap(maxY - laneInset))
+        let leftTip = CGPoint(x: snap(minX + laneInset), y: midY)
+        let rightTip = CGPoint(x: snap(maxX - laneInset), y: midY)
+        Path { p in
+            // Top triangle: tip hits exact edge; triangle body stays inside rect.
+            p.move(to: topTip)
+            p.addLine(to: CGPoint(x: snap(topTip.x - halfBase), y: snap(topTip.y + arrow)))
+            p.addLine(to: CGPoint(x: snap(topTip.x + halfBase), y: snap(topTip.y + arrow)))
+            p.closeSubpath()
+
+            // Bottom triangle: tip hits exact edge; triangle body stays inside rect.
+            p.move(to: bottomTip)
+            p.addLine(to: CGPoint(x: snap(bottomTip.x - halfBase), y: snap(bottomTip.y - arrow)))
+            p.addLine(to: CGPoint(x: snap(bottomTip.x + halfBase), y: snap(bottomTip.y - arrow)))
+            p.closeSubpath()
+
+            // Left triangle: tip hits exact edge; triangle body stays inside rect.
+            p.move(to: leftTip)
+            p.addLine(to: CGPoint(x: snap(leftTip.x + arrow), y: snap(leftTip.y - halfBase)))
+            p.addLine(to: CGPoint(x: snap(leftTip.x + arrow), y: snap(leftTip.y + halfBase)))
+            p.closeSubpath()
+
+            // Right triangle: tip hits exact edge; triangle body stays inside rect.
+            p.move(to: rightTip)
+            p.addLine(to: CGPoint(x: snap(rightTip.x - arrow), y: snap(rightTip.y - halfBase)))
+            p.addLine(to: CGPoint(x: snap(rightTip.x - arrow), y: snap(rightTip.y + halfBase)))
+            p.closeSubpath()
+        }
+        .fill(color.opacity(0.95))
+    }
+
+    private struct LabelPlacement {
+        let origin: CGPoint
+        let rect: CGRect
+        let rotate: Bool
+    }
+
+    private func protectionLabelPositions(
+        protectionRect: CGRect,
+        framingRect: CGRect,
+        canvasRect: CGRect,
+        dimText: String,
+        anchorText: String,
+        fontSize: Double
+    ) -> (dim: LabelPlacement, anchor: LabelPlacement) {
+        let dim = bestProtectionLabelPlacement(
+            text: dimText,
+            fontSize: fontSize,
+            protectionRect: protectionRect,
+            canvasRect: canvasRect,
+            avoidRects: [framingRect]
+        )
+        let anchor = bestProtectionLabelPlacement(
+            text: anchorText,
+            fontSize: fontSize,
+            protectionRect: protectionRect,
+            canvasRect: canvasRect,
+            avoidRects: [framingRect, dim.rect.insetBy(dx: -2, dy: -2)]
+        )
+        return (dim: dim, anchor: anchor)
+    }
+
+    private func bestProtectionLabelPlacement(
+        text: String,
+        fontSize: Double,
+        protectionRect: CGRect,
+        canvasRect: CGRect,
+        avoidRects: [CGRect]
+    ) -> LabelPlacement {
+        let pad = 14.0
+        let textSize = measuredTextSize(text: text, fontSize: fontSize)
+        let horizontalSize = CGSize(width: textSize.width, height: textSize.height)
+
+        // Keep protection labels on the interior-left side to avoid right-edge clipping
+        // in very small protection bands.
+        let horizCandidates: [(CGPoint, CGSize, Bool)] = [
+            (CGPoint(x: protectionRect.minX + pad, y: protectionRect.minY + pad), horizontalSize, false),
+            (CGPoint(x: protectionRect.minX + pad, y: protectionRect.maxY - horizontalSize.height - pad), horizontalSize, false),
+        ]
+        let all = horizCandidates
+
+        var best: LabelPlacement?
+        var bestScore = Double.greatestFiniteMagnitude
+        for (origin, size, rotate) in all {
+            let rect = CGRect(origin: origin, size: size)
+            let inProtection = protectionRect.contains(rect)
+            let inCanvas = canvasRect.contains(rect)
+            if !inProtection || !inCanvas { continue }
+
+            var penalty = 0.0
+            for avoid in avoidRects where rect.intersects(avoid) {
+                penalty += 1000
+            }
+            if rotate { penalty += 12 } // (currently unused; all candidates horizontal)
+
+            if penalty < bestScore {
+                bestScore = penalty
+                best = LabelPlacement(origin: origin, rect: rect, rotate: rotate)
+            }
+        }
+
+        if let best {
+            return best
+        }
+
+        // Last-resort clamp within protection and canvas (still inside protection box).
+        let clampedX = max(
+            protectionRect.minX + pad,
+            min(
+                protectionRect.maxX - horizontalSize.width - pad,
+                canvasRect.maxX - horizontalSize.width - pad
+            )
+        )
+        let clampedY = max(
+            protectionRect.minY + pad,
+            min(
+                protectionRect.maxY - horizontalSize.height - pad,
+                canvasRect.maxY - horizontalSize.height - pad
+            )
+        )
+        let fallbackRect = CGRect(
+            x: clampedX,
+            y: clampedY,
+            width: horizontalSize.width,
+            height: horizontalSize.height
+        )
+        return LabelPlacement(origin: fallbackRect.origin, rect: fallbackRect, rotate: false)
+    }
+
+    private func measuredTextSize(text: String, fontSize: Double) -> CGSize {
+        let font = NSFont.monospacedSystemFont(ofSize: CGFloat(fontSize), weight: .regular)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let size = (text as NSString).size(withAttributes: attrs)
+        // Include safety margin for glyph overhang and antialiasing.
+        return CGSize(width: ceil(size.width + 16), height: ceil(size.height + 4))
+    }
+
+    private func fittedProtectionFontSize(
+        requested: Double,
+        protectionRect: CGRect,
+        dimText: String,
+        anchorText: String
+    ) -> Double {
+        var font = requested
+        for _ in 0..<10 {
+            let dimSize = measuredTextSize(text: dimText, fontSize: font)
+            let anchorSize = measuredTextSize(text: anchorText, fontSize: font)
+            let maxWidth = max(24.0, protectionRect.width - 28.0)
+            let totalHeight = dimSize.height + anchorSize.height + 6
+            if dimSize.width <= maxWidth && anchorSize.width <= maxWidth && totalHeight <= (protectionRect.height - 8.0) {
+                return font
+            }
+            font *= 0.88
+        }
+        return max(6.0, font)
+    }
+
+    private func snap(_ value: Double) -> Double {
+        let scale = max(1.0, displayScale)
+        return (value * scale).rounded() / scale
     }
 
     @ViewBuilder
@@ -554,18 +780,37 @@ struct ChartCanvasView: View {
                 y += spacing
             }
         }
-        .stroke(viewModel.chartBackgroundTheme == .white ? Color.black.opacity(0.15) : Color.white.opacity(0.1), lineWidth: 0.5)
+        .stroke(
+            viewModel.chartBackgroundTheme == .white ? Color.black.opacity(0.15) : Color.white.opacity(0.1),
+            lineWidth: max(0.5, 0.5 * max(0.6, min(8.0, Double(zoomScale))))
+        )
     }
 
     private var previewGestures: some Gesture {
         SimultaneousGesture(
             MagnificationGesture()
                 .onChanged { value in
-                    zoomScale = min(max(value, 0.1), 10.0)
+                    if pinchStartZoomScale == nil {
+                        pinchStartZoomScale = zoomScale
+                    }
+                    let start = pinchStartZoomScale ?? zoomScale
+                    zoomScale = min(max(start * value, 0.05), 48.0)
+                }
+                .onEnded { _ in
+                    pinchStartZoomScale = nil
                 },
             DragGesture()
                 .onChanged { value in
-                    panOffset = value.translation
+                    panOffset = CGSize(
+                        width: accumulatedPanOffset.width + value.translation.width,
+                        height: accumulatedPanOffset.height + value.translation.height
+                    )
+                }
+                .onEnded { value in
+                    accumulatedPanOffset = CGSize(
+                        width: accumulatedPanOffset.width + value.translation.width,
+                        height: accumulatedPanOffset.height + value.translation.height
+                    )
                 }
         )
     }

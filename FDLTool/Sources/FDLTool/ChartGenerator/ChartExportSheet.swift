@@ -4,7 +4,8 @@ import SwiftUI
 struct ChartExportSheet: View {
     @ObservedObject var viewModel: ChartGeneratorViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedFormat: ExportFormat = .svg
+    @State private var selectedFormat: ExportFormat = .tiff
+    @State private var selectedFormats: Set<ExportFormat> = [.tiff]
     @State private var printSafeMarginPercent: Double = 0
 
     var body: some View {
@@ -18,6 +19,35 @@ struct ChartExportSheet: View {
                     .frame(width: 52, alignment: .leading)
                 ExportFormatPicker(selectedFormat: $selectedFormat, options: availableFormats, compactMenuStyle: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Export one or more formats")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                LazyVGrid(columns: [
+                    GridItem(.adaptive(minimum: 100), spacing: 8),
+                ], spacing: 6) {
+                    ForEach(availableFormats) { format in
+                        Button {
+                            if selectedFormats.contains(format) {
+                                selectedFormats.remove(format)
+                            } else {
+                                selectedFormats.insert(format)
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: selectedFormats.contains(format) ? "checkmark.circle.fill" : "circle")
+                                Text(format.rawValue)
+                                    .lineLimit(1)
+                            }
+                            .font(.caption)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(selectedFormats.contains(format) ? .accentColor : .secondary)
+                    }
+                }
             }
 
             // Format-specific options
@@ -95,42 +125,30 @@ struct ChartExportSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Export") {
-                    let format = selectedFormat
+                    let formats = selectedFormats.isEmpty ? [selectedFormat] : Array(selectedFormats)
                     let margin = printSafeMarginPercent
+                    viewModel.requestExport(formats: formats, printSafeMarginPercent: margin)
                     dismiss()
-                    // Launch save panel after this modal sheet closes.
-                    DispatchQueue.main.async {
-                        performExport(format: format, printSafeMarginPercent: margin)
-                    }
                 }
                 .keyboardShortcut(.defaultAction)
+                .disabled(selectedFormats.isEmpty && availableFormats.isEmpty)
             }
         }
         .padding()
         .frame(width: 380)
         .onAppear {
             if !availableFormats.contains(selectedFormat) {
-                selectedFormat = .svg
+                selectedFormat = .tiff
+            }
+            selectedFormats = Set(selectedFormats.filter { availableFormats.contains($0) })
+            if selectedFormats.isEmpty {
+                selectedFormats.insert(selectedFormat)
             }
         }
-    }
-
-    private func performExport(format: ExportFormat, printSafeMarginPercent: Double) {
-        switch format {
-        case .svg:
-            viewModel.exportSVG(printSafeMarginPercent: printSafeMarginPercent)
-        case .png:
-            viewModel.exportPNG(printSafeMarginPercent: printSafeMarginPercent)
-        case .tiff:
-            viewModel.exportTIFF(printSafeMarginPercent: printSafeMarginPercent)
-        case .pdf:
-            viewModel.exportPDF(printSafeMarginPercent: printSafeMarginPercent)
-        case .arriXML:
-            viewModel.exportArriXML()
-        case .sonyXML:
-            viewModel.exportSonyXML()
-        case .json:
-            viewModel.exportFDL()
+        .onDisappear {
+            // Fallback trigger: if parent sheet state onChange is skipped,
+            // run the queued export once the sheet is gone.
+            viewModel.runPendingExportRequestIfNeeded()
         }
     }
 
@@ -148,12 +166,7 @@ struct ChartExportSheet: View {
     }
 
     private var supportsPrintSafeOption: Bool {
-        switch selectedFormat {
-        case .pdf:
-            return true
-        default:
-            return false
-        }
+        selectedFormats.contains(.pdf) || (selectedFormats.isEmpty && selectedFormat == .pdf)
     }
 }
 

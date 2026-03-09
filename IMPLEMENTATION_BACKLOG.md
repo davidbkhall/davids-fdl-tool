@@ -175,10 +175,18 @@ Evaluate usability, performance, and visual polish across Viewer, Library, Chart
 
 Status: PR is open, but merge is intentionally blocked pending these fixes.
 
+Compatibility note:
+- `template.apply_fdl` now includes a deterministic ASC-parity guard so behavior stays stable across different installed `fdl` library versions. Native library output is used only when geometry matches the spec-aligned deterministic path; otherwise backend falls back to deterministic output for consistent CI and user results.
+
 - [ ] Chart Generator export interactions still not working reliably.
-- [ ] Logo overlay should follow the same anisotropic squeeze/de-squeeze deformation behavior as Siemens stars/canvas when anamorphic > 1.0.
+  - Added stronger export payload error surfacing in `ChartGeneratorViewModel`; still needs manual reliability verification in-app.
+- [x] Logo overlay should follow the same anisotropic squeeze/de-squeeze deformation behavior as Siemens stars/canvas when anamorphic > 1.0.
 - [ ] Dimension and anchor label positioning still needs refinement.
-- [ ] Chart Preview default theme should be `White` (not `Dark`).
-- [ ] Remove `Squeeze Circle` and `Center Marker` from Layers options.
-- [ ] Add boundary arrows for dimension regions similar to reference chart example.
-- [ ] Replace inset stroked boundary boxes with exact-pixel region shading for canvas/effective/protection/framing areas (reference chart style).
+  - Improved protection/framing anchor pinning and edge placement; continue tuning to avoid collisions in dense layouts.
+- [ ] Protection label visibility bug at small percentages (e.g., 5%).
+  - In `ChartCanvasView`, protection dimension/anchor labels can still clip or disappear in narrow bands despite placement guards.
+  - Next pass should use deterministic center-based placement with explicit measured text frames and guaranteed in-bounds rendering (preview and export parity).
+- [x] Chart Preview default theme should be `White` (not `Dark`).
+- [x] Remove `Squeeze Circle` and `Center Marker` from Layers options.
+- [x] Add boundary arrows for dimension regions similar to reference chart example.
+- [x] In Chart Preview White theme, replace inset stroked boundary boxes with exact-pixel region shading for canvas/effective/protection/framing areas (reference chart style).
