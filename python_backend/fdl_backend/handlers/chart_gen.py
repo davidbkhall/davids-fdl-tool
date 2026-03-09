@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import re
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -572,11 +574,10 @@ def generate_png(params: dict) -> dict:
 
     _draw_png_common_overlays(draw, scene, cx, cy, cw, ch)
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG", dpi=(dpi, dpi))
-    png_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-
-    return {"png_base64": png_b64}
+    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    img.save(tmp.name, format="PNG", dpi=(dpi, dpi))
+    tmp.close()
+    return {"file_path": tmp.name, "format": "png"}
 
 
 def generate_tiff(params: dict) -> dict:
@@ -737,10 +738,10 @@ def generate_tiff(params: dict) -> dict:
 
     _draw_png_common_overlays(draw, scene, cx, cy, cw, ch)
 
-    buf = io.BytesIO()
-    img.save(buf, format="TIFF", dpi=(dpi, dpi))
-    tiff_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-    return {"tiff_base64": tiff_b64}
+    tmp = tempfile.NamedTemporaryFile(suffix=".tiff", delete=False)
+    img.save(tmp.name, format="TIFF", compression="tiff_lzw", dpi=(dpi, dpi))
+    tmp.close()
+    return {"file_path": tmp.name, "format": "tiff"}
 
 
 def generate_pdf(params: dict) -> dict:
@@ -749,7 +750,10 @@ def generate_pdf(params: dict) -> dict:
         raise ImportError("cairosvg is required for PDF generation. Install with: pip install cairosvg")
     svg = generate_svg(params)["svg"]
     pdf_bytes = cairosvg.svg2pdf(bytestring=svg.encode("utf-8"))
-    return {"pdf_base64": base64.b64encode(pdf_bytes).decode("ascii")}
+    tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+    tmp.write(pdf_bytes)
+    tmp.close()
+    return {"file_path": tmp.name, "format": "pdf"}
 
 
 def generate_fdl(params: dict) -> dict:

@@ -48,11 +48,15 @@ private struct ChartGeneratorContent: View {
                     .disabled(viewModel.framelines.isEmpty)
 
                     Button(action: { viewModel.showExportSheet = true }) {
-                        Label("Export", systemImage: "square.and.arrow.up")
+                        if viewModel.isExporting {
+                            Label("Exporting…", systemImage: "clock.arrow.circlepath")
+                        } else {
+                            Label("Export", systemImage: "square.and.arrow.up")
+                        }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(viewModel.framelines.isEmpty)
+                    .disabled(viewModel.framelines.isEmpty || viewModel.isExporting)
 
                     Button(action: { viewModel.showSaveToLibrary = true }) {
                         Label("Save to Library", systemImage: "folder.badge.plus")
