@@ -47,6 +47,11 @@ if [ -d "$PROJECT_DIR/python_backend" ]; then
     cp -r "$PROJECT_DIR/python_backend/fdl_backend" "$APP_DIR/Contents/Resources/python_backend/"
     # Copy setup files needed for imports
     [ -f "$PROJECT_DIR/python_backend/pyproject.toml" ] && cp "$PROJECT_DIR/python_backend/pyproject.toml" "$APP_DIR/Contents/Resources/python_backend/"
+    # Bundle vendored pure-Python packages (fdl, fdl_arri_frameline, fdl_sony_frameline, jsonschema, etc.)
+    if [ -d "$PROJECT_DIR/python_backend/vendor" ]; then
+        echo "Bundling vendored Python packages..."
+        cp -r "$PROJECT_DIR/python_backend/vendor" "$APP_DIR/Contents/Resources/python_backend/"
+    fi
 fi
 
 # Write Info.plist

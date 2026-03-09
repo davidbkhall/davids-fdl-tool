@@ -16,6 +16,10 @@ dependencies = [
 fdl = [
     "fdl",
 ]
+frameline = [
+    "fdl-arri-frameline",
+    "fdl-sony-frameline",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -24,6 +28,8 @@ full = [
     "fdl",
     "OpenImageIO",
     "cairosvg>=2.7",
+    "fdl-arri-frameline",
+    "fdl-sony-frameline",
 ]
 
 [tool.setuptools.packages.find]
@@ -35,6 +41,7 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+exclude = ["vendor"]
 
 [tool.ruff.lint]
 select = [

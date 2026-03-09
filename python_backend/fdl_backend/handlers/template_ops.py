@@ -123,24 +123,104 @@ def apply_fdl_template(params: dict) -> dict:
     canvas_idx = params.get("canvas_index", 0)
     fd_idx = params.get("fd_index", 0)
 
-    if HAS_FDL:
-        try:
-            return _apply_with_library(params)
-        except Exception:
-            pass
-
-    return _apply_canvas_template_dict(
-        json.loads(fdl_json),
-        json.loads(template_json),
+    source_fdl = json.loads(fdl_json)
+    template_data = json.loads(template_json)
+    dict_result = _apply_canvas_template_dict(
+        source_fdl,
+        template_data,
         ctx_idx,
         canvas_idx,
         fd_idx,
+    )
+
+    if HAS_FDL:
+        try:
+            library_result = _apply_with_library(params)
+            new_canvas_id = params.get("new_canvas_id")
+            if _template_results_are_compatible(library_result, dict_result, ctx_idx, new_canvas_id):
+                return library_result
+        except Exception:
+            pass
+
+    return dict_result
+
+
+def _template_results_are_compatible(
+    library_result: dict,
+    dict_result: dict,
+    ctx_idx: int,
+    new_canvas_id: str | None,
+    tol: float = 1.0,
+) -> bool:
+    lib_canvas = _pick_canvas_from_result(library_result, ctx_idx, new_canvas_id)
+    dict_canvas = _pick_canvas_from_result(dict_result, ctx_idx, new_canvas_id)
+    if not lib_canvas or not dict_canvas:
+        return False
+    if not _dims_close(lib_canvas.get("dimensions"), dict_canvas.get("dimensions"), tol):
+        return False
+    if not _dims_close(lib_canvas.get("effective_dimensions"), dict_canvas.get("effective_dimensions"), tol):
+        return False
+    if not _points_close(
+        lib_canvas.get("effective_anchor_point"),
+        dict_canvas.get("effective_anchor_point"),
+        tol,
+    ):
+        return False
+    lib_fds = lib_canvas.get("framing_decisions") or []
+    dict_fds = dict_canvas.get("framing_decisions") or []
+    if bool(lib_fds) != bool(dict_fds):
+        return False
+    return not (
+        lib_fds
+        and dict_fds
+        and not _dims_close(
+            lib_fds[0].get("dimensions"),
+            dict_fds[0].get("dimensions"),
+            tol,
+        )
+    )
+
+
+def _pick_canvas_from_result(result: dict, ctx_idx: int, canvas_id: str | None) -> dict | None:
+    contexts = (result.get("fdl") or {}).get("contexts", [])
+    if ctx_idx >= len(contexts):
+        return None
+    canvases = contexts[ctx_idx].get("canvases", [])
+    if canvas_id:
+        for canvas in canvases:
+            if canvas.get("id") == canvas_id:
+                return canvas
+    return canvases[-1] if canvases else None
+
+
+def _dims_close(a: dict | None, b: dict | None, tol: float) -> bool:
+    if not a and not b:
+        return True
+    if not a or not b:
+        return False
+    return (
+        abs(float(a.get("width", 0)) - float(b.get("width", 0))) <= tol
+        and abs(float(a.get("height", 0)) - float(b.get("height", 0))) <= tol
+    )
+
+
+def _points_close(a: dict | None, b: dict | None, tol: float) -> bool:
+    if not a and not b:
+        return True
+    if not a or not b:
+        return False
+    return (
+        abs(float(a.get("x", 0)) - float(b.get("x", 0))) <= tol
+        and abs(float(a.get("y", 0)) - float(b.get("y", 0))) <= tol
     )
 
 
 def _apply_with_library(params: dict) -> dict:
     """Apply using the native fdl library's CanvasTemplate."""
     from fdl import CanvasTemplate
+    from fdl.constants import FitMethod, GeometryPath, HAlign, RoundingEven, RoundingMode, VAlign
+    from fdl.fdl_types import DimensionsInt
+    from fdl.rounding import RoundStrategy
 
     fdl_json = params.get("fdl_json", "{}")
     template_json = params.get("template_json", "{}")
@@ -157,7 +237,39 @@ def _apply_with_library(params: dict) -> dict:
     source_canvas = list(source_ctx.canvases)[canvas_idx]
     source_fd = list(source_canvas.framing_decisions)[fd_idx]
 
-    template_obj = CanvasTemplate(**template_data)
+    target_dimensions = template_data.get("target_dimensions", {})
+    maximum_dimensions = template_data.get("maximum_dimensions")
+    round_dict = template_data.get("round", {})
+
+    template_kwargs: dict[str, Any] = {
+        "id": str(template_data.get("id") or str(uuid.uuid4())),
+        "label": str(template_data.get("label", "")),
+        "target_dimensions": DimensionsInt(
+            width=int(target_dimensions.get("width", 0)),
+            height=int(target_dimensions.get("height", 0)),
+        ),
+        "target_anamorphic_squeeze": float(template_data.get("target_anamorphic_squeeze", 1.0)),
+        "fit_source": GeometryPath(template_data.get("fit_source", "framing_decision.dimensions")),
+        "fit_method": FitMethod(template_data.get("fit_method", "fit_all")),
+        "alignment_method_horizontal": HAlign(template_data.get("alignment_method_horizontal", "center")),
+        "alignment_method_vertical": VAlign(template_data.get("alignment_method_vertical", "center")),
+        "round": RoundStrategy(
+            even=RoundingEven(round_dict.get("even", "even")),
+            mode=RoundingMode(round_dict.get("mode", "round")),
+        ),
+        "pad_to_maximum": bool(template_data.get("pad_to_maximum", False)),
+    }
+
+    preserve_from_source_canvas = template_data.get("preserve_from_source_canvas")
+    if preserve_from_source_canvas:
+        template_kwargs["preserve_from_source_canvas"] = GeometryPath(preserve_from_source_canvas)
+    if maximum_dimensions:
+        template_kwargs["maximum_dimensions"] = DimensionsInt(
+            width=int(maximum_dimensions.get("width", 0)),
+            height=int(maximum_dimensions.get("height", 0)),
+        )
+
+    template_obj = CanvasTemplate(**template_kwargs)
     result = template_obj.apply(
         source_canvas=source_canvas,
         source_framing=source_fd,
@@ -266,30 +378,45 @@ def _apply_canvas_template_dict(
     if src_w <= 0 or src_h <= 0:
         raise ValueError("Source dimensions are zero")
 
-    # 2. Compute scale factor
-    scale_x = target_w / src_w
-    scale_y = target_h / src_h
+    # 2. Compute output effective dimensions from source aspect.
+    # ASC behavior is based on display aspect (desqueezed width), while
+    # persisted dimensions remain in squeezed source space.
+    display_src_w = src_w * squeeze
+    source_aspect = display_src_w / src_h
+    target_aspect = target_w / target_h if target_h > 0 else source_aspect
 
-    if fit_method == "fit_all":
-        scale = min(scale_x, scale_y)
-    elif fit_method == "fill":
-        scale = max(scale_x, scale_y)
-    elif fit_method == "width":
-        scale = scale_x
+    if fit_method == "width":
+        out_eff_w = target_w
+        out_eff_h = target_w / source_aspect
     elif fit_method == "height":
-        scale = scale_y
-    else:
-        scale = min(scale_x, scale_y)
+        out_eff_h = target_h
+        out_eff_w = target_h * source_aspect
+    elif fit_method == "fill":
+        if source_aspect >= target_aspect:
+            out_eff_h = target_h
+            out_eff_w = target_h * source_aspect
+        else:
+            out_eff_w = target_w
+            out_eff_h = target_w / source_aspect
+    else:  # fit_all
+        if source_aspect >= target_aspect:
+            out_eff_w = target_w
+            out_eff_h = target_w / source_aspect
+        else:
+            out_eff_h = target_h
+            out_eff_w = target_h * source_aspect
 
-    # 3. Scale all geometry
-    new_canvas_w = canvas_w * scale
-    new_canvas_h = canvas_h * scale
-    new_eff_w = eff_w * scale
-    new_eff_h = eff_h * scale
-    new_fd_w = fd_w * scale
-    new_fd_h = fd_h * scale
-    new_prot_w = prot_w * scale if prot_w else None
-    new_prot_h = prot_h * scale if prot_h else None
+    # ASC expected output dimensions are expressed in display-space width.
+    new_eff_w = out_eff_w
+    new_eff_h = out_eff_h
+
+    # 3. Scale geometry into the output effective region.
+    scale_w = new_eff_w / fd_w if fd_w > 0 else 1.0
+    scale_h = new_eff_h / fd_h if fd_h > 0 else 1.0
+    new_fd_w = new_eff_w
+    new_fd_h = new_eff_h
+    new_prot_w = prot_w * scale_w if prot_w else None
+    new_prot_h = prot_h * scale_h if prot_h else None
 
     # 4. Round
     def _round(val: float) -> float:
@@ -304,8 +431,6 @@ def _apply_canvas_template_dict(
         else:
             return round(val / base) * base
 
-    new_canvas_w = _round(new_canvas_w)
-    new_canvas_h = _round(new_canvas_h)
     new_eff_w = _round(new_eff_w)
     new_eff_h = _round(new_eff_h)
     new_fd_w = _round(new_fd_w)
@@ -316,14 +441,17 @@ def _apply_canvas_template_dict(
 
     # 5. Apply maximum dimensions
     if max_dims:
-        max_w = float(max_dims.get("width", new_canvas_w))
-        max_h = float(max_dims.get("height", new_canvas_h))
+        max_w = float(max_dims.get("width", new_eff_w))
+        max_h = float(max_dims.get("height", new_eff_h))
         if pad_to_max:
-            new_canvas_w = max(new_canvas_w, max_w)
-            new_canvas_h = max(new_canvas_h, max_h)
+            new_canvas_w = max_w
+            new_canvas_h = max_h
         else:
-            new_canvas_w = min(new_canvas_w, max_w)
-            new_canvas_h = min(new_canvas_h, max_h)
+            new_canvas_w = min(new_eff_w, max_w)
+            new_canvas_h = min(new_eff_h, max_h)
+    else:
+        new_canvas_w = new_eff_w
+        new_canvas_h = new_eff_h
 
     # 6. Compute anchor for framing within canvas
     def _align(canvas_dim: float, fd_dim: float, mode: str) -> float:
@@ -350,13 +478,18 @@ def _apply_canvas_template_dict(
     }
     out_canvas["anamorphic_squeeze"] = squeeze
 
-    if eff_dims or new_eff_w != new_canvas_w or new_eff_h != new_canvas_h:
-        out_canvas["effective_dimensions"] = {
-            "width": min(new_eff_w, new_canvas_w),
-            "height": min(new_eff_h, new_canvas_h),
-        }
-    else:
-        out_canvas.pop("effective_dimensions", None)
+    eff_w_out = min(new_eff_w, new_canvas_w)
+    eff_h_out = min(new_eff_h, new_canvas_h)
+    eff_anchor_x = _align(new_canvas_w, eff_w_out, align_h)
+    eff_anchor_y = _align(new_canvas_h, eff_h_out, align_v)
+    out_canvas["effective_dimensions"] = {
+        "width": eff_w_out,
+        "height": eff_h_out,
+    }
+    out_canvas["effective_anchor_point"] = {
+        "x": eff_anchor_x,
+        "y": eff_anchor_y,
+    }
 
     if src_fd and fd_idx < len(out_canvas.get("framing_decisions", [])):
         out_fd = out_canvas["framing_decisions"][fd_idx]
@@ -379,8 +512,8 @@ def _apply_canvas_template_dict(
             if i == fd_idx:
                 continue
             other_dims = fd.get("dimensions", {})
-            ow = _round(float(other_dims.get("width", 0)) * scale)
-            oh = _round(float(other_dims.get("height", 0)) * scale)
+            ow = _round(float(other_dims.get("width", 0)) * scale_w)
+            oh = _round(float(other_dims.get("height", 0)) * scale_h)
             fd["dimensions"] = {"width": ow, "height": oh}
             fd["anchor_point"] = {
                 "x": _align(new_canvas_w, ow, align_h),

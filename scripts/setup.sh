@@ -33,6 +33,16 @@ cd "$(dirname "$0")/../python_backend"
 pip3 install -e ".[dev]"
 
 echo ""
+echo "Installing additional runtime dependencies..."
+# pydantic: required by vendored fdl / fdl_arri_frameline / fdl_sony_frameline packages
+# cairosvg + svgwrite: required for chart PDF/SVG export
+# Force public PyPI to avoid corporate mirror timeouts
+python3 -m pip install --break-system-packages --index-url https://pypi.org/simple \
+    pydantic cairosvg svgwrite rpds-py \
+    && echo "✓ Installed pydantic, cairosvg, svgwrite" \
+    || echo "⚠︎  Some optional packages unavailable; PDF/SVG chart export and ARRI/Sony XML conversion may not work"
+
+echo ""
 echo "=== Setup complete ==="
 echo "Build the Swift app:  cd FDLTool && swift build"
 echo "Run Python tests:     cd python_backend && pytest"

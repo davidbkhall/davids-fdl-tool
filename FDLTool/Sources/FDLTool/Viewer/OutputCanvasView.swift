@@ -341,7 +341,10 @@ struct OutputCanvasView: View {
                 let srcFDs = srcCanvas?.framingDecisions ?? []
                 ForEach(Array(oc.framingDecisions.enumerated()), id: \.offset) { i, fd in
                     if i < srcFDs.count {
-                        Text(verbatim: "Framing: \(Int(srcFDs[i].dimensions.width))\u{00D7}\(Int(srcFDs[i].dimensions.height)) \u{2192} \(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))")
+                        let sourceFramingDims = "\(Int(srcFDs[i].dimensions.width))\u{00D7}\(Int(srcFDs[i].dimensions.height))"
+                        let outputFramingDims = "\(Int(fd.dimensions.width))\u{00D7}\(Int(fd.dimensions.height))"
+                        let framingTransition = "Framing: \(sourceFramingDims) \u{2192} \(outputFramingDims)"
+                        Text(verbatim: framingTransition)
                             .foregroundStyle(ViewerColors.framing)
                     }
                 }

@@ -34,4 +34,48 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertFalse(template.id.isEmpty)
         XCTAssertEqual(template.name, "UHD Deliverable")
     }
+
+    func testProjectAssetModel() {
+        let asset = ProjectAsset(
+            projectID: "proj-1",
+            assetType: .template,
+            name: "Template A",
+            sourceTool: "viewer",
+            referenceID: "tpl-1",
+            filePath: "/tmp/template.json",
+            payloadJSON: "{\"k\":\"v\"}"
+        )
+        XCTAssertFalse(asset.id.isEmpty)
+        XCTAssertEqual(asset.projectID, "proj-1")
+        XCTAssertEqual(asset.assetType, .template)
+        XCTAssertEqual(asset.name, "Template A")
+    }
+
+    func testProjectAssetLinkModel() {
+        let link = ProjectAssetLink(
+            projectID: "proj-1",
+            fromAssetID: "asset-a",
+            toAssetID: "asset-b",
+            linkType: .usesTemplate
+        )
+        XCTAssertFalse(link.id.isEmpty)
+        XCTAssertEqual(link.projectID, "proj-1")
+        XCTAssertEqual(link.linkType, .usesTemplate)
+    }
+
+    func testProjectCameraModeAssignmentModel() {
+        let assignment = ProjectCameraModeAssignment(
+            projectID: "proj-1",
+            cameraModelID: "cam-1",
+            cameraModelName: "ALEXA 35",
+            recordingModeID: "mode-1",
+            recordingModeName: "4.6K 3:2 Open Gate",
+            source: "camera_db",
+            notes: "Primary capture mode"
+        )
+        XCTAssertFalse(assignment.id.isEmpty)
+        XCTAssertEqual(assignment.projectID, "proj-1")
+        XCTAssertEqual(assignment.cameraModelName, "ALEXA 35")
+        XCTAssertEqual(assignment.recordingModeName, "4.6K 3:2 Open Gate")
+    }
 }

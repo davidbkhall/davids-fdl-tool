@@ -9,7 +9,7 @@ import sys
 import traceback
 from typing import Any
 
-from fdl_backend.handlers import chart_gen, clip_id, fdl_ops, geometry_ops, image_ops, template_ops
+from fdl_backend.handlers import chart_gen, clip_id, fdl_ops, frameline_ops, geometry_ops, image_ops, template_ops
 
 # Method dispatch table: "domain.method" -> handler function
 HANDLERS: dict[str, Any] = {}
@@ -33,6 +33,8 @@ def register_handlers() -> None:
     # Chart generation
     HANDLERS["chart.generate_svg"] = chart_gen.generate_svg
     HANDLERS["chart.generate_png"] = chart_gen.generate_png
+    HANDLERS["chart.generate_tiff"] = chart_gen.generate_tiff
+    HANDLERS["chart.generate_pdf"] = chart_gen.generate_pdf
     HANDLERS["chart.generate_fdl"] = chart_gen.generate_fdl
 
     # Image operations
@@ -53,6 +55,15 @@ def register_handlers() -> None:
 
     # Camera DB
     HANDLERS["camera_db.sync"] = fdl_ops.noop  # Placeholder
+
+    # Manufacturer frameline conversion
+    HANDLERS["frameline.status"] = frameline_ops.status
+    HANDLERS["frameline.arri.list_cameras"] = frameline_ops.arri_list_cameras
+    HANDLERS["frameline.arri.to_xml"] = frameline_ops.arri_to_xml
+    HANDLERS["frameline.arri.to_fdl"] = frameline_ops.arri_to_fdl
+    HANDLERS["frameline.sony.list_cameras"] = frameline_ops.sony_list_cameras
+    HANDLERS["frameline.sony.to_xml"] = frameline_ops.sony_to_xml
+    HANDLERS["frameline.sony.to_fdl"] = frameline_ops.sony_to_fdl
 
 
 def make_response(id: int | None, result: Any = None, error: dict | None = None) -> dict:

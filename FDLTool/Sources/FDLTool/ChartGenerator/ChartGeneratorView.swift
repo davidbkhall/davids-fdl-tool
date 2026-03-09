@@ -27,6 +27,10 @@ private struct ChartGeneratorContent: View {
 
             VStack(spacing: 0) {
                 HStack {
+                    Text("\(viewModel.framelines.count) frameline\(viewModel.framelines.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Spacer()
 
                     Button(action: {
@@ -37,18 +41,28 @@ private struct ChartGeneratorContent: View {
                         appState.pendingFDLFileName = "\(viewModel.chartTitle).fdl"
                         appState.selectedTool = .viewer
                     }) {
-                        Label("Open in Viewer", systemImage: "eye")
+                        Label("Open in Framing Workspace", systemImage: "eye")
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                     .disabled(viewModel.framelines.isEmpty)
 
                     Button(action: { viewModel.showExportSheet = true }) {
-                        Label("Export", systemImage: "square.and.arrow.up")
+                        if viewModel.isExporting {
+                            Label("Exporting…", systemImage: "clock.arrow.circlepath")
+                        } else {
+                            Label("Export", systemImage: "square.and.arrow.up")
+                        }
                     }
-                    .disabled(viewModel.framelines.isEmpty)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(viewModel.framelines.isEmpty || viewModel.isExporting)
 
                     Button(action: { viewModel.showSaveToLibrary = true }) {
                         Label("Save to Library", systemImage: "folder.badge.plus")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(viewModel.framelines.isEmpty)
                 }
                 .padding(.horizontal)
@@ -59,7 +73,9 @@ private struct ChartGeneratorContent: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle("Framing Chart Generator")
-        .sheet(isPresented: $viewModel.showExportSheet) {
+        .sheet(isPresented: $viewModel.showExportSheet, onDismiss: {
+            viewModel.runPendingExportRequestIfNeeded()
+        }) {
             ChartExportSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $viewModel.showSaveToLibrary) {

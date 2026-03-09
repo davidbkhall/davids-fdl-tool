@@ -3,6 +3,9 @@ import Combine
 
 @MainActor
 class AppState: ObservableObject {
+    private static let keychainService = "com.fdltool.credentials"
+    private static let cinedPasswordAccount = "cinedPassword"
+
     @Published var selectedTool: Tool = .library
     @Published var currentProject: Project?
     @Published var pythonBridgeStatus: BridgeStatus = .stopped
@@ -25,7 +28,28 @@ class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(cinedEmail, forKey: "cinedEmail") }
     }
     @Published var cinedPassword: String {
-        didSet { UserDefaults.standard.set(cinedPassword, forKey: "cinedPassword") }
+        didSet {
+            KeychainStore.setString(
+                cinedPassword,
+                service: Self.keychainService,
+                account: Self.cinedPasswordAccount
+            )
+            // Cleanup legacy plain-text storage.
+            UserDefaults.standard.removeObject(forKey: "cinedPassword")
+        }
+    }
+
+    var isCinedPasswordStoredInKeychain: Bool {
+        guard let value = KeychainStore.getString(
+            service: Self.keychainService,
+            account: Self.cinedPasswordAccount
+        ) else { return false }
+        return !value.isEmpty
+    }
+
+    var hasLegacyCinedPasswordInUserDefaults: Bool {
+        let legacy = UserDefaults.standard.string(forKey: "cinedPassword") ?? ""
+        return !legacy.isEmpty
     }
 
     /// Surfaced to the user as a blocking alert when the bridge fails.
@@ -80,7 +104,24 @@ class AppState: ObservableObject {
         self.cameraDBStore = CameraDBStore()
         self.defaultCreator = UserDefaults.standard.string(forKey: "defaultCreator") ?? "FDL Tool"
         self.cinedEmail = UserDefaults.standard.string(forKey: "cinedEmail") ?? ""
-        self.cinedPassword = UserDefaults.standard.string(forKey: "cinedPassword") ?? ""
+        if let keychainPassword = KeychainStore.getString(
+            service: Self.keychainService,
+            account: Self.cinedPasswordAccount
+        ) {
+            self.cinedPassword = keychainPassword
+        } else {
+            // One-time migration from legacy UserDefaults storage.
+            let legacyPassword = UserDefaults.standard.string(forKey: "cinedPassword") ?? ""
+            self.cinedPassword = legacyPassword
+            if !legacyPassword.isEmpty {
+                KeychainStore.setString(
+                    legacyPassword,
+                    service: Self.keychainService,
+                    account: Self.cinedPasswordAccount
+                )
+                UserDefaults.standard.removeObject(forKey: "cinedPassword")
+            }
+        }
     }
 
     /// Forward objectWillChange from nested ViewModels so SwiftUI views

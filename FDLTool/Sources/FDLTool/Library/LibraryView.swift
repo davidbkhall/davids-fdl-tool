@@ -36,6 +36,12 @@ struct LibraryView: View {
         } message: {
             Text(appState.libraryViewModel.errorMessage ?? "")
         }
+        .onChange(of: appState.pythonBridgeStatus) { _, status in
+            guard status == .running else { return }
+            Task {
+                await appState.libraryViewModel.refreshFramelineInterop()
+            }
+        }
     }
 
     // MARK: - Left Pane
@@ -50,6 +56,7 @@ struct LibraryView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .controlSize(.small)
             .padding(8)
 
             Divider()
@@ -97,13 +104,85 @@ struct LibraryView: View {
                     Button(action: { vm.showImportSheet = true }) {
                         Label("Add FDL", systemImage: "plus")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
 
                     Button(action: { vm.exportProject() }) {
                         Label("Export All", systemImage: "square.and.arrow.up")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(vm.fdlEntries.isEmpty)
                 }
                 .padding()
+
+                if !vm.projectAssets.isEmpty || !vm.projectCameraModeAssignments.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Project Graph")
+                            .secondarySectionHeader()
+                        HStack(spacing: 12) {
+                            Text("Assets: \(vm.projectAssets.count)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("Camera Modes: \(vm.projectCameraModeAssignments.count)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let latestMode = vm.projectCameraModeAssignments.first {
+                            Text("Latest mode: \(latestMode.cameraModelName) - \(latestMode.recordingModeName)")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+
+                        if !vm.projectAssets.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(assetTypeCounts(from: vm.projectAssets), id: \.type.rawValue) { group in
+                                        Text("\(assetTypeLabel(group.type)): \(group.count)")
+                                            .font(.caption2)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(Color.secondary.opacity(0.12), in: Capsule())
+                                    }
+                                }
+                            }
+                        }
+
+                        let reportAssets = vm.projectAssets.filter { $0.assetType == .report }
+                        if !reportAssets.isEmpty {
+                            DisclosureGroup("Report Assets (\(reportAssets.count))") {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(reportAssets.prefix(6)) { reportAsset in
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(reportAsset.name)
+                                                .font(.caption2.weight(.medium))
+                                            let links = vm.projectAssetLinks.filter { $0.fromAssetID == reportAsset.id }
+                                            if links.isEmpty {
+                                                Text("No linked assets")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.tertiary)
+                                            } else {
+                                                ForEach(links, id: \.id) { link in
+                                                    let target = vm.projectAssets.first(where: { $0.id == link.toAssetID })
+                                                    Text("\(link.linkType.rawValue) -> \(target?.name ?? link.toAssetID)")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                }
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                                .padding(.top, 4)
+                            }
+                            .font(.caption2)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                }
 
                 Divider()
 
@@ -133,6 +212,14 @@ struct LibraryView: View {
                             FDLEntryRow(entry: entry)
                                 .tag(entry.id)
                                 .contextMenu {
+                                    Button("Open in Framing Workspace") {
+                                        appState.selectedTool = .viewer
+                                        appState.viewerViewModel.loadFromEntry(
+                                            entry,
+                                            pythonBridge: appState.pythonBridge
+                                        )
+                                    }
+                                    Divider()
                                     Button("Export") {
                                         vm.selectedEntry = entry
                                         vm.exportSelectedFDL()
@@ -205,6 +292,14 @@ struct LibraryView: View {
                     entry: entry,
                     document: vm.parsedDocument,
                     validationResult: vm.validationResult,
+                    libraryViewModel: vm,
+                    onOpenInViewer: {
+                        appState.selectedTool = .viewer
+                        appState.viewerViewModel.loadFromEntry(
+                            entry,
+                            pythonBridge: appState.pythonBridge
+                        )
+                    },
                     onExport: { vm.exportSelectedFDL() },
                     onDelete: { vm.deleteEntry(entry) }
                 )
@@ -229,6 +324,24 @@ struct LibraryView: View {
                 viewModel: appState.canvasTemplateViewModel,
                 pythonBridge: appState.pythonBridge
             )
+        }
+    }
+
+    private func assetTypeCounts(from assets: [ProjectAsset]) -> [(type: ProjectAssetType, count: Int)] {
+        let grouped = Dictionary(grouping: assets, by: \.assetType)
+        return grouped
+            .map { ($0.key, $0.value.count) }
+            .sorted { $0.type.rawValue < $1.type.rawValue }
+    }
+
+    private func assetTypeLabel(_ type: ProjectAssetType) -> String {
+        switch type {
+        case .fdl: return "FDL"
+        case .chart: return "Chart"
+        case .template: return "Template"
+        case .report: return "Report"
+        case .cameraMode: return "Camera Mode"
+        case .referenceImage: return "Reference"
         }
     }
 }

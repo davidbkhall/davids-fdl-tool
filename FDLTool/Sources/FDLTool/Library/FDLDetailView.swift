@@ -4,6 +4,8 @@ struct FDLDetailView: View {
     let entry: FDLEntry
     let document: FDLDocument?
     let validationResult: ValidationResult?
+    @ObservedObject var libraryViewModel: LibraryViewModel
+    let onOpenInViewer: () -> Void
     let onExport: () -> Void
     let onDelete: () -> Void
 
@@ -13,6 +15,7 @@ struct FDLDetailView: View {
                 headerSection
                 metadataSection
                 tagsSection
+                framelineInteropSection
 
                 if let result = validationResult {
                     ValidationReportView(result: result)
@@ -42,6 +45,10 @@ struct FDLDetailView: View {
             Spacer()
 
             HStack(spacing: 8) {
+                Button(action: onOpenInViewer) {
+                    Label("Open in Framing Workspace", systemImage: "eye")
+                }
+
                 Button(action: onExport) {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
@@ -101,6 +108,136 @@ struct FDLDetailView: View {
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var framelineInteropSection: some View {
+        GroupBox("Manufacturer XML Interop") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Label(
+                        libraryViewModel.framelineStatus.arriAvailable ? "ARRI Ready" : "ARRI Unavailable",
+                        systemImage: libraryViewModel.framelineStatus.arriAvailable ? "checkmark.circle.fill" : "xmark.circle"
+                    )
+                    .foregroundStyle(libraryViewModel.framelineStatus.arriAvailable ? .green : .orange)
+                    .font(.caption)
+
+                    Label(
+                        libraryViewModel.framelineStatus.sonyAvailable ? "Sony Ready" : "Sony Unavailable",
+                        systemImage: libraryViewModel.framelineStatus.sonyAvailable ? "checkmark.circle.fill" : "xmark.circle"
+                    )
+                    .foregroundStyle(libraryViewModel.framelineStatus.sonyAvailable ? .green : .orange)
+                    .font(.caption)
+                }
+
+                if libraryViewModel.framelineStatus.arriAvailable {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("ARRI XML")
+                            .font(.caption.weight(.semibold))
+                        HStack(spacing: 6) {
+                            Picker("Camera", selection: $libraryViewModel.selectedArriCameraType) {
+                                ForEach(libraryViewModel.arriCameras) { camera in
+                                    Text(camera.cameraType).tag(camera.cameraType)
+                                }
+                            }
+                            .controlSize(.small)
+                            .onChange(of: libraryViewModel.selectedArriCameraType) { _, selected in
+                                libraryViewModel.selectedArriSensorMode = libraryViewModel.arriCameras
+                                    .first(where: { $0.cameraType == selected })?
+                                    .modes.first?.name ?? ""
+                            }
+                            Picker("Mode", selection: $libraryViewModel.selectedArriSensorMode) {
+                                let modes = libraryViewModel.arriCameras
+                                    .first(where: { $0.cameraType == libraryViewModel.selectedArriCameraType })?
+                                    .modes ?? []
+                                ForEach(modes) { mode in
+                                    Text(mode.name).tag(mode.name)
+                                }
+                            }
+                            .controlSize(.small)
+                        }
+                        .font(.caption)
+
+                        HStack(spacing: 6) {
+                            Button("Export ARRI XML") {
+                                libraryViewModel.exportSelectedEntryToArriXML()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            Button("Import ARRI XML to Project") {
+                                libraryViewModel.importArriXMLToSelectedProject()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
+                if libraryViewModel.framelineStatus.sonyAvailable {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sony XML")
+                            .font(.caption.weight(.semibold))
+                        HStack(spacing: 6) {
+                            Picker("Camera", selection: $libraryViewModel.selectedSonyCameraType) {
+                                ForEach(libraryViewModel.sonyCameras) { camera in
+                                    Text(camera.cameraType).tag(camera.cameraType)
+                                }
+                            }
+                            .controlSize(.small)
+                            .onChange(of: libraryViewModel.selectedSonyCameraType) { _, selected in
+                                libraryViewModel.selectedSonyImagerMode = libraryViewModel.sonyCameras
+                                    .first(where: { $0.cameraType == selected })?
+                                    .modes.first?.name ?? ""
+                            }
+                            Picker("Mode", selection: $libraryViewModel.selectedSonyImagerMode) {
+                                let modes = libraryViewModel.sonyCameras
+                                    .first(where: { $0.cameraType == libraryViewModel.selectedSonyCameraType })?
+                                    .modes ?? []
+                                ForEach(modes) { mode in
+                                    Text(mode.name).tag(mode.name)
+                                }
+                            }
+                            .controlSize(.small)
+                        }
+                        .font(.caption)
+
+                        HStack(spacing: 6) {
+                            Button("Export Sony XML") {
+                                libraryViewModel.exportSelectedEntryToSonyXML()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            Button("Import Sony XML to Project") {
+                                libraryViewModel.importSonyXMLToSelectedProject()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
+                if let report = libraryViewModel.framelineReport {
+                    Divider()
+                    FramelineReportCard(
+                        report: report,
+                        onCopy: {
+                            if let data = try? JSONEncoder().encode(report),
+                               let text = String(data: data, encoding: .utf8) {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(text, forType: .string)
+                            }
+                        },
+                        onExport: { libraryViewModel.exportFramelineReportJSON() },
+                        onSave: { libraryViewModel.saveFramelineReportToSelectedProject() },
+                        saveTitle: "Save Report to Project"
+                    )
+                }
+            }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

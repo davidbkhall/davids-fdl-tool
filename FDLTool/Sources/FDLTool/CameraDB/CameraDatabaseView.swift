@@ -75,6 +75,7 @@ struct CameraDatabaseView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .controlSize(.small)
             .padding(.horizontal, 8)
             .padding(.top, 6)
             .padding(.bottom, 4)
@@ -107,6 +108,7 @@ struct CameraDatabaseView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .controlSize(.small)
                     .frame(maxWidth: 120)
 
                     Picker("Sort", selection: $sortOrder) {
@@ -115,6 +117,7 @@ struct CameraDatabaseView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .controlSize(.small)
                     .frame(maxWidth: 180)
                 }
                 .padding(.horizontal, 8)
@@ -148,6 +151,8 @@ struct CameraDatabaseView: View {
                     Label("Add", systemImage: "plus")
                         .font(.caption)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .help("Add a custom camera")
 
                 Menu {
@@ -186,6 +191,8 @@ struct CameraDatabaseView: View {
                     Label("Sync", systemImage: "arrow.triangle.2.circlepath")
                         .font(.caption)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .disabled(syncService.isSyncing || appState.cinedSyncService.isSyncing)
                 .help("Sync cameras from external sources")
             }
@@ -301,6 +308,8 @@ struct CameraDatabaseView: View {
                     Task { await performResolutionSearch() }
                 }
                 .font(.caption)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .disabled(isSearchingResolution)
 
                 if isSearchingResolution {
@@ -557,7 +566,8 @@ struct CameraDetailView: View {
                                 Button(action: { resyncCamera() }) {
                                     Image(systemName: "arrow.triangle.2.circlepath")
                                 }
-                                .buttonStyle(.borderless)
+                                .buttonStyle(.bordered)
+                                .denseControl()
                                 .disabled(isSyncingCamera)
                                 .help("Re-sync this camera from API")
                             }
@@ -574,7 +584,8 @@ struct CameraDetailView: View {
                                     Image(systemName: "trash")
                                         .foregroundStyle(.red)
                                 }
-                                .buttonStyle(.borderless)
+                                .buttonStyle(.bordered)
+                                .denseControl()
                                 .help("Delete this camera")
                             }
                         }
@@ -650,7 +661,7 @@ struct CameraDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     } label: {
                         Label("Details", systemImage: "info.circle")
-                            .font(.headline)
+                            .primarySectionHeader()
                     }
                 }
 
@@ -663,7 +674,7 @@ struct CameraDetailView: View {
                     }
                 } label: {
                     Label("Sensor", systemImage: "cpu")
-                        .font(.headline)
+                        .primarySectionHeader()
                 }
 
                 // MARK: Recording Modes
@@ -677,7 +688,10 @@ struct CameraDetailView: View {
                                 isEditingEnabled: isEditingEnabled,
                                 onEdit: { modeToEdit = mode },
                                 onDelete: { cameraDBStore.removeRecordingMode(fromCameraID: camera.id, modeID: mode.id) },
-                                onResync: apiCameraID != nil ? { resyncMode(mode) } : nil
+                                onResync: apiCameraID != nil ? { resyncMode(mode) } : nil,
+                                onAssignToProject: { projectID in
+                                    assignModeToProject(mode, projectID: projectID)
+                                }
                             )
                             if mode.id != camera.recordingModes.last?.id {
                                 Divider().padding(.vertical, 6)
@@ -689,14 +703,15 @@ struct CameraDetailView: View {
                 } label: {
                     HStack {
                         Label("Recording Modes", systemImage: "film")
-                            .font(.headline)
+                            .primarySectionHeader()
                         Spacer()
                         if isEditingEnabled {
                             Button(action: { showAddModeSheet = true }) {
                                 Label("Add", systemImage: "plus")
                                     .font(.callout)
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.bordered)
+                            .denseControl()
                         }
                     }
                 }
@@ -709,7 +724,7 @@ struct CameraDetailView: View {
                         .padding(.vertical, 4)
                 } label: {
                     Label("Sensor Visualization", systemImage: "rectangle.dashed")
-                        .font(.headline)
+                        .primarySectionHeader()
                 }
             }
             .padding()
@@ -883,6 +898,30 @@ struct CameraDetailView: View {
         }
     }
 
+    private func assignModeToProject(_ mode: RecordingMode, projectID: String) {
+        do {
+            let assignment = ProjectCameraModeAssignment(
+                projectID: projectID,
+                cameraModelID: camera.id,
+                cameraModelName: "\(camera.manufacturer) \(camera.model)",
+                recordingModeID: mode.id,
+                recordingModeName: mode.name,
+                source: "camera_db",
+                notes: nil
+            )
+            try appState.libraryStore.assignCameraModeToProject(assignment)
+            withAnimation {
+                cameraSyncSuccess = "Assigned \"\(mode.name)\" to project."
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                withAnimation { cameraSyncSuccess = nil }
+            }
+        } catch {
+            cameraSyncError = "Assignment failed: \(error.localizedDescription)"
+        }
+    }
+
     private var sensorDiagonal: Double {
         let w = camera.sensor.physicalDimensionsMM.width
         let h = camera.sensor.physicalDimensionsMM.height
@@ -898,6 +937,7 @@ struct RecordingModeRow: View {
     var onEdit: (() -> Void)?
     var onDelete: (() -> Void)?
     var onResync: (() -> Void)?
+    var onAssignToProject: ((String) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1004,6 +1044,21 @@ struct RecordingModeRow: View {
             .buttonStyle(.bordered)
             .controlSize(.mini)
             .help("Open in Chart Generator")
+
+            if !appState.libraryViewModel.projects.isEmpty {
+                Menu {
+                    ForEach(appState.libraryViewModel.projects) { project in
+                        Button(project.name) {
+                            onAssignToProject?(project.id)
+                        }
+                    }
+                } label: {
+                    Label("Assign", systemImage: "folder.badge.plus")
+                        .font(.caption)
+                }
+                .controlSize(.mini)
+                .help("Assign mode to project")
+            }
         }
         .controlSize(.small)
     }

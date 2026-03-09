@@ -4,6 +4,9 @@ import UniformTypeIdentifiers
 struct ViewerView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var viewModel: ViewerViewModel
+    @State private var showScenarioPackSheet = false
+    @State private var showSourceJSON = false
+    @State private var showOutputJSON = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,7 +20,7 @@ struct ViewerView: View {
                 viewerContent
             }
         }
-        .navigationTitle("FDL Viewer")
+        .navigationTitle("Framing Workspace")
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
@@ -25,6 +28,22 @@ struct ViewerView: View {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+        .sheet(isPresented: $showScenarioPackSheet) {
+            ScenarioPackExportSheet(
+                scenarioNames: TemplatePresets.scenarioContexts.map(\.name),
+                projects: appState.libraryViewModel.projects,
+                onExport: { names, includeZip, projectID in
+                    viewModel.exportScenarioPack(
+                        presetNames: names,
+                        pythonBridge: appState.pythonBridge,
+                        defaultCreator: appState.defaultCreator,
+                        includeZip: includeZip,
+                        projectID: projectID,
+                        libraryStore: appState.libraryStore
+                    )
+                }
+            )
         }
         .onChange(of: appState.pendingOpenURL) { _, url in
             guard let url else { return }
@@ -37,6 +56,15 @@ struct ViewerView: View {
             appState.pendingFDLDocument = nil
             appState.pendingFDLFileName = nil
             viewModel.loadDocument(doc, fileName: name)
+        }
+        .task {
+            await viewModel.refreshFramelineInterop(pythonBridge: appState.pythonBridge)
+        }
+        .onChange(of: appState.pythonBridgeStatus) { _, status in
+            guard status == .running else { return }
+            Task {
+                await viewModel.refreshFramelineInterop(pythonBridge: appState.pythonBridge)
+            }
         }
     }
 
@@ -359,7 +387,7 @@ struct ViewerView: View {
                 .font(.system(size: 56))
                 .foregroundStyle(.tertiary)
 
-            Text("FDL Viewer")
+            Text("Framing Workspace")
                 .font(.title2.weight(.medium))
                 .foregroundStyle(.secondary)
 
@@ -549,6 +577,159 @@ struct ViewerView: View {
                             }
                         }
 
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Converter Availability")
+                                    .secondarySectionHeader()
+
+                                HStack(spacing: 8) {
+                                    Label(
+                                        viewModel.framelineStatus.arriAvailable ? "ARRI Ready" : "ARRI Unavailable",
+                                        systemImage: viewModel.framelineStatus.arriAvailable ? "checkmark.circle.fill" : "xmark.circle"
+                                    )
+                                    .foregroundStyle(viewModel.framelineStatus.arriAvailable ? .green : .orange)
+                                    .font(.caption)
+
+                                    Label(
+                                        viewModel.framelineStatus.sonyAvailable ? "Sony Ready" : "Sony Unavailable",
+                                        systemImage: viewModel.framelineStatus.sonyAvailable ? "checkmark.circle.fill" : "xmark.circle"
+                                    )
+                                    .foregroundStyle(viewModel.framelineStatus.sonyAvailable ? .green : .orange)
+                                    .font(.caption)
+                                }
+
+                                Divider()
+
+                                if viewModel.framelineStatus.arriAvailable {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("ARRI XML")
+                                            .font(.caption.weight(.semibold))
+                                        HStack(spacing: 6) {
+                                            Picker("Camera", selection: $viewModel.selectedArriCameraType) {
+                                                ForEach(viewModel.arriCameras) { camera in
+                                                    Text(camera.cameraType).tag(camera.cameraType)
+                                                }
+                                            }
+                                            .controlSize(.small)
+                                            .onChange(of: viewModel.selectedArriCameraType) { _, selected in
+                                                viewModel.selectedArriSensorMode = viewModel.arriCameras
+                                                    .first(where: { $0.cameraType == selected })?
+                                                    .modes.first?.name ?? ""
+                                            }
+
+                                            Picker("Mode", selection: $viewModel.selectedArriSensorMode) {
+                                                let modes = viewModel.arriCameras
+                                                    .first(where: { $0.cameraType == viewModel.selectedArriCameraType })?
+                                                    .modes ?? []
+                                                ForEach(modes) { mode in
+                                                    Text(mode.name).tag(mode.name)
+                                                }
+                                            }
+                                            .controlSize(.small)
+                                        }
+                                        .font(.caption)
+
+                                        HStack(spacing: 6) {
+                                            Button("Export ARRI XML") {
+                                                viewModel.exportCurrentFDLToArriXML(pythonBridge: appState.pythonBridge)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                            .disabled(viewModel.loadedDocument == nil)
+
+                                            Button("Import ARRI XML") {
+                                                viewModel.importArriXMLAsSourceFDL(pythonBridge: appState.pythonBridge)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                    }
+                                }
+
+                                if viewModel.framelineStatus.sonyAvailable {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Sony XML")
+                                            .font(.caption.weight(.semibold))
+                                        HStack(spacing: 6) {
+                                            Picker("Camera", selection: $viewModel.selectedSonyCameraType) {
+                                                ForEach(viewModel.sonyCameras) { camera in
+                                                    Text(camera.cameraType).tag(camera.cameraType)
+                                                }
+                                            }
+                                            .controlSize(.small)
+                                            .onChange(of: viewModel.selectedSonyCameraType) { _, selected in
+                                                viewModel.selectedSonyImagerMode = viewModel.sonyCameras
+                                                    .first(where: { $0.cameraType == selected })?
+                                                    .modes.first?.name ?? ""
+                                            }
+
+                                            Picker("Mode", selection: $viewModel.selectedSonyImagerMode) {
+                                                let modes = viewModel.sonyCameras
+                                                    .first(where: { $0.cameraType == viewModel.selectedSonyCameraType })?
+                                                    .modes ?? []
+                                                ForEach(modes) { mode in
+                                                    Text(mode.name).tag(mode.name)
+                                                }
+                                            }
+                                            .controlSize(.small)
+                                        }
+                                        .font(.caption)
+
+                                        HStack(spacing: 6) {
+                                            Button("Export Sony XML") {
+                                                viewModel.exportCurrentFDLToSonyXML(pythonBridge: appState.pythonBridge)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                            .disabled(viewModel.loadedDocument == nil)
+
+                                            Button("Import Sony XML") {
+                                                viewModel.importSonyXMLAsSourceFDL(pythonBridge: appState.pythonBridge)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                    }
+                                }
+
+                                if let report = viewModel.framelineReport {
+                                    Divider()
+                                    FramelineReportCard(
+                                        report: report,
+                                        onCopy: {
+                                            if let data = try? JSONEncoder().encode(report),
+                                               let text = String(data: data, encoding: .utf8) {
+                                                NSPasteboard.general.clearContents()
+                                                NSPasteboard.general.setString(text, forType: .string)
+                                            }
+                                        },
+                                        onExport: { viewModel.exportFramelineReportJSON() },
+                                        onSave: nil,
+                                        saveTitle: "Save"
+                                    )
+
+                                    Menu("Save Report to Project") {
+                                        ForEach(appState.libraryViewModel.projects) { project in
+                                            Button(project.name) {
+                                                viewModel.saveFramelineReportToProject(
+                                                    projectID: project.id,
+                                                    libraryStore: appState.libraryStore
+                                                )
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                    .disabled(appState.libraryViewModel.projects.isEmpty)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        } label: {
+                            Label("Manufacturer XML Interop", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.mint)
+                        }
+
                         if let result = viewModel.validationResult {
                             ValidationReportView(result: result)
                         }
@@ -558,21 +739,26 @@ struct ViewerView: View {
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 4) {
                                     if let raw = viewModel.rawJSON {
-                                        ScrollView([.horizontal, .vertical]) {
-                                            Text(raw)
-                                                .font(.system(.caption2, design: .monospaced))
-                                                .textSelection(.enabled)
-                                        }
-                                        .frame(maxHeight: 400)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        DisclosureGroup(isExpanded: $showSourceJSON) {
+                                            ScrollView([.horizontal, .vertical]) {
+                                                Text(raw)
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .textSelection(.enabled)
+                                            }
+                                            .frame(maxHeight: 400)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                                        Button("Copy") {
-                                            NSPasteboard.general.clearContents()
-                                            NSPasteboard.general.setString(raw, forType: .string)
+                                            Button("Copy") {
+                                                NSPasteboard.general.clearContents()
+                                                NSPasteboard.general.setString(raw, forType: .string)
+                                            }
+                                            .font(.caption)
+                                            .buttonStyle(.bordered)
+                                            .denseControl()
+                                        } label: {
+                                            Text("Show Source JSON (\(raw.count) chars)")
+                                                .font(.caption)
                                         }
-                                        .font(.caption)
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
                                     } else {
                                         Text("No source loaded")
                                             .font(.caption)
@@ -588,34 +774,39 @@ struct ViewerView: View {
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 4) {
                                     if let outJSON = viewModel.outputRawJSON {
-                                        ScrollView([.horizontal, .vertical]) {
-                                            Text(outJSON)
-                                                .font(.system(.caption2, design: .monospaced))
-                                                .textSelection(.enabled)
-                                        }
-                                        .frame(maxHeight: 400)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                                        HStack(spacing: 6) {
-                                            Button("Copy") {
-                                                NSPasteboard.general.clearContents()
-                                                NSPasteboard.general.setString(outJSON, forType: .string)
+                                        DisclosureGroup(isExpanded: $showOutputJSON) {
+                                            ScrollView([.horizontal, .vertical]) {
+                                                Text(outJSON)
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .textSelection(.enabled)
                                             }
-                                            .font(.caption)
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
+                                            .frame(maxHeight: 400)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                                            Button("Export...") {
-                                                let panel = NSSavePanel()
-                                                panel.allowedContentTypes = [.json]
-                                                panel.nameFieldStringValue = "output.fdl.json"
-                                                if panel.runModal() == .OK, let dest = panel.url {
-                                                    try? outJSON.write(to: dest, atomically: true, encoding: .utf8)
+                                            HStack(spacing: 6) {
+                                                Button("Copy") {
+                                                    NSPasteboard.general.clearContents()
+                                                    NSPasteboard.general.setString(outJSON, forType: .string)
                                                 }
+                                                .font(.caption)
+                                                .buttonStyle(.bordered)
+                                                .denseControl()
+
+                                                Button("Export...") {
+                                                    let panel = NSSavePanel()
+                                                    panel.allowedContentTypes = [.json]
+                                                    panel.nameFieldStringValue = "output.fdl.json"
+                                                    if panel.runModal() == .OK, let dest = panel.url {
+                                                        try? outJSON.write(to: dest, atomically: true, encoding: .utf8)
+                                                    }
+                                                }
+                                                .font(.caption)
+                                                .buttonStyle(.bordered)
+                                                .denseControl()
                                             }
-                                            .font(.caption)
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
+                                        } label: {
+                                            Text("Show Output JSON (\(outJSON.count) chars)")
+                                                .font(.caption)
                                         }
                                     } else {
                                         Text("Apply a template to see output")
@@ -946,9 +1137,18 @@ struct ViewerView: View {
                     viewModel.startCustomTemplate()
                 }
                 Divider()
-                ForEach(TemplatePresets.all, id: \.name) { preset in
-                    Button(preset.name) {
-                        viewModel.applyPreset(preset.name)
+                Section("Scenario Presets") {
+                    ForEach(TemplatePresets.scenarioContexts, id: \.name) { preset in
+                        Button(preset.name) {
+                            viewModel.applyPreset(preset.name)
+                        }
+                    }
+                }
+                Section("Delivery Presets") {
+                    ForEach(TemplatePresets.standardDeliverables, id: \.name) { preset in
+                        Button(preset.name) {
+                            viewModel.applyPreset(preset.name)
+                        }
                     }
                 }
                 Divider()
@@ -1011,6 +1211,13 @@ struct ViewerView: View {
             .help("Clear template")
         }
 
+        if let presetName = viewModel.selectedPresetName,
+           let description = TemplatePresets.scenarioDescription(for: presetName) {
+            Text(description)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+
         Divider()
 
         templateConfigFields
@@ -1046,12 +1253,22 @@ struct ViewerView: View {
         )
 
         HStack(spacing: 6) {
-            Button(action: { viewModel.exportTemplateJSON() }) {
-                Label("Export", systemImage: "square.and.arrow.up")
+            Menu {
+                ForEach(TemplatePresets.scenarioContexts, id: \.name) { preset in
+                    Button(preset.name) {
+                        viewModel.applyScenarioPresetAndTransform(
+                            preset.name,
+                            pythonBridge: appState.pythonBridge,
+                            defaultCreator: appState.defaultCreator
+                        )
+                    }
+                }
+            } label: {
+                Label("Apply Scenario", systemImage: "bolt.fill")
                     .font(.caption)
             }
-            .buttonStyle(.bordered)
             .controlSize(.small)
+            .disabled(viewModel.loadedDocument == nil || viewModel.isApplyingTemplate)
 
             Button(action: {
                 viewModel.saveTemplateToLibrary(
@@ -1059,31 +1276,58 @@ struct ViewerView: View {
                     libraryViewModel: appState.libraryViewModel
                 )
             }) {
-                Label("Save to Library", systemImage: "building.columns")
+                Label("Save Template", systemImage: "building.columns")
                     .font(.caption)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
 
-            if !appState.libraryViewModel.projects.isEmpty {
-                Menu {
-                    ForEach(
-                        appState.libraryViewModel.projects
-                    ) { project in
-                        Button(project.name) {
-                            viewModel.assignTemplateToProject(
-                                projectID: project.id,
-                                libraryStore: appState.libraryStore,
-                                libraryViewModel: appState.libraryViewModel
-                            )
+            Menu {
+                Button("Export Template JSON") {
+                    viewModel.exportTemplateJSON()
+                }
+
+                if !appState.libraryViewModel.projects.isEmpty {
+                    Divider()
+                    Menu("Add Template to Project") {
+                        ForEach(appState.libraryViewModel.projects) { project in
+                            Button(project.name) {
+                                viewModel.assignTemplateToProject(
+                                    projectID: project.id,
+                                    libraryStore: appState.libraryStore,
+                                    libraryViewModel: appState.libraryViewModel
+                                )
+                            }
                         }
                     }
-                } label: {
-                    Label("Add to Project", systemImage: "folder.badge.plus")
-                        .font(.caption)
                 }
-                .controlSize(.small)
+
+                if viewModel.outputDocument != nil, !appState.libraryViewModel.projects.isEmpty {
+                    Menu("Save Output to Project") {
+                        ForEach(appState.libraryViewModel.projects) { project in
+                            Button(project.name) {
+                                viewModel.saveOutputToProject(
+                                    projectID: project.id,
+                                    libraryStore: appState.libraryStore,
+                                    libraryViewModel: appState.libraryViewModel
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+                Button("Export Scenario Pack...") {
+                    showScenarioPackSheet = true
+                }
+                .disabled(viewModel.loadedDocument == nil || viewModel.isApplyingTemplate)
+            } label: {
+                Label("More", systemImage: "ellipsis.circle")
+                    .font(.caption)
             }
+            .controlSize(.small)
+
+            Spacer(minLength: 0)
         }
     }
 
@@ -1094,9 +1338,18 @@ struct ViewerView: View {
                 viewModel.startCustomTemplate()
             }
             Divider()
-            ForEach(TemplatePresets.all, id: \.name) { preset in
-                Button(preset.name) {
-                    viewModel.applyPreset(preset.name)
+            Section("Scenario Presets") {
+                ForEach(TemplatePresets.scenarioContexts, id: \.name) { preset in
+                    Button(preset.name) {
+                        viewModel.applyPreset(preset.name)
+                    }
+                }
+            }
+            Section("Delivery Presets") {
+                ForEach(TemplatePresets.standardDeliverables, id: \.name) { preset in
+                    Button(preset.name) {
+                        viewModel.applyPreset(preset.name)
+                    }
                 }
             }
             Divider()
@@ -1448,5 +1701,103 @@ struct LibraryEntryMenu: View {
             }
         }
         return EmptyView()
+    }
+}
+
+private struct ScenarioPackExportSheet: View {
+    let scenarioNames: [String]
+    let projects: [Project]
+    let onExport: ([String], Bool, String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selections: [String: Bool]
+    @State private var includeZip = true
+    @State private var selectedProjectID: String?
+
+    init(
+        scenarioNames: [String],
+        projects: [Project],
+        onExport: @escaping ([String], Bool, String?) -> Void
+    ) {
+        self.scenarioNames = scenarioNames
+        self.projects = projects
+        self.onExport = onExport
+        var initial: [String: Bool] = [:]
+        for name in scenarioNames {
+            initial[name] = true
+        }
+        _selections = State(initialValue: initial)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Export Scenario Pack")
+                .font(.headline)
+
+            Text("Select one or more scenario templates to apply and export as a grouped package.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            List(scenarioNames, id: \.self) { name in
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle(name, isOn: Binding(
+                        get: { selections[name] ?? false },
+                        set: { selections[name] = $0 }
+                    ))
+                    if let desc = TemplatePresets.scenarioDescription(for: name) {
+                        Text(desc)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 22)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .listStyle(.inset)
+            .frame(height: 180)
+
+            Toggle("Also create ZIP archive", isOn: $includeZip)
+                .font(.caption)
+
+            if !projects.isEmpty {
+                Picker("Save links to Project", selection: $selectedProjectID) {
+                    Text("None").tag(nil as String?)
+                    ForEach(projects) { project in
+                        Text(project.name).tag(project.id as String?)
+                    }
+                }
+                .font(.caption)
+                .pickerStyle(.menu)
+            }
+
+            HStack {
+                Button("All") {
+                    for name in scenarioNames {
+                        selections[name] = true
+                    }
+                }
+                .buttonStyle(.borderless)
+                Button("None") {
+                    for name in scenarioNames {
+                        selections[name] = false
+                    }
+                }
+                .buttonStyle(.borderless)
+                Text("\(scenarioNames.filter { selections[$0] ?? false }.count) selected")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button("Export") {
+                    let selected = scenarioNames.filter { selections[$0] ?? false }
+                    onExport(selected, includeZip, selectedProjectID)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!scenarioNames.contains(where: { selections[$0] ?? false }))
+            }
+        }
+        .padding()
+        .frame(width: 520, height: 360)
     }
 }

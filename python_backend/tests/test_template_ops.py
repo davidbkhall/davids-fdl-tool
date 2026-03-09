@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from fdl_backend.handlers import template_ops
 
 
@@ -154,3 +156,105 @@ def test_export_template():
     assert "json_string" in result
     parsed = json.loads(result["json_string"])
     assert parsed["name"] == "Test"
+
+
+def test_apply_fdl_template_response_schema_success():
+    """apply_fdl_template returns expected top-level schema on success."""
+    source = {
+        "uuid": "doc-1",
+        "version": {"major": 2, "minor": 0},
+        "fdl_creator": "FDL Tool Tests",
+        "contexts": [
+            {
+                "label": "ctx",
+                "context_creator": "tests",
+                "canvases": [
+                    {
+                        "id": "canvas-1",
+                        "label": "canvas",
+                        "source_canvas_id": "canvas-1",
+                        "dimensions": {"width": 3840, "height": 2160},
+                        "anamorphic_squeeze": 1.0,
+                        "framing_decisions": [
+                            {
+                                "id": "fd-1",
+                                "label": "fd",
+                                "framing_intent_id": "intent-1",
+                                "dimensions": {"width": 3840.0, "height": 1608.0},
+                                "anchor_point": {"x": 0.0, "y": 276.0},
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    template = {
+        "id": "tpl-1",
+        "label": "UHD",
+        "target_dimensions": {"width": 1920, "height": 1080},
+        "target_anamorphic_squeeze": 1.0,
+        "fit_source": "framing_decision.dimensions",
+        "fit_method": "fit_all",
+        "alignment_method_horizontal": "center",
+        "alignment_method_vertical": "center",
+        "round": {"even": "even", "mode": "round"},
+        "pad_to_maximum": False,
+    }
+
+    result = template_ops.apply_fdl_template(
+        {
+            "fdl_json": json.dumps(source),
+            "template_json": json.dumps(template),
+            "context_index": 0,
+            "canvas_index": 0,
+            "fd_index": 0,
+            "new_canvas_id": "new-canvas",
+            "new_fd_name": "new-fd",
+        }
+    )
+    assert isinstance(result, dict)
+    assert "fdl" in result
+    assert isinstance(result["fdl"], dict)
+
+    contexts = result["fdl"].get("contexts")
+    assert isinstance(contexts, list)
+    assert contexts
+    canvases = contexts[0].get("canvases")
+    assert isinstance(canvases, list)
+    assert canvases
+    framing_decisions = canvases[-1].get("framing_decisions")
+    assert isinstance(framing_decisions, list)
+    assert framing_decisions
+    assert "dimensions" in framing_decisions[0]
+
+
+def test_apply_fdl_template_invalid_index_errors():
+    """apply_fdl_template raises when requested selection indexes are invalid."""
+    source = {
+        "uuid": "doc-2",
+        "version": {"major": 2, "minor": 0},
+        "fdl_creator": "FDL Tool Tests",
+        "contexts": [],
+    }
+    template = {
+        "id": "tpl-2",
+        "label": "UHD",
+        "target_dimensions": {"width": 1920, "height": 1080},
+        "fit_source": "framing_decision.dimensions",
+        "fit_method": "fit_all",
+        "alignment_method_horizontal": "center",
+        "alignment_method_vertical": "center",
+        "round": {"even": "even", "mode": "round"},
+    }
+
+    with pytest.raises((ValueError, IndexError)):
+        template_ops.apply_fdl_template(
+            {
+                "fdl_json": json.dumps(source),
+                "template_json": json.dumps(template),
+                "context_index": 99,
+                "canvas_index": 0,
+                "fd_index": 0,
+            }
+        )
