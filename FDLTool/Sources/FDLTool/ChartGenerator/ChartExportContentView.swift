@@ -12,7 +12,7 @@ struct ChartExportContentView: View {
     private var cw: Double { viewModel.canvasWidth }
     private var ch: Double { viewModel.canvasHeight }
     /// Proportional font scale so labels are readable at full canvas resolution.
-    var fontScale: Double { max(1.0, min(cw, ch) / 1080.0) }
+    var fontScale: Double { max(1.0, cw / 480.0) }
     private var canvasLabelFont: Double { max(12.0, 9.0 * fontScale) }
     var detailFont: Double { max(10.0, 8.0 * fontScale) }
 
@@ -27,6 +27,7 @@ struct ChartExportContentView: View {
             metadataLayer
             centerMarkerLayer
             logoLayer
+            canvasDimensionLabel
         }
         .frame(width: cw, height: ch)
         .clipped()
@@ -42,14 +43,7 @@ struct ChartExportContentView: View {
             } else {
                 Color.black.frame(width: cw, height: ch)
             }
-            if viewModel.showDimensionLabels {
-                Text(verbatim: "Canvas: \(Int(cw))\u{00D7}\(Int(ch))")
-                    .font(.system(size: canvasLabelFont, design: .monospaced))
-                    .foregroundStyle(viewModel.chartBackgroundTheme == .white
-                        ? Color.black.opacity(0.7) : Color.gray)
-                    .rotationEffect(.degrees(-90))
-                    .position(x: cw - canvasLabelFont * 1.5, y: ch / 2)
-            }
+
         }
     }
 
@@ -179,6 +173,23 @@ struct ChartExportContentView: View {
             }
             .position(x: cw / 2 + viewModel.logoOffsetX * fontScale,
                       y: ch / 2 + viewModel.logoOffsetY * fontScale)
+        }
+    }
+
+    @ViewBuilder
+    private var canvasDimensionLabel: some View {
+        if viewModel.showCanvasLayer && viewModel.showDimensionLabels {
+            Text(verbatim: "Canvas: \(Int(ch))\u{00D7}\(Int(cw))")
+                .font(.system(size: canvasLabelFont, design: .monospaced))
+                .foregroundStyle(
+                    viewModel.chartBackgroundTheme == .white
+                        ? Color(white: 0.15).opacity(0.75)
+                        : Color.white.opacity(0.65)
+                )
+                .lineLimit(1)
+                .padding(.trailing, fontScale * 5)
+                .frame(width: cw, alignment: .trailing)
+                .offset(x: 0, y: ch - canvasLabelFont * 1.5)
         }
     }
 

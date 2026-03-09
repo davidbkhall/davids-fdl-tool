@@ -156,16 +156,6 @@ struct ChartCanvasView: View {
                                 .offset(x: originX, y: originY)
                         }
 
-                        if viewModel.showDimensionLabels {
-                            Text(verbatim: "Canvas: \(Int(cw))\u{00D7}\(Int(ch))")
-                                .font(.system(size: canvasLabelFont, design: .monospaced))
-                                .foregroundStyle(viewModel.chartBackgroundTheme == .white ? .black.opacity(0.7) : .gray)
-                                .rotationEffect(.degrees(-90))
-                                .position(
-                                    x: max(originX + 8, min(originX + scaledW - 8, originX + scaledW - 8)),
-                                    y: max(originY + 52, min(originY + scaledH - 52, originY + scaledH / 2))
-                                )
-                        }
                     }
 
                     // Grid (draw after canvas fill so it is visible in white mode)
@@ -501,6 +491,24 @@ struct ChartCanvasView: View {
                         }
                         .scaleEffect(x: logoScaleX, y: 1.0, anchor: .center)
                         .position(x: centerX + viewModel.logoOffsetX, y: centerY + viewModel.logoOffsetY)
+                    }
+
+                    // Canvas dimension label — drawn last so it's never
+                    // covered by frameline fills, regardless of canvas width.
+                    // Positioned at the bottom edge, right-aligned, horizontal.
+                    if viewModel.showCanvasLayer && viewModel.showDimensionLabels {
+                        let labelText = "Canvas: \(Int(ch))\u{00D7}\(Int(cw))"
+                        Text(verbatim: labelText)
+                            .font(.system(size: canvasLabelFont, design: .monospaced))
+                            .foregroundStyle(
+                                viewModel.chartBackgroundTheme == .white
+                                    ? Color(white: 0.15).opacity(0.75)
+                                    : Color.white.opacity(0.65)
+                            )
+                            .lineLimit(1)
+                            .padding(.trailing, 5)
+                            .frame(width: scaledW, alignment: .trailing)
+                            .offset(x: originX, y: originY + scaledH - canvasLabelFont * 1.5)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 8))

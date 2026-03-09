@@ -127,35 +127,41 @@ def generate_svg(params: dict) -> dict:
 
     preview_desqueeze = bool(params.get("preview_desqueeze", False))
     display_x = squeeze if preview_desqueeze and squeeze > 1.0 else 1.0
-    scale = min(800 / max(1.0, canvas_w * display_x), 600 / canvas_h)
-    svg_w = int(canvas_w * scale * display_x) + padding * 2
-    svg_h = int(canvas_h * scale) + padding * 2 + (40 if title else 0)
+    # Draw in native canvas-pixel coordinate space so the SVG scales correctly
+    # at any display size. A viewBox makes it resolution-independent.
+    scale = 1.0
+    padding = 0
+    title_offset = 40 if title else 0
+    cw, ch = int(canvas_w * display_x), canvas_h
+    # Font scale for native canvas coordinates (mirrors Swift ChartExportContentView)
+    svg_ff = max(1.0, canvas_w / 480.0)
+    svg_w = cw
+    svg_h = ch + title_offset
 
     dwg = svgwrite.Drawing(size=(svg_w, svg_h))
-    bg = "#1a1a1a"
+    dwg.viewbox(0, 0, svg_w, svg_h)
+    bg = "#1a1a1a" if scene.background_theme != "white" else "#AAAAAA"
     fg = "#2A2A2A" if scene.background_theme == "white" else "white"
     dim_fg = "#666666" if scene.background_theme == "white" else "#999999"
     dwg.add(dwg.rect(insert=(0, 0), size=(svg_w, svg_h), fill=bg))
 
-    title_offset = 0
     if title:
-        title_offset = 40
         dwg.add(
             dwg.text(
                 title,
-                insert=(svg_w / 2, 28),
+                insert=(svg_w / 2, title_offset * 0.7),
                 fill=fg,
-                font_size=f"{_font_size(16.0, canvas_w, canvas_h):.0f}px",
+                font_size=f"{max(14.0, 16.0 * svg_ff * 0.35):.0f}px",
                 font_family="sans-serif",
                 text_anchor="middle",
             )
         )
 
-    cx, cy = padding, padding + title_offset
-    cw, ch = int(canvas_w * scale * display_x), int(canvas_h * scale)
-    line_minor = _line_width(1.0, cw, ch)
-    line_major = _line_width(2.0, cw, ch)
-    font_small = _font_size(10.0, cw, ch)
+    cx, cy = 0, title_offset
+    # At native canvas coordinates, scale by svg_ff for visual proportionality
+    line_minor = max(2.0, 1.0 * svg_ff * 0.4)
+    line_major = max(3.0, 2.0 * svg_ff * 0.4)
+    font_small = max(12.0, 10.0 * svg_ff * 0.35)
     label_fg = "#2F2F2F" if scene.background_theme == "white" else "#E4E4E4"
 
     if show_canvas:
@@ -163,13 +169,13 @@ def generate_svg(params: dict) -> dict:
             dwg.add(dwg.rect(insert=(cx, cy), size=(cw, ch), fill="#FFFFFF"))
         dwg.add(dwg.rect(insert=(cx, cy), size=(cw, ch), fill="none", stroke="#444", stroke_width=line_minor))
     if show_grid:
-        _draw_svg_grid(dwg, cx, cy, cw, ch, canvas_w, canvas_h, grid_spacing, scale)
+        _draw_svg_grid(dwg, cx, cy, cw, ch, canvas_w, canvas_h, grid_spacing, 1.0)
 
     if show_effective and eff_w and eff_h:
-        ew = int(eff_w * scale * display_x)
-        eh = int(eff_h * scale)
-        ex = cx + int(((canvas_w - eff_w) / 2.0) * scale * display_x)
-        ey = cy + int(((canvas_h - eff_h) / 2.0) * scale)
+        ew = int(eff_w * display_x)
+        eh = int(eff_h )
+        ex = cx + int(((canvas_w - eff_w) / 2.0) * display_x)
+        ey = cy + int(((canvas_h - eff_h) / 2.0) )
         exi, eyi, ewi, ehi = _adjusted_rect_for_stroke(ex, ey, ew, eh, _line_width(1.5, cw, ch))
         dwg.add(
             dwg.rect(
@@ -180,7 +186,7 @@ def generate_svg(params: dict) -> dict:
             dwg.add(
                 dwg.text(
                     f"Effective: {eff_w}\u00d7{eff_h}",
-                    insert=(ex + 4, ey + 14),
+                    insert=(ex + 4, ey + int(font_small) + 4),
                     fill=label_fg,
                     font_size=f"{font_small:.0f}px",
                     font_family="monospace",
@@ -189,7 +195,7 @@ def generate_svg(params: dict) -> dict:
             dwg.add(
                 dwg.text(
                     f"Anchor: {int((canvas_w - eff_w) / 2)}, {int((canvas_h - eff_h) / 2)}",
-                    insert=(ex + 4, min(ey + eh - 4, ey + 28)),
+                    insert=(ex + 4, min(ey + eh - 4, ey + int(font_small) * 2 + 4)),
                     fill=label_fg,
                     font_size=f"{max(8.0, font_small - 1):.0f}px",
                     font_family="monospace",
@@ -215,9 +221,9 @@ def generate_svg(params: dict) -> dict:
             fh,
             canvas_w,
             canvas_h,
-            scale,
-            scale * display_x,
-            scale,
+            1.0,
+            display_x,
+            1.0,
             h_align,
             v_align,
             fl.anchor_x,
@@ -227,8 +233,8 @@ def generate_svg(params: dict) -> dict:
         prot_w = fl.protection_width
         prot_h = fl.protection_height
         if show_protection and prot_w and prot_h:
-            pw = int(prot_w * scale * display_x)
-            ph = int(prot_h * scale)
+            pw = int(prot_w * display_x)
+            ph = int(prot_h )
             prot_h_align = h_align
             prot_v_align = v_align
             px, py, _, _ = _compute_frameline_position(
@@ -240,9 +246,9 @@ def generate_svg(params: dict) -> dict:
                 prot_h,
                 canvas_w,
                 canvas_h,
-                scale,
-                scale * display_x,
-                scale,
+                1.0,
+                display_x,
+                1.0,
                 prot_h_align,
                 prot_v_align,
                 fl.protection_anchor_x,
@@ -296,9 +302,9 @@ def generate_svg(params: dict) -> dict:
                 )
 
             if show_labels:
-                label_size = max(9.0, min(14.0, min(sw, sh) * 0.055))
-                label_x = min(max(sx + (sw / 2), cx + 32), cx + cw - 32)
-                label_y = min(max(sy + 14, cy + 14), cy + ch - 20)
+                label_size = max(font_small, min(sw, sh) * 0.045)
+                label_x = min(max(sx + (sw / 2), cx + font_small), cx + cw - font_small)
+                label_y = min(max(sy + label_size + 4, cy + label_size + 4), cy + ch - int(label_size) - 4)
                 dwg.add(
                     dwg.text(
                         label or "",
@@ -322,7 +328,7 @@ def generate_svg(params: dict) -> dict:
                 dwg.add(
                     dwg.text(
                         f"Anchor: {anchor_x}, {anchor_y}",
-                        insert=(min(sx + sw - 4, cx + cw - 4), max(sy + sh - 10, cy + 10)),
+                        insert=(min(sx + sw - 4, cx + cw - 4), max(sy + sh - int(label_size) * 0.3, cy + label_size)),
                         fill=label_fg,
                         font_size=f"{max(8.0, label_size - 2):.0f}px",
                         font_family="monospace",
@@ -332,7 +338,7 @@ def generate_svg(params: dict) -> dict:
                 dwg.add(
                     dwg.text(
                         f"Framing Decision: {int(fw)}\u00d7{int(fh)}",
-                        insert=(label_x, min(max(sy + sh - 6, cy + 10), cy + ch - 6)),
+                        insert=(label_x, min(max(sy + sh - int(label_size) * 0.2, cy + label_size), cy + ch - int(label_size) * 0.2)),
                         fill=label_fg,
                         font_size=f"{max(8.0, label_size - 1):.0f}px",
                         font_family="monospace",
@@ -349,7 +355,7 @@ def generate_svg(params: dict) -> dict:
                     dwg.add(
                         dwg.text(
                             f"Protection: {int(prot_w)}\u00d7{int(prot_h)}",
-                            insert=(min(max(px + (pw / 2), cx + 32), cx + cw - 32), min(py + ph - 26, cy + ch - 12)),
+                            insert=(min(max(px + (pw / 2), cx + 32), cx + cw - 32), min(py + ph - int(label_size) * 0.3, cy + ch - int(label_size) * 0.3)),
                             fill=label_fg,
                             font_size=f"{max(8.0, label_size - 1):.0f}px",
                             font_family="monospace",
@@ -359,7 +365,7 @@ def generate_svg(params: dict) -> dict:
                     dwg.add(
                         dwg.text(
                             f"Anchor: {pa_x}, {pa_y}",
-                            insert=(min(px + pw - 4, cx + cw - 4), max(py + ph - 10, cy + 10)),
+                            insert=(min(px + pw - 4, cx + cw - 4), max(py + ph - int(label_size) * 0.1, cy + label_size)),
                             fill=label_fg,
                             font_size=f"{max(8.0, label_size - 2):.0f}px",
                             font_family="monospace",
@@ -384,7 +390,7 @@ def generate_svg(params: dict) -> dict:
 
     _draw_svg_common_overlays(dwg, scene, cx, cy, cw, ch)
 
-    dim_label = f"Canvas: {canvas_w}\u00d7{canvas_h}"
+    dim_label = f"Canvas: {canvas_h}\u00d7{canvas_w}"
     label_x = cx + cw - 4
     label_y = cy + ch - 6
     bbox_w = max(120.0, len(dim_label) * (font_small * 0.62))
