@@ -63,6 +63,126 @@ struct PendingChartExportRequest {
     let printSafeMarginPercent: Double
 }
 
+struct ExportTraceEventComposer {
+    static func userFacingReason(_ error: Error) -> String {
+        if let bridgeError = error as? PythonBridgeError {
+            switch bridgeError {
+            case .timeout:
+                return "Request timed out"
+            case .notStarted:
+                return "Python bridge not started"
+            case .processExited(let code):
+                return "Python process exited (\(code))"
+            case .decodingError:
+                return "Backend response decode failed"
+            case .encodingError:
+                return "Request encoding failed"
+            case .rpcError(let rpc):
+                return "RPC \(rpc.code): \(rpc.message)"
+            }
+        }
+        return error.localizedDescription
+    }
+
+    static func multiExportFailureMessage(
+        completedCount: Int,
+        totalCount: Int,
+        failedFormat: String,
+        reason: String
+    ) -> String {
+        "Export failed.\nCompleted \(completedCount)/\(totalCount). Failed: \(failedFormat). Reason: \(reason)"
+    }
+
+    static func telemetryRecord(
+        event: String,
+        requestID: String,
+        fields: [String: String] = [:]
+    ) -> [String: String] {
+        var payload: [String: String] = [
+            "event": event,
+            "request_id": requestID,
+        ]
+        for (key, value) in fields {
+            payload[key] = value
+        }
+        return payload
+    }
+
+    static func telemetryLine(
+        event: String,
+        requestID: String,
+        fields: [String: String] = [:]
+    ) -> String {
+        let payload = telemetryRecord(event: event, requestID: requestID, fields: fields)
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+           let json = String(data: data, encoding: .utf8) {
+            return "event=\(json)"
+        }
+        return "event=\(event) request_id=\(requestID)"
+    }
+
+    static func noFormatSelectedMessage() -> String {
+        "Export failed.\nReason: Choose at least one format."
+    }
+}
+
+enum MultiExportOutcome {
+    case cancelled
+    case succeeded
+    case failed
+}
+
+struct MultiExportExecutionResult {
+    let outcome: MultiExportOutcome
+    let completedCount: Int
+    let totalCount: Int
+    let failedFormat: ExportFormat?
+    let failureReason: String?
+}
+
+struct MultiExportExecutionRunner {
+    static func run(
+        formats: [ExportFormat],
+        isCancelled: Bool,
+        exportOne: (ExportFormat) async throws -> Void,
+        mapError: (Error) -> String
+    ) async -> MultiExportExecutionResult {
+        if isCancelled {
+            return MultiExportExecutionResult(
+                outcome: .cancelled,
+                completedCount: 0,
+                totalCount: formats.count,
+                failedFormat: nil,
+                failureReason: nil
+            )
+        }
+
+        var completedCount = 0
+        for format in formats {
+            do {
+                try await exportOne(format)
+                completedCount += 1
+            } catch {
+                return MultiExportExecutionResult(
+                    outcome: .failed,
+                    completedCount: completedCount,
+                    totalCount: formats.count,
+                    failedFormat: format,
+                    failureReason: mapError(error)
+                )
+            }
+        }
+
+        return MultiExportExecutionResult(
+            outcome: .succeeded,
+            completedCount: completedCount,
+            totalCount: formats.count,
+            failedFormat: nil,
+            failureReason: nil
+        )
+    }
+}
+
 enum SiemensStarSize: String, CaseIterable, Identifiable {
     case small
     case medium
@@ -219,8 +339,11 @@ class ChartGeneratorViewModel: ObservableObject {
     @Published var isExporting = false
     @Published var showSaveToLibrary = false
 
-    // Error
+    // Error / feedback
     @Published var errorMessage: String?
+    @Published var exportStatusMessage: String?
+    @Published var saveStatusMessage: String?
+    @Published var diagnosticsStatusMessage: String?
     @Published var pendingExportRequest: PendingChartExportRequest?
     private var isDispatchingPendingExport = false
 
@@ -281,7 +404,7 @@ class ChartGeneratorViewModel: ObservableObject {
             logoImageFileName = url.lastPathComponent
             showLogoOverlay = true
         } catch {
-            errorMessage = "Unable to load logo image: \(error.localizedDescription)"
+            errorMessage = "Unable to load logo image: \(userFacingExportError(error))"
         }
     }
 
@@ -514,7 +637,10 @@ class ChartGeneratorViewModel: ObservableObject {
     // MARK: - Export
 
     func performExport(formats: [ExportFormat], printSafeMarginPercent: Double = 0) {
-        guard !formats.isEmpty else { return }
+        guard !formats.isEmpty else {
+            reportExportFailure(ExportTraceEventComposer.noFormatSelectedMessage())
+            return
+        }
         if formats.count == 1, let format = formats.first {
             export(format: format, printSafeMarginPercent: printSafeMarginPercent)
         } else {
@@ -523,7 +649,10 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     func requestExport(formats: [ExportFormat], printSafeMarginPercent: Double = 0) {
-        guard !formats.isEmpty else { return }
+        guard !formats.isEmpty else {
+            reportExportFailure(ExportTraceEventComposer.noFormatSelectedMessage())
+            return
+        }
         pendingExportRequest = PendingChartExportRequest(
             formats: formats,
             printSafeMarginPercent: printSafeMarginPercent
@@ -569,46 +698,109 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     private func exportMultiple(formats: [ExportFormat], printSafeMarginPercent: Double) {
+        let requestID = newExportRequestID()
         activateAppForExportDialog()
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose Folder"
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
-        traceExport("multi export folder selected path=\(folder.path)")
+        guard panel.runModal() == .OK, let folder = panel.url else {
+            traceExportEvent("multi_export_cancelled", requestID: requestID)
+            return
+        }
+        traceExportEvent(
+            "multi_export_started",
+            requestID: requestID,
+            fields: [
+                "folder": folder.lastPathComponent,
+                "formats": formats.map(\.rawValue).joined(separator: ","),
+            ]
+        )
 
         isExporting = true
         Task {
             let startedAccessing = folder.startAccessingSecurityScopedResource()
-            self.traceExport("multi export security scope started=\(startedAccessing)")
+            self.traceExportEvent(
+                "multi_export_scope",
+                requestID: requestID,
+                fields: ["started": String(startedAccessing)]
+            )
             defer {
                 if startedAccessing { folder.stopAccessingSecurityScopedResource() }
                 Task { @MainActor in self.isExporting = false }
             }
-            for format in formats {
-                do {
-                    try await exportToFolder(
+
+            let result = await MultiExportExecutionRunner.run(
+                formats: formats,
+                isCancelled: false,
+                exportOne: { format in
+                    try await self.exportToFolder(
                         format: format,
                         folder: folder,
-                        printSafeMarginPercent: printSafeMarginPercent
+                        printSafeMarginPercent: printSafeMarginPercent,
+                        requestID: requestID
                     )
-                } catch {
-                    self.traceExport("multi export failed format=\(format.rawValue) error=\(error.localizedDescription)")
+                    self.traceExportEvent(
+                        "multi_export_item_complete",
+                        requestID: requestID,
+                        fields: ["format": format.rawValue]
+                    )
+                },
+                mapError: { error in
+                    self.userFacingExportError(error)
+                }
+            )
+
+            switch result.outcome {
+            case .cancelled:
+                self.traceExportEvent("multi_export_cancelled", requestID: requestID)
+            case .failed:
+                guard let failedFormat = result.failedFormat, let reason = result.failureReason else {
                     await MainActor.run {
-                        self.errorMessage = "\(format.rawValue) export failed: \(error.localizedDescription)"
+                        self.reportExportFailure("Export failed.\nReason: Unknown export failure")
                     }
                     return
                 }
+                self.traceExportEvent(
+                    "multi_export_item_failed",
+                    requestID: requestID,
+                    fields: [
+                        "format": failedFormat.rawValue,
+                        "reason": reason,
+                        "completed": String(result.completedCount),
+                        "total": String(result.totalCount),
+                    ]
+                )
+                await MainActor.run {
+                    self.reportExportFailure(
+                        ExportTraceEventComposer.multiExportFailureMessage(
+                            completedCount: result.completedCount,
+                            totalCount: result.totalCount,
+                            failedFormat: failedFormat.rawValue,
+                            reason: reason
+                        )
+                    )
+                }
+            case .succeeded:
+                self.traceExportEvent(
+                    "multi_export_complete",
+                    requestID: requestID,
+                    fields: ["count": String(result.totalCount), "folder": folder.lastPathComponent]
+                )
+                await MainActor.run {
+                    self.reportExportSuccess("Export complete.\n\(result.totalCount) format\(result.totalCount == 1 ? "" : "s") to \(folder.lastPathComponent)")
+                }
             }
-            self.traceExport("multi export completed formats=\(formats.map(\.rawValue).joined(separator: ","))")
         }
     }
+
 
     private func exportToFolder(
         format: ExportFormat,
         folder: URL,
-        printSafeMarginPercent: Double
+        printSafeMarginPercent: Double,
+        requestID: String? = nil
     ) async throws {
         let safeTitle = chartTitle.replacingOccurrences(of: "/", with: "-")
         let base = folder.appendingPathComponent(safeTitle)
@@ -616,7 +808,8 @@ class ChartGeneratorViewModel: ObservableObject {
         case .svg:
             let response = try await callBackendWithTimeout(
                 method: "chart.generate_svg",
-                params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+                params: chartParams(printSafeMarginPercent: printSafeMarginPercent, requestID: requestID),
+                requestID: requestID
             )
             try copyFromTempFile(response, to: base.appendingPathExtension("svg"))
         case .png:
@@ -651,7 +844,7 @@ class ChartGeneratorViewModel: ObservableObject {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select ARRI camera"])
             }
             traceExport("backend call start method=chart.generate_fdl")
-            let fdlResponse = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams())
+            let fdlResponse = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams(requestID: requestID), requestID: requestID)
             traceExport("backend call done method=chart.generate_fdl")
             let payload: [String: Any] = [
                 "fdl_json": fdlResponse["fdl"] as Any,
@@ -661,7 +854,7 @@ class ChartGeneratorViewModel: ObservableObject {
                 "include_effective": true,
             ]
             traceExport("backend call start method=frameline.arri.to_xml")
-            let response = try await callBackendWithTimeout(method: "frameline.arri.to_xml", params: payload)
+            let response = try await callBackendWithTimeout(method: "frameline.arri.to_xml", params: payload, requestID: requestID)
             traceExport("backend call done method=frameline.arri.to_xml")
             guard let xml = response["xml_string"] as? String else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No ARRI XML payload"])
@@ -675,7 +868,7 @@ class ChartGeneratorViewModel: ObservableObject {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select Sony camera"])
             }
             traceExport("backend call start method=chart.generate_fdl")
-            let fdlResponse = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams())
+            let fdlResponse = try await callBackendWithTimeout(method: "chart.generate_fdl", params: fdlParams(requestID: requestID), requestID: requestID)
             traceExport("backend call done method=chart.generate_fdl")
             let payload: [String: Any] = [
                 "fdl_json": fdlResponse["fdl"] as Any,
@@ -684,7 +877,7 @@ class ChartGeneratorViewModel: ObservableObject {
                 "include_protection": true,
             ]
             traceExport("backend call start method=frameline.sony.to_xml")
-            let response = try await callBackendWithTimeout(method: "frameline.sony.to_xml", params: payload)
+            let response = try await callBackendWithTimeout(method: "frameline.sony.to_xml", params: payload, requestID: requestID)
             traceExport("backend call done method=frameline.sony.to_xml")
             guard let xml = response["xml_string"] as? String else {
                 throw NSError(domain: "FDLTool", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Sony XML payload"])
@@ -732,14 +925,15 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     private func exportSVG(printSafeMarginPercent: Double = 0) {
-        traceExport("single export start format=SVG")
+        let requestID = newExportRequestID()
+        traceExportEvent("single_export_started", requestID: requestID, fields: ["format": "SVG"])
         activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "svg") ?? .data]
         panel.nameFieldStringValue = "\(chartTitle).svg"
 
         guard panel.runModal() == .OK, let dest = panel.url else {
-            traceExport("single export cancelled format=SVG")
+            traceExportEvent("single_export_cancelled", requestID: requestID, fields: ["format": "SVG"])
             return
         }
         traceExport("single export selected format=SVG path=\(dest.path)")
@@ -752,26 +946,29 @@ class ChartGeneratorViewModel: ObservableObject {
                 traceExport("backend call start method=chart.generate_svg")
                 let response = try await callBackendWithTimeout(
                     method: "chart.generate_svg",
-                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent)
+                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent, requestID: requestID),
+                    requestID: requestID
                 )
                 try copyFromTempFile(response, to: dest)
                 traceExport("single export wrote format=SVG path=\(dest.path)")
+                await MainActor.run { self.reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)") }
             } catch {
-                errorMessage = "SVG export failed: \(error.localizedDescription)"
-                traceExport("single export failed format=SVG error=\(error.localizedDescription)")
+                reportExportFailure("SVG export failed.\nReason: \(userFacingExportError(error))")
+                traceExport("single export failed format=SVG error=\(userFacingExportError(error))")
             }
         }
     }
 
     func exportPNG(printSafeMarginPercent: Double = 0) {
-        traceExport("single export start format=PNG")
+        let requestID = newExportRequestID()
+        traceExportEvent("single_export_started", requestID: requestID, fields: ["format": "PNG"])
         activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = "\(chartTitle).png"
 
         guard panel.runModal() == .OK, let dest = panel.url else {
-            traceExport("single export cancelled format=PNG")
+            traceExportEvent("single_export_cancelled", requestID: requestID, fields: ["format": "PNG"])
             return
         }
         traceExport("single export selected format=PNG path=\(dest.path)")
@@ -780,29 +977,31 @@ class ChartGeneratorViewModel: ObservableObject {
         Task { @MainActor in
             defer { self.isExporting = false }
             guard let data = self.renderExportImageData(format: .png) else {
-                self.errorMessage = "PNG export failed: could not render chart image."
+                self.reportExportFailure("PNG export failed.\nReason: Could not render chart image.")
                 self.traceExport("single export failed format=PNG render error")
                 return
             }
             do {
                 try self.writeData(data, to: dest)
                 self.traceExport("single export wrote format=PNG path=\(dest.path) bytes=\(data.count)")
+                self.reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)")
             } catch {
-                self.errorMessage = "PNG export failed: \(error.localizedDescription)"
-                self.traceExport("single export failed format=PNG error=\(error.localizedDescription)")
+                self.reportExportFailure("PNG export failed.\nReason: \(userFacingExportError(error))")
+                self.traceExport("single export failed format=PNG error=\(userFacingExportError(error))")
             }
         }
     }
 
     func exportTIFF(printSafeMarginPercent: Double = 0) {
-        traceExport("single export start format=TIFF")
+        let requestID = newExportRequestID()
+        traceExportEvent("single_export_started", requestID: requestID, fields: ["format": "TIFF"])
         activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "tiff") ?? .data]
         panel.nameFieldStringValue = "\(chartTitle).tiff"
 
         guard panel.runModal() == .OK, let dest = panel.url else {
-            traceExport("single export cancelled format=TIFF")
+            traceExportEvent("single_export_cancelled", requestID: requestID, fields: ["format": "TIFF"])
             return
         }
         traceExport("single export selected format=TIFF path=\(dest.path)")
@@ -811,29 +1010,31 @@ class ChartGeneratorViewModel: ObservableObject {
         Task { @MainActor in
             defer { self.isExporting = false }
             guard let data = self.renderExportImageData(format: .tiff) else {
-                self.errorMessage = "TIFF export failed: could not render chart image."
+                self.reportExportFailure("TIFF export failed.\nReason: Could not render chart image.")
                 self.traceExport("single export failed format=TIFF render error")
                 return
             }
             do {
                 try self.writeData(data, to: dest)
                 self.traceExport("single export wrote format=TIFF path=\(dest.path) bytes=\(data.count)")
+                self.reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)")
             } catch {
-                self.errorMessage = "TIFF export failed: \(error.localizedDescription)"
-                self.traceExport("single export failed format=TIFF error=\(error.localizedDescription)")
+                self.reportExportFailure("TIFF export failed.\nReason: \(userFacingExportError(error))")
+                self.traceExport("single export failed format=TIFF error=\(userFacingExportError(error))")
             }
         }
     }
 
     func exportPDF(printSafeMarginPercent: Double = 0) {
-        traceExport("single export start format=PDF")
+        let requestID = newExportRequestID()
+        traceExportEvent("single_export_started", requestID: requestID, fields: ["format": "PDF"])
         activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType.pdf]
         panel.nameFieldStringValue = "\(chartTitle).pdf"
 
         guard panel.runModal() == .OK, let dest = panel.url else {
-            traceExport("single export cancelled format=PDF")
+            traceExportEvent("single_export_cancelled", requestID: requestID, fields: ["format": "PDF"])
             return
         }
         traceExport("single export selected format=PDF path=\(dest.path)")
@@ -842,29 +1043,31 @@ class ChartGeneratorViewModel: ObservableObject {
         Task { @MainActor in
             defer { self.isExporting = false }
             guard let data = self.renderExportImageData(format: .pdf) else {
-                self.errorMessage = "PDF export failed: could not render chart image."
+                self.reportExportFailure("PDF export failed.\nReason: Could not render chart image.")
                 self.traceExport("single export failed format=PDF render error")
                 return
             }
             do {
                 try self.writeData(data, to: dest)
                 self.traceExport("single export wrote format=PDF path=\(dest.path) bytes=\(data.count)")
+                self.reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)")
             } catch {
-                self.errorMessage = "PDF export failed: \(error.localizedDescription)"
-                self.traceExport("single export failed format=PDF error=\(error.localizedDescription)")
+                self.reportExportFailure("PDF export failed.\nReason: \(userFacingExportError(error))")
+                self.traceExport("single export failed format=PDF error=\(userFacingExportError(error))")
             }
         }
     }
 
     func exportFDL() {
-        traceExport("single export start format=FDL")
+        let requestID = newExportRequestID()
+        traceExportEvent("single_export_started", requestID: requestID, fields: ["format": "FDL"])
         activateAppForExportDialog()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.fdl]
         panel.nameFieldStringValue = "\(chartTitle).fdl"
 
         guard panel.runModal() == .OK, let dest = panel.url else {
-            traceExport("single export cancelled format=FDL")
+            traceExportEvent("single_export_cancelled", requestID: requestID, fields: ["format": "FDL"])
             return
         }
         traceExport("single export selected format=FDL path=\(dest.path)")
@@ -873,16 +1076,17 @@ class ChartGeneratorViewModel: ObservableObject {
         let doc = buildLocalFDLDocument()
         guard let jsonString = FDLJSONSerializer.string(from: doc),
               let data = jsonString.data(using: .utf8) else {
-            errorMessage = "FDL export failed: could not serialize document."
+            reportExportFailure("FDL export failed.\nReason: Could not serialize document.")
             traceExport("single export failed format=FDL serialization error")
             return
         }
         do {
             try writeData(data, to: dest)
             traceExport("single export wrote format=FDL path=\(dest.path) bytes=\(data.count)")
+            reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)")
         } catch {
-            errorMessage = "FDL export failed: \(error.localizedDescription)"
-            traceExport("single export failed format=FDL error=\(error.localizedDescription)")
+            reportExportFailure("FDL export failed.\nReason: \(userFacingExportError(error))")
+            traceExport("single export failed format=FDL error=\(userFacingExportError(error))")
         }
     }
 
@@ -897,6 +1101,7 @@ class ChartGeneratorViewModel: ObservableObject {
             return
         }
         Task {
+            let requestID = newExportRequestID()
             do {
                 // Build FDL natively, then convert via bridge
                 let doc = buildLocalFDLDocument()
@@ -911,15 +1116,16 @@ class ChartGeneratorViewModel: ObservableObject {
                     "include_protection": true,
                     "include_effective": true,
                 ]
-                let response = try await callBackendWithTimeout(method: "frameline.arri.to_xml", params: payload)
+                let response = try await callBackendWithTimeout(method: "frameline.arri.to_xml", params: payload, requestID: requestID)
                 guard let xml = response["xml_string"] as? String,
                       let data = xml.data(using: .utf8) else {
                     throw NSError(domain: "FDLTool", code: 1,
                         userInfo: [NSLocalizedDescriptionKey: "No ARRI XML payload returned"])
                 }
                 try writeData(data, to: dest)
+                reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)")
             } catch {
-                errorMessage = "ARRI XML export failed: \(error.localizedDescription)"
+                reportExportFailure("ARRI XML export failed.\nReason: \(userFacingExportError(error))")
             }
         }
     }
@@ -935,6 +1141,7 @@ class ChartGeneratorViewModel: ObservableObject {
             return
         }
         Task {
+            let requestID = newExportRequestID()
             do {
                 // Build FDL natively, then convert via bridge
                 let doc = buildLocalFDLDocument()
@@ -948,23 +1155,26 @@ class ChartGeneratorViewModel: ObservableObject {
                     "imager_mode": selectedRecordingMode?.name ?? "default",
                     "include_protection": true,
                 ]
-                let response = try await callBackendWithTimeout(method: "frameline.sony.to_xml", params: payload)
+                let response = try await callBackendWithTimeout(method: "frameline.sony.to_xml", params: payload, requestID: requestID)
                 guard let xml = response["xml_string"] as? String,
                       let data = xml.data(using: .utf8) else {
                     throw NSError(domain: "FDLTool", code: 1,
                         userInfo: [NSLocalizedDescriptionKey: "No Sony XML payload returned"])
                 }
                 try writeData(data, to: dest)
+                reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)")
             } catch {
-                errorMessage = "Sony XML export failed: \(error.localizedDescription)"
+                reportExportFailure("Sony XML export failed.\nReason: \(userFacingExportError(error))")
             }
         }
     }
 
-    func saveToLibrary(projectID: String) {
+    func saveToLibrary(projectID: String, projectName: String? = nil) {
+        saveStatusMessage = nil
         Task {
             do {
-                let response = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams())
+                let requestID = newExportRequestID()
+                let response = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams(requestID: requestID))
                 guard let fdlDict = response["fdl"] as? [String: Any] else {
                     errorMessage = "Failed to generate FDL"
                     return
@@ -987,9 +1197,10 @@ class ChartGeneratorViewModel: ObservableObject {
                 )
 
                 try libraryStore.addFDLEntry(entry, jsonData: jsonData)
+                saveStatusMessage = "Saved to Library.\nProject: \(projectName ?? "Unknown Project")"
                 showSaveToLibrary = false
             } catch {
-                errorMessage = "Save to library failed: \(error.localizedDescription)"
+                errorMessage = "Save to library failed: \(userFacingExportError(error))"
             }
         }
     }
@@ -1106,7 +1317,7 @@ class ChartGeneratorViewModel: ObservableObject {
 
     // MARK: - Param Builders
 
-    private func chartParams(printSafeMarginPercent: Double = 0, includePreviewFlags: Bool = false) -> [String: Any] {
+    private func chartParams(printSafeMarginPercent: Double = 0, includePreviewFlags: Bool = false, requestID: String? = nil) -> [String: Any] {
         let framingSummary: String = {
             guard let first = framelines.first else { return "N/A" }
             return "\(Int(first.width))x\(Int(first.height))"
@@ -1218,12 +1429,15 @@ class ChartGeneratorViewModel: ObservableObject {
         if includePreviewFlags {
             params["preview_desqueeze"] = previewDesqueezed
         }
+        if let requestID, !requestID.isEmpty {
+            params["request_id"] = requestID
+        }
 
         return params
     }
 
-    private func fdlParams() -> [String: Any] {
-        var params = chartParams()
+    private func fdlParams(requestID: String? = nil) -> [String: Any] {
+        var params = chartParams(requestID: requestID)
         if let camera = selectedCamera {
             params["camera_model"] = "\(camera.manufacturer) \(camera.model)"
         }
@@ -1254,7 +1468,8 @@ class ChartGeneratorViewModel: ObservableObject {
     private func callBackendWithTimeout(
         method: String,
         params: [String: Any],
-        timeoutSeconds: UInt64 = 60
+        timeoutSeconds: UInt64 = 60,
+        requestID: String? = nil
     ) async throws -> [String: Any] {
         let bridge = pythonBridge
 
@@ -1262,12 +1477,18 @@ class ChartGeneratorViewModel: ObservableObject {
         do {
             try await bridge.start()
         } catch {
-            traceExport("backend bridge start failed error=\(error.localizedDescription)")
+            traceExport("backend bridge start failed error=\(userFacingExportError(error))")
             throw error
         }
 
+        var rpcParams = params
+        if let requestID, !requestID.isEmpty {
+            rpcParams["request_id"] = requestID
+            traceExportEvent("backend_call_started", requestID: requestID, fields: ["method": method])
+        }
+
         let callTask = Task.detached(priority: .userInitiated) {
-            try await bridge.callForResult(method, params: params)
+            try await bridge.callForResult(method, params: rpcParams)
         }
 
         return try await withThrowingTaskGroup(of: [String: Any].self) { group in
@@ -1283,9 +1504,15 @@ class ChartGeneratorViewModel: ObservableObject {
             do {
                 let result = try await group.next()!
                 traceExport("backend call done method=\(method)")
+                if let requestID, !requestID.isEmpty {
+                    traceExportEvent("backend_call_complete", requestID: requestID, fields: ["method": method])
+                }
                 return result
             } catch {
-                traceExport("backend call timeout/failure method=\(method) error=\(error.localizedDescription)")
+                traceExport("backend call timeout/failure method=\(method) error=\(userFacingExportError(error))")
+                if let requestID, !requestID.isEmpty {
+                    traceExportEvent("backend_call_failed", requestID: requestID, fields: ["method": method, "reason": userFacingExportError(error)])
+                }
                 throw error
             }
         }
@@ -1304,27 +1531,106 @@ class ChartGeneratorViewModel: ObservableObject {
         try? FileManager.default.removeItem(at: src)
     }
 
-    private func traceExport(_ message: String) {
-        let formatter = ISO8601DateFormatter()
-        let line = "\(formatter.string(from: Date())) \(message)\n"
+    func copyExportDiagnostics(maxLines: Int = 250) {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let exportTraceText = tailLogText(url: exportTraceLogURL(), maxLines: maxLines)
+        let backendTraceText = tailLogText(url: backendTraceLogURL(), maxLines: maxLines)
+
+        var sections: [String] = []
+        sections.append("FDL Tool Export Diagnostics")
+        sections.append("Generated: \(now)")
+        if let err = errorMessage, !err.isEmpty {
+            sections.append("Latest error: \(err)")
+        }
+        if let status = exportStatusMessage, !status.isEmpty {
+            sections.append("Latest export status: \(status)")
+        }
+        sections.append("---")
+        sections.append("Export Trace (tail \(max(1, maxLines)) lines)")
+        sections.append(exportTraceText)
+        sections.append("---")
+        sections.append("Backend Trace (tail \(max(1, maxLines)) lines)")
+        sections.append(backendTraceText)
+
+        let payload = sections.joined(separator: "\n")
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let ok = pasteboard.setString(payload, forType: .string)
+        if ok {
+            diagnosticsStatusMessage = "Diagnostics copied.\nPaste into chat/support."
+        } else {
+            errorMessage = "Could not copy diagnostics to clipboard."
+        }
+    }
+
+    private func newExportRequestID() -> String {
+        UUID().uuidString
+    }
+
+    private func userFacingExportError(_ error: Error) -> String {
+        ExportTraceEventComposer.userFacingReason(error)
+    }
+
+    private func traceExportEvent(
+        _ event: String,
+        requestID: String,
+        fields: [String: String] = [:]
+    ) {
+        traceExport(ExportTraceEventComposer.telemetryLine(
+            event: event,
+            requestID: requestID,
+            fields: fields
+        ))
+    }
+
+    private func reportExportSuccess(_ message: String) {
+        errorMessage = nil
+        exportStatusMessage = message
+    }
+
+    private func reportExportFailure(_ message: String) {
+        exportStatusMessage = nil
+        errorMessage = message
+    }
+
+    private func tailLogText(url: URL?, maxLines: Int) -> String {
+        guard let url, let full = try? String(contentsOf: url, encoding: .utf8) else {
+            return "No log found."
+        }
+        let lines = full.split(separator: "\n", omittingEmptySubsequences: false)
+        return lines.suffix(max(1, maxLines)).joined(separator: "\n")
+    }
+
+    private func backendTraceLogURL() -> URL? {
         let logsDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("FDLTool", isDirectory: true)
-        let logFile = logsDir?.appendingPathComponent("export_trace.log")
         if let dir = logsDir {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
-        if let fileURL = logFile {
-            if let data = line.data(using: .utf8) {
-                if FileManager.default.fileExists(atPath: fileURL.path) {
-                    if let handle = try? FileHandle(forWritingTo: fileURL) {
-                        _ = try? handle.seekToEnd()
-                        try? handle.write(contentsOf: data)
-                        try? handle.close()
-                    }
-                } else {
-                    try? data.write(to: fileURL)
-                }
+        return logsDir?.appendingPathComponent("backend_trace.log")
+    }
+
+    private func exportTraceLogURL() -> URL? {
+        let logsDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("FDLTool", isDirectory: true)
+        if let dir = logsDir {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return logsDir?.appendingPathComponent("export_trace.log")
+    }
+
+    private func traceExport(_ message: String) {
+        let formatter = ISO8601DateFormatter()
+        let line = "\(formatter.string(from: Date())) \(message)\n"
+        guard let fileURL = exportTraceLogURL(), let data = line.data(using: .utf8) else { return }
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            if let handle = try? FileHandle(forWritingTo: fileURL) {
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+                try? handle.close()
             }
+        } else {
+            try? data.write(to: fileURL)
         }
     }
 }

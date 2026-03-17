@@ -7,6 +7,7 @@ Each request is a JSON-RPC 2.0 request; each response is a JSON-RPC 2.0 response
 import json
 import sys
 import traceback
+import time
 from typing import Any
 
 from fdl_backend.handlers import chart_gen, clip_id, fdl_ops, frameline_ops, geometry_ops, image_ops, template_ops
@@ -66,6 +67,25 @@ def register_handlers() -> None:
     HANDLERS["frameline.sony.to_fdl"] = frameline_ops.sony_to_fdl
 
 
+
+
+def _request_id_from_params(params: Any) -> str:
+    if isinstance(params, dict):
+        rid = params.get("request_id")
+        if isinstance(rid, str):
+            return rid.strip()
+    return ""
+
+
+def _trace_event(event: str, **fields: Any) -> None:
+    payload = {"event": event, "ts_ms": int(time.time() * 1000), **fields}
+    try:
+        sys.stderr.write(f"[trace] {json.dumps(payload, sort_keys=True)}\n")
+        sys.stderr.flush()
+    except Exception:
+        # Tracing must never break request handling.
+        pass
+
 def make_response(id: int | None, result: Any = None, error: dict | None = None) -> dict:
     """Build a JSON-RPC 2.0 response."""
     resp: dict[str, Any] = {"jsonrpc": "2.0", "id": id}
@@ -89,16 +109,29 @@ def handle_request(request: dict) -> dict:
     req_id = request.get("id")
     method = request.get("method", "")
     params = request.get("params", {})
+    request_id = _request_id_from_params(params)
+
+    _trace_event("rpc_request_received", request_id=request_id, rpc_id=req_id, method=method)
 
     if method not in HANDLERS:
+        _trace_event("rpc_request_failed", request_id=request_id, rpc_id=req_id, method=method, reason="method_not_found")
         return make_response(req_id, error=make_error(-32601, f"Method not found: {method}"))
 
     try:
         handler = HANDLERS[method]
         result = handler(params)
+        _trace_event("rpc_request_succeeded", request_id=request_id, rpc_id=req_id, method=method)
         return make_response(req_id, result=result)
     except Exception as exc:
         tb = traceback.format_exc()
+        _trace_event(
+            "rpc_request_failed",
+            request_id=request_id,
+            rpc_id=req_id,
+            method=method,
+            reason=str(exc),
+            error_type=exc.__class__.__name__,
+        )
         return make_response(
             req_id,
             error=make_error(-32000, str(exc), data={"traceback": tb}),

@@ -1,0 +1,3992 @@
+{
+  "summary": {
+    "cases_total": 41,
+    "cases_passed": 41,
+    "cases_failed": 0,
+    "failure_categories": {}
+  },
+  "results": [
+    {
+      "case_id": "Scen_10_FitWidth_MaintainAspectRatio:B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_10_FitWidth_MaintainAspectRatio",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_10_FitWidth_MaintainAspectRatio-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2250.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2250.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2250.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2250.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2250.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2250.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_10_FitWidth_MaintainAspectRatio:J_4320x3456_2x_FramingChart.fdl",
+      "scenario_name": "Scen_10_FitWidth_MaintainAspectRatio",
+      "source_file": "J_4320x3456_2x_FramingChart.fdl",
+      "expected_file": "J_4320x3456_2x_FramingChart.fdl",
+      "template_file": "Scen_10_FitWidth_MaintainAspectRatio-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 1676.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 1676.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 1676.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 1676.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 1676.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 1676.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_11_FitHeight_MaintainAspectRatio:B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_11_FitHeight_MaintainAspectRatio",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_11_FitHeight_MaintainAspectRatio-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 6000.0,
+            "height": 5000.0
+          },
+          "expected": {
+            "width": 6000.0,
+            "height": 5000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1080.0,
+            "y": 1420.0
+          },
+          "expected": {
+            "x": 1080.0,
+            "y": 1420.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1080.0,
+            "y": 1420.0
+          },
+          "expected": {
+            "x": 1080.0,
+            "y": 1420.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_11_FitHeight_MaintainAspectRatio:J_4320x3456_2x_FramingChart.fdl",
+      "scenario_name": "Scen_11_FitHeight_MaintainAspectRatio",
+      "source_file": "J_4320x3456_2x_FramingChart.fdl",
+      "expected_file": "J_4320x3456_2x_FramingChart.fdl",
+      "template_file": "Scen_11_FitHeight_MaintainAspectRatio-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 6000.0,
+            "height": 5000.0
+          },
+          "expected": {
+            "width": 6000.0,
+            "height": 5000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 5156.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 5156.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 422.0,
+            "y": 1420.0
+          },
+          "expected": {
+            "x": 422.0,
+            "y": 1420.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 5156.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 5156.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 422.0,
+            "y": 1420.0
+          },
+          "expected": {
+            "x": 422.0,
+            "y": 1420.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_12_FitDecision_Fill:Scen12-RESULTD_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_12_FitDecision_Fill",
+      "source_file": "D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen12-RESULTD_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_12_FitDecision-Fill.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1436.0,
+            "height": 1080.0
+          },
+          "expected": {
+            "width": 1436.0,
+            "height": 1080.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1436.0,
+            "height": 1080.0
+          },
+          "expected": {
+            "width": 1436.0,
+            "height": 1080.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1436.0,
+            "height": 1080.0
+          },
+          "expected": {
+            "width": 1436.0,
+            "height": 1080.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_13_FitDecision_With_Protection_Fill:Scen13-RESULTD_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_13_FitDecision_With_Protection_Fill",
+      "source_file": "D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen13-RESULTD_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_13_FitDecision-With-ProtectionFill.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1436.0,
+            "height": 1080.0
+          },
+          "expected": {
+            "width": 1436.0,
+            "height": 1080.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1436.0,
+            "height": 1080.0
+          },
+          "expected": {
+            "width": 1436.0,
+            "height": 1080.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1340.0,
+            "height": 972.0
+          },
+          "expected": {
+            "width": 1340.0,
+            "height": 972.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 54.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 54.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1436.0,
+            "height": 1080.0
+          },
+          "expected": {
+            "width": 1436.0,
+            "height": 1080.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_14_Preserving-Protection-WithMaxDim-Cropping:Scen14-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_14_Preserving-Protection-WithMaxDim-Cropping",
+      "source_file": "D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen14-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_14_Preserving-Protection-WithMaxDim-Cropping-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 80.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 80.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_14_Preserving-Protection-WithMaxDim-Cropping:Scen14-RESULT-E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_14_Preserving-Protection-WithMaxDim-Cropping",
+      "source_file": "E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen14-RESULT-E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_14_Preserving-Protection-WithMaxDim-Cropping-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 80.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 80.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_14_Preserving-Protection-WithMaxDim-Cropping:Scen14-RESULT-F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_14_Preserving-Protection-WithMaxDim-Cropping",
+      "source_file": "F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen14-RESULT-F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_14_Preserving-Protection-WithMaxDim-Cropping-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 80.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 80.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4000.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 4000.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_15_Retention_Of_Relative_Anchors:Scen15-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "scenario_name": "Scen_15_Retention_Of_Relative_Anchors",
+      "source_file": "A_4448x3096_1-3x_FramingChart.fdl",
+      "expected_file": "Scen15-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "template_file": "Scen_15_Retention_of_relative_anchors.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1728.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 1728.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1056.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 1056.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_15_Retention_Of_Relative_Anchors:Scen15-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_15_Retention_Of_Relative_Anchors",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen15-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_15_Retention_of_relative_anchors.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1728.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 1728.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1056.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 1056.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_15_Retention_Of_Relative_Anchors:Scen15-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "scenario_name": "Scen_15_Retention_Of_Relative_Anchors",
+      "source_file": "C_4448x3096_2x_FramingChart.fdl",
+      "expected_file": "Scen15-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "template_file": "Scen_15_Retention_of_relative_anchors.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1728.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 1728.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1056.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 1056.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left:Scen16-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "scenario_name": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left",
+      "source_file": "A_4448x3096_1-3x_FramingChart.fdl",
+      "expected_file": "Scen16-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "template_file": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 4000.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 4000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3456.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 3456.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 192.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 192.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left:Scen16-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen16-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 4000.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 4000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3456.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 3456.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 192.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 192.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left:Scen16-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "scenario_name": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left",
+      "source_file": "C_4448x3096_2x_FramingChart.fdl",
+      "expected_file": "Scen16-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "template_file": "Scen_16_Retention_Of_Relative_Anchors_pad_to_max_top_left.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 4000.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 4000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3454.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 3454.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 192.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 192.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left:Scen17-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "scenario_name": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left",
+      "source_file": "A_4448x3096_1-3x_FramingChart.fdl",
+      "expected_file": "Scen17-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "template_file": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 4000.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 4000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 1840.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 1840.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 1840.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 1840.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left:Scen17-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen17-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 4000.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 4000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 1840.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 1840.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 1840.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 1840.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left:Scen17-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "scenario_name": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left",
+      "source_file": "C_4448x3096_2x_FramingChart.fdl",
+      "expected_file": "Scen17-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "template_file": "Scen_17_Retention_Of_Relative_Anchors_pad_to_max_bottom_left.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 4000.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 4000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 1840.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 1840.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 1840.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 1840.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_18_Normalizing_LensSqueezeTo2_PadToMax_NonUniform_Crop:Scen18-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "scenario_name": "Scen_18_Normalizing_LensSqueezeTo2_PadToMax_NonUniform_Crop",
+      "source_file": "A_4448x3096_1-3x_FramingChart.fdl",
+      "expected_file": "Scen18-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "template_file": "Scen_18_Normalizing_LensSqueezeTo2-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 2134.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 2134.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 854.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 854.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 2134.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 2134.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 854.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 854.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_18_Normalizing_LensSqueezeTo2_PadToMax_NonUniform_Crop:Scen18-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_18_Normalizing_LensSqueezeTo2_PadToMax_NonUniform_Crop",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen18-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_18_Normalizing_LensSqueezeTo2-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 2134.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 2134.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 854.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 854.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 2134.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 2134.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 854.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 854.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_18_Normalizing_LensSqueezeTo2_PadToMax_NonUniform_Crop:Scen18-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "scenario_name": "Scen_18_Normalizing_LensSqueezeTo2_PadToMax_NonUniform_Crop",
+      "source_file": "C_4448x3096_2x_FramingChart.fdl",
+      "expected_file": "Scen18-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "template_file": "Scen_18_Normalizing_LensSqueezeTo2-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 2134.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 2134.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 854.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 854.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 2134.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 2134.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 854.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 854.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_1_FitDecision-into-UHD:Scen1-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_1_FitDecision-into-UHD",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen1-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_1_FitDecision-into-UHD-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_1_FitDecision-into-UHD:Scen1-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_1_FitDecision-into-UHD",
+      "source_file": "D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen1-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_1_FitDecision-into-UHD-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "protection_dims": {
+          "status": "match"
+        },
+        "protection_anchor": {
+          "status": "match"
+        }
+      }
+    },
+    {
+      "case_id": "Scen_2_FitProtection-into-UHD:Scen2-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_2_FitProtection-into-UHD",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen2-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_2_FitProtection-into-UHD-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3456.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 3456.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 192.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 192.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_2_FitProtection-into-UHD:Scen2-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_2_FitProtection-into-UHD",
+      "source_file": "D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen2-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_2_FitProtection-into-UHD-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3456.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 3456.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 192.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 192.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_3_Preserving-Protection:Scen3-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_3_Preserving-Protection",
+      "source_file": "D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen3-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_3_Preserving-Protection-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 214.0,
+            "y": 120.0
+          },
+          "expected": {
+            "x": 214.0,
+            "y": 120.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_3_Preserving-Protection:Scen3-RESULT-E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_3_Preserving-Protection",
+      "source_file": "E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen3-RESULT-E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_3_Preserving-Protection-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4516.0,
+            "height": 2540.0
+          },
+          "expected": {
+            "width": 4516.0,
+            "height": 2540.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4516.0,
+            "height": 2540.0
+          },
+          "expected": {
+            "width": 4516.0,
+            "height": 2540.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 338.0,
+            "y": 190.0
+          },
+          "expected": {
+            "x": 338.0,
+            "y": 190.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4516.0,
+            "height": 2540.0
+          },
+          "expected": {
+            "width": 4516.0,
+            "height": 2540.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_3_Preserving-Protection:Scen3-RESULT-F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_3_Preserving-Protection",
+      "source_file": "F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen3-RESULT-F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_3_Preserving-Protection-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4800.0,
+            "height": 2700.0
+          },
+          "expected": {
+            "width": 4800.0,
+            "height": 2700.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4800.0,
+            "height": 2700.0
+          },
+          "expected": {
+            "width": 4800.0,
+            "height": 2700.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 480.0,
+            "y": 270.0
+          },
+          "expected": {
+            "x": 480.0,
+            "y": 270.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4800.0,
+            "height": 2700.0
+          },
+          "expected": {
+            "width": 4800.0,
+            "height": 2700.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_4_Preserving-Canvas:Scen4-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_4_Preserving-Canvas",
+      "source_file": "D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen4-RESULT-D_8640x5760_1x_10PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_4_Preserving-Canvas-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2844.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2844.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2844.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2844.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 214.0,
+            "y": 342.0
+          },
+          "expected": {
+            "x": 214.0,
+            "y": 342.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 222.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 222.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_4_Preserving-Canvas:Scen4-RESULT-E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_4_Preserving-Canvas",
+      "source_file": "E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen4-RESULT-E_8640x5760_1x_15PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_4_Preserving-Canvas-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4516.0,
+            "height": 3010.0
+          },
+          "expected": {
+            "width": 4516.0,
+            "height": 3010.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4516.0,
+            "height": 3010.0
+          },
+          "expected": {
+            "width": 4516.0,
+            "height": 3010.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 338.0,
+            "y": 426.0
+          },
+          "expected": {
+            "x": 338.0,
+            "y": 426.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4516.0,
+            "height": 2540.0
+          },
+          "expected": {
+            "width": 4516.0,
+            "height": 2540.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 236.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 236.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_4_Preserving-Canvas:Scen4-RESULT-F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "scenario_name": "Scen_4_Preserving-Canvas",
+      "source_file": "F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "expected_file": "Scen4-RESULT-F_8640x5760_1x_20PercentSafety-FramingChart.fdl",
+      "template_file": "Scen_4_Preserving-Canvas-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4800.0,
+            "height": 3200.0
+          },
+          "expected": {
+            "width": 4800.0,
+            "height": 3200.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4800.0,
+            "height": 3200.0
+          },
+          "expected": {
+            "width": 4800.0,
+            "height": 3200.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 480.0,
+            "y": 520.0
+          },
+          "expected": {
+            "x": 480.0,
+            "y": 520.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4800.0,
+            "height": 2700.0
+          },
+          "expected": {
+            "width": 4800.0,
+            "height": 2700.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 250.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 250.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_5_Normalizing_LensSqueezeTo1:Scen5-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "scenario_name": "Scen_5_Normalizing_LensSqueezeTo1",
+      "source_file": "A_4448x3096_1-3x_FramingChart.fdl",
+      "expected_file": "Scen5-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "template_file": "Scen_5_Normalizing_LensSqueezeTo1-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4268.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4268.0,
+            "height": 2400.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4268.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4268.0,
+            "height": 2400.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 214.0,
+            "y": 120.0
+          },
+          "expected": {
+            "x": 214.0,
+            "y": 120.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4268.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4268.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_5_Normalizing_LensSqueezeTo1:Scen5-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_5_Normalizing_LensSqueezeTo1",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen5-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_5_Normalizing_LensSqueezeTo1-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 212.0,
+            "y": 120.0
+          },
+          "expected": {
+            "x": 212.0,
+            "y": 120.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_5_Normalizing_LensSqueezeTo1:Scen5-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "scenario_name": "Scen_5_Normalizing_LensSqueezeTo1",
+      "source_file": "C_4448x3096_2x_FramingChart.fdl",
+      "expected_file": "Scen5-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "template_file": "Scen_5_Normalizing_LensSqueezeTo1-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4268.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4268.0,
+            "height": 2400.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4268.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4268.0,
+            "height": 2400.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 214.0,
+            "y": 120.0
+          },
+          "expected": {
+            "x": 214.0,
+            "y": 120.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4268.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4268.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_6_Normalizing_LensSqueezeTo2:Scen6-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "scenario_name": "Scen_6_Normalizing_LensSqueezeTo2",
+      "source_file": "A_4448x3096_1-3x_FramingChart.fdl",
+      "expected_file": "Scen6-RESULT-A_4448x3096_1-3x_FramingChart.fdl",
+      "template_file": "Scen_6_Normalizing_LensSqueezeTo2-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1728.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 1728.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1056.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 1056.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_6_Normalizing_LensSqueezeTo2:Scen6-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_6_Normalizing_LensSqueezeTo2",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen6-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_6_Normalizing_LensSqueezeTo2-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1728.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 1728.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1056.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 1056.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_6_Normalizing_LensSqueezeTo2:Scen6-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "scenario_name": "Scen_6_Normalizing_LensSqueezeTo2",
+      "source_file": "C_4448x3096_2x_FramingChart.fdl",
+      "expected_file": "Scen6-RESULT-C_4448x3096_2x_FramingChart.fdl",
+      "template_file": "Scen_6_Normalizing_LensSqueezeTo2-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1728.0,
+            "height": 1944.0
+          },
+          "expected": {
+            "width": 1728.0,
+            "height": 1944.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1056.0,
+            "y": 108.0
+          },
+          "expected": {
+            "x": 1056.0,
+            "y": 108.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 1920.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 1920.0,
+            "height": 2160.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 960.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 960.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_7_TopAlignedSource-PreserveProtection-Centered:Scen7-RESULT-G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "scenario_name": "Scen_7_TopAlignedSource-PreserveProtection-Centered",
+      "source_file": "G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "expected_file": "Scen7-RESULT-G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "template_file": "Scen_7_TopAlignedSource-PreserveProtection-Centered-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2158.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2158.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 214.0,
+            "y": 120.0
+          },
+          "expected": {
+            "x": 214.0,
+            "y": 120.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_8_TopAlignedSource-PreserveCanvas-Centered:Scen8-RESULT-G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "scenario_name": "Scen_8_TopAlignedSource-PreserveCanvas-Centered",
+      "source_file": "G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "expected_file": "Scen8-RESULT-G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "template_file": "Scen_8_TopAlignedSource-PreserveCanvas-Centered-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 3200.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 3200.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 3200.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 3200.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2158.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2158.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 214.0,
+            "y": 120.0
+          },
+          "expected": {
+            "x": 214.0,
+            "y": 120.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "expected": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_9_PadToMax:Scen9-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "scenario_name": "Scen_9_PadToMax",
+      "source_file": "B_4448x3096_1x_FramingChart.fdl",
+      "expected_file": "Scen9-RESULT-B_4448x3096_1x_FramingChart.fdl",
+      "template_file": "Scen_9_PadToMax-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 6000.0,
+            "height": 5000.0
+          },
+          "expected": {
+            "width": 6000.0,
+            "height": 5000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2970.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2970.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 868.0,
+            "y": 1016.0
+          },
+          "expected": {
+            "x": 868.0,
+            "y": 1016.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2160.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2160.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1080.0,
+            "y": 1420.0
+          },
+          "expected": {
+            "x": 1080.0,
+            "y": 1420.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 868.0,
+            "y": 1300.0
+          },
+          "expected": {
+            "x": 868.0,
+            "y": 1300.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "Scen_9_PadToMax:Scen9-RESULT-G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "scenario_name": "Scen_9_PadToMax",
+      "source_file": "G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "expected_file": "Scen9-RESULT-G_5040x3780_1x_TopAligned-FramingChart.fdl",
+      "template_file": "Scen_9_PadToMax-CANVAS-TEMPLATE.fdl",
+      "status": "pass",
+      "failure_category": null,
+      "mismatches": {
+        "canvas_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 6000.0,
+            "height": 5000.0
+          },
+          "expected": {
+            "width": 6000.0,
+            "height": 5000.0
+          }
+        },
+        "effective_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 3200.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 3200.0
+          }
+        },
+        "effective_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 866.0,
+            "y": 1301.0
+          },
+          "expected": {
+            "x": 866.0,
+            "y": 1301.0
+          }
+        },
+        "fd_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 3840.0,
+            "height": 2158.0
+          },
+          "expected": {
+            "width": 3840.0,
+            "height": 2158.0
+          }
+        },
+        "fd_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 1080.0,
+            "y": 1421.0
+          },
+          "expected": {
+            "x": 1080.0,
+            "y": 1421.0
+          }
+        },
+        "protection_dims": {
+          "status": "delta",
+          "dw": 0.0,
+          "dh": 0.0,
+          "actual": {
+            "width": 4266.0,
+            "height": 2400.0
+          },
+          "expected": {
+            "width": 4266.0,
+            "height": 2400.0
+          }
+        },
+        "protection_anchor": {
+          "status": "delta",
+          "dx": 0.0,
+          "dy": 0.0,
+          "actual": {
+            "x": 866.0,
+            "y": 1301.0
+          },
+          "expected": {
+            "x": 866.0,
+            "y": 1301.0
+          }
+        }
+      }
+    }
+  ]
+}

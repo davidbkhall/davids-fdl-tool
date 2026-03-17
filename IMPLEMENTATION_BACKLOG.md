@@ -193,3 +193,61 @@ Compatibility note:
 - [x] Remove `Squeeze Circle` and `Center Marker` from Layers options.
 - [x] Add boundary arrows for dimension regions similar to reference chart example.
 - [x] In Chart Preview White theme, replace inset stroked boundary boxes with exact-pixel region shading for canvas/effective/protection/framing areas (reference chart style).
+
+
+## Conformance Plan v1 - Priority Tickets (Workspace + Charts + Library)
+
+### P0 - Math/Logic Parity (Highest)
+
+- [ ] Workspace: Template application parity against ASC reference scenarios.
+  - Acceptance: For prioritized scenario set, output dimensions/anchors/protection/effective fields match reference expectations.
+- [ ] Workspace: Squeeze/de-squeeze and alignment parity validation.
+  - Acceptance: Scenario comparisons show no P0 mismatches in squeeze-driven geometry outcomes.
+- [ ] Charts: Framing-from-intent math parity (fit, protection, framing hierarchy).
+  - Acceptance: Generated framing/protection dimensions and anchors align with ASC scenario expectations for equivalent inputs.
+- [ ] Charts: Renderer parity vs `asc-fdl-frameline-generator` for prioritized scenarios.
+  - Acceptance: For prioritized chart scenarios, rendered geometry/layer semantics match reference renderer expectations (frameline, protection, effective, canvas behavior).
+  - Progress: Added prioritized charts parity scaffold at `python_backend/tests/test_chart_renderer_parity.py` (spherical/anamorphic/top-aligned source cases) and CI step to execute with `RUN_ASC_CHARTS_PARITY=1` against ASC resources. Added explicit extension-layer preservation checks (Siemens stars, boundary arrows, and white/gray print-boundary styling) plus layer-toggle semantics checks proving extension toggles do not alter core framing/protection geometry.
+- [ ] Cross-oracle parity harness in CI (primary native reference, secondary Python, NPM cross-check).
+  - Acceptance: CI publishes conformance report and blocks merges on new P0 mismatches.
+  - Progress: Added initial ASC scenario parity test scaffold at `python_backend/tests/test_workspace_template_conformance.py` (auto-discovers scenario/template/source/result files via local ASC repo path and validates output geometry fields).
+  - Progress: Expanded ASC scenario conformance discovery and now exercising 82 scenario/source/result pairs; added structured report generator (`python_backend/tests/generate_workspace_conformance_report.py`) and iterative remediation passes. Current strict report summary: 41 evaluated cases, 41 passing, 0 failing (no tolerance masking).
+
+### P1 - Export Reliability
+
+- [ ] Charts: Fix single-format export reliability for TIFF/PNG/PDF/SVG/FDL (.fdl).
+  - Acceptance: Each single export either writes a valid file or displays explicit error feedback.
+  - Progress: Added backend acceptance tests at `python_backend/tests/test_chart_export_reliability.py` validating deterministic file creation/signatures for SVG/PNG/TIFF/PDF plus FDL structure generation and `.fdl` JSON roundtrip file verification. Added explicit CI gate step `Run chart export reliability acceptance tests` (Python 3.12).
+  - Progress: Hardened single-export cancellation telemetry (`single_export_cancelled`) and no-format-selected handling to ensure deterministic user-facing failure text instead of silent return paths.
+  - Progress: Added focused manual validation checklist at `docs/EXPORT_VALIDATION_RUNBOOK.md` for single/multi/cancel export verification and request-id based diagnostics triage.
+- [ ] Charts: Fix multi-format export reliability including FDL (.fdl).
+  - Acceptance: Multi-export writes all selected formats or reports per-format failures explicitly.
+  - Progress: Hardened Chart Generator multi-export failure path to report deterministic partial-progress status (`Completed X/Y`, failed format, reason) instead of generic silent failure.
+- [ ] Workspace: Validate/export parity for output FDL and related artifacts.
+  - Acceptance: Workspace export outputs match expected content and format naming conventions.
+- [ ] Export telemetry hardening.
+  - Acceptance: Export traces include request start/end, payload validation, write outcome, and surfaced error path.
+  - Progress: Added structured export telemetry events with per-request IDs in `ChartGeneratorViewModel` for multi-export start/item-complete/item-failed/complete paths.
+  - Progress: Added frontend->backend request-id propagation for chart export RPC calls and backend JSON-RPC trace logging (`rpc_request_received`/`rpc_request_succeeded`/`rpc_request_failed`) in `python_backend/fdl_backend/server.py` to enable end-to-end export correlation.
+
+### P2 - Save-to-Library Reliability
+
+- [ ] Charts -> Library: Save generated outputs to project graph with stable links.
+  - Acceptance: Saved items appear in expected project, reopen successfully, and preserve provenance links.
+- [ ] Workspace -> Library: Save transformed outputs with template/source relationships.
+  - Acceptance: Library records maintain correct source/template linkage and metadata.
+- [ ] Library preview/state consistency for saved artifacts.
+  - Acceptance: Selecting saved assets updates preview/details deterministically without stale state.
+
+### P1/P2 - UI Issues Coupled to Correctness
+
+- [ ] Charts: Protection labels remain visible/in-bounds for small protection percentages.
+  - Acceptance: Protection dimension/anchor labels remain readable and inside valid bounds in edge cases (including 5%).
+- [ ] Charts: Canvas dimensions label always visible when dimension labels are enabled.
+  - Acceptance: Canvas label renders consistently across zoom levels and does not clip.
+- [ ] Charts/Workspace: Export UI clarity and action feedback.
+  - Acceptance: Export selection model is unambiguous and completion/failure feedback is explicit.
+  - Progress: Added `Copy Diagnostics` action in Chart Generator toolbar to copy a support-ready export diagnostics bundle (latest statuses + export trace tail + backend trace tail) to clipboard.
+- [ ] Library: Save/open interaction feedback and selection stability.
+  - Acceptance: User receives clear success/failure state and current selection remains predictable after operations.
+  - Progress: Added explicit success feedback alerts for Chart export completion and Chart save-to-library completion in `ChartGeneratorView`/`ChartGeneratorViewModel`.

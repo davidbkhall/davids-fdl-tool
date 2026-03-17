@@ -58,6 +58,12 @@ private struct ChartGeneratorContent: View {
                     .controlSize(.small)
                     .disabled(viewModel.framelines.isEmpty || viewModel.isExporting)
 
+                    Button(action: { viewModel.copyExportDiagnostics() }) {
+                        Label("Copy Diagnostics", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
                     Button(action: { viewModel.showSaveToLibrary = true }) {
                         Label("Save to Library", systemImage: "folder.badge.plus")
                     }
@@ -91,6 +97,54 @@ private struct ChartGeneratorContent: View {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+        .alert("Export Complete", isPresented: Binding(
+            get: { viewModel.exportStatusMessage != nil },
+            set: { if !$0 { viewModel.exportStatusMessage = nil } }
+        )) {
+            Button("OK") { viewModel.exportStatusMessage = nil }
+        } message: {
+            Text(viewModel.exportStatusMessage ?? "")
+        }
+        .alert("Saved to Library", isPresented: Binding(
+            get: { viewModel.saveStatusMessage != nil },
+            set: { if !$0 { viewModel.saveStatusMessage = nil } }
+        )) {
+            Button("OK") { viewModel.saveStatusMessage = nil }
+        } message: {
+            Text(viewModel.saveStatusMessage ?? "")
+        }
+        .alert("Diagnostics Copied", isPresented: Binding(
+            get: { viewModel.diagnosticsStatusMessage != nil },
+            set: { if !$0 { viewModel.diagnosticsStatusMessage = nil } }
+        )) {
+            Button("OK") { viewModel.diagnosticsStatusMessage = nil }
+        } message: {
+            Text(viewModel.diagnosticsStatusMessage ?? "")
+        }
+        .onChange(of: viewModel.exportStatusMessage) { _, newValue in
+            guard newValue != nil else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                if viewModel.exportStatusMessage != nil {
+                    viewModel.exportStatusMessage = nil
+                }
+            }
+        }
+        .onChange(of: viewModel.saveStatusMessage) { _, newValue in
+            guard newValue != nil else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                if viewModel.saveStatusMessage != nil {
+                    viewModel.saveStatusMessage = nil
+                }
+            }
+        }
+        .onChange(of: viewModel.diagnosticsStatusMessage) { _, newValue in
+            guard newValue != nil else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                if viewModel.diagnosticsStatusMessage != nil {
+                    viewModel.diagnosticsStatusMessage = nil
+                }
+            }
         }
     }
 }

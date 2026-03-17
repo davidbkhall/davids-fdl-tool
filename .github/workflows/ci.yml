@@ -66,6 +66,39 @@ jobs:
         working-directory: ./python_backend
         run: pytest tests/test_template_parity.py -v --tb=short
 
+      - name: Checkout ASC FDL reference repository
+        if: matrix.python-version == '3.12'
+        run: git clone --depth 1 https://github.com/ascmitc/fdl ../asc-fdl-reference
+
+      - name: Run workspace ASC scenario conformance (strict)
+        if: matrix.python-version == '3.12'
+        working-directory: ./python_backend
+        env:
+          RUN_ASC_CONFORMANCE: '1'
+          ASC_FDL_REPO_PATH: ${{ github.workspace }}/../asc-fdl-reference
+        run: pytest tests/test_workspace_template_conformance.py -v --tb=short
+
+      - name: Generate workspace conformance report (strict gate)
+        if: matrix.python-version == '3.12'
+        working-directory: ./python_backend
+        env:
+          ASC_FDL_REPO_PATH: ${{ github.workspace }}/../asc-fdl-reference
+          WORKSPACE_CONFORMANCE_FAIL_ON_MISMATCH: '1'
+        run: python -m tests.generate_workspace_conformance_report
+
+      - name: Run charts parity scenarios (strict)
+        if: matrix.python-version == '3.12'
+        working-directory: ./python_backend
+        env:
+          RUN_ASC_CHARTS_PARITY: '1'
+          ASC_FDL_REPO_PATH: ${{ github.workspace }}/../asc-fdl-reference
+        run: pytest tests/test_chart_renderer_parity.py -v --tb=short
+
+      - name: Run chart export reliability acceptance tests
+        if: matrix.python-version == '3.12'
+        working-directory: ./python_backend
+        run: pytest tests/test_chart_export_reliability.py -v --tb=short
+
   swift-lint:
     name: SwiftLint
     runs-on: macos-15

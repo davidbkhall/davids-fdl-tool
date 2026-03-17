@@ -223,17 +223,18 @@ actor PythonBridge {
             }
         }
 
-        // Log stderr
-        Task.detached { [stderrPipe] in
-            let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                print("[Python stderr] \(str)")
+        // Stream stderr for live backend trace visibility.
+        stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            Task { [weak self] in
+                await self?.handleStderrChunk(data)
             }
         }
     }
 
     func shutdown() {
         stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
 
         stdinPipe?.fileHandleForWriting.closeFile()
         process?.terminate()
@@ -328,8 +329,44 @@ actor PythonBridge {
         }
     }
 
+    private func backendTraceLogURL() -> URL? {
+        let logsDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("FDLTool", isDirectory: true)
+        if let dir = logsDir {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return logsDir?.appendingPathComponent("backend_trace.log")
+    }
+
+    private func appendBackendTrace(_ message: String) {
+        guard let fileURL = backendTraceLogURL() else { return }
+        let formatter = ISO8601DateFormatter()
+        let line = "\(formatter.string(from: Date())) \(message)\n"
+        guard let data = line.data(using: .utf8) else { return }
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            if let handle = try? FileHandle(forWritingTo: fileURL) {
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+                try? handle.close()
+            }
+        } else {
+            try? data.write(to: fileURL)
+        }
+    }
+
+    private func handleStderrChunk(_ data: Data) {
+        if data.isEmpty {
+            return
+        }
+        if let str = String(data: data, encoding: .utf8), !str.isEmpty {
+            print("[Python stderr] \(str)")
+            appendBackendTrace(str.trimmingCharacters(in: .newlines))
+        }
+    }
+
     private func handleTermination(exitCode: Int32) {
         stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
         isRunning = false
         for (_, continuation) in pendingRequests {
             continuation.resume(throwing: PythonBridgeError.processExited(exitCode))

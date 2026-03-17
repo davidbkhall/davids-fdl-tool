@@ -309,17 +309,7 @@ def _apply_canvas_template_dict(
     canvas_idx: int,
     fd_idx: int,
 ) -> dict:
-    """Pure-dict canvas template application per ASC FDL spec.
-
-    Implements the CanvasTemplate.apply() algorithm:
-    1. Extract source dimensions based on fit_source
-    2. Compute scale factor based on fit_method
-    3. Scale all geometry
-    4. Round dimensions
-    5. Compute anchor positions based on alignment
-    6. Apply maximum_dimensions and pad_to_maximum
-    7. Build output FDL
-    """
+    """Pure-dict canvas template application per ASC FDL spec phases."""
     import copy
     import math
 
@@ -333,192 +323,374 @@ def _apply_canvas_template_dict(
     src_canvas = canvases[canvas_idx]
     fds = src_canvas.get("framing_decisions", [])
     src_fd = fds[fd_idx] if fd_idx < len(fds) else None
+    if not src_fd:
+        raise ValueError("framing decision not found")
 
-    canvas_dims = src_canvas.get("dimensions", {})
-    canvas_w = float(canvas_dims.get("width", 0))
-    canvas_h = float(canvas_dims.get("height", 0))
-    squeeze = float(src_canvas.get("anamorphic_squeeze", 1.0))
-
-    eff_dims = src_canvas.get("effective_dimensions")
-    eff_w = float(eff_dims["width"]) if eff_dims else canvas_w
-    eff_h = float(eff_dims["height"]) if eff_dims else canvas_h
-
-    fd_dims = src_fd.get("dimensions", {}) if src_fd else canvas_dims
-    fd_w = float(fd_dims.get("width", canvas_w))
-    fd_h = float(fd_dims.get("height", canvas_h))
-
-    prot_dims = (src_fd or {}).get("protection_dimensions")
-    prot_w = float(prot_dims["width"]) if prot_dims else None
-    prot_h = float(prot_dims["height"]) if prot_dims else None
-
-    target_dims = template.get("target_dimensions", {})
-    target_w = float(target_dims.get("width", 1920))
-    target_h = float(target_dims.get("height", 1080))
+    source_squeeze = float(src_canvas.get("anamorphic_squeeze", 1.0))
+    target_squeeze = float(template.get("target_anamorphic_squeeze", 1.0))
+    if target_squeeze == 0.0:
+        target_squeeze = source_squeeze
+    if target_squeeze <= 0.0:
+        target_squeeze = 1.0
 
     fit_source = template.get("fit_source", "framing_decision.dimensions")
     fit_method = template.get("fit_method", "fit_all")
+    preserve_path = template.get("preserve_from_source_canvas") or ""
     align_h = template.get("alignment_method_horizontal", "center")
     align_v = template.get("alignment_method_vertical", "center")
     round_even = template.get("round", {}).get("even", "even")
-    round_mode = template.get("round", {}).get("mode", "up")
+    round_mode = template.get("round", {}).get("mode", "round")
     max_dims = template.get("maximum_dimensions")
-    pad_to_max = template.get("pad_to_maximum", False)
+    has_max_dims = bool(max_dims)
+    pad_to_max = bool(template.get("pad_to_maximum", False))
 
-    # 1. Determine source dimensions for scale computation
-    if fit_source == "canvas.dimensions":
-        src_w, src_h = canvas_w, canvas_h
-    elif fit_source == "canvas.effective_dimensions":
-        src_w, src_h = eff_w, eff_h
-    elif fit_source == "framing_decision.protection_dimensions":
-        src_w = prot_w if prot_w else fd_w
-        src_h = prot_h if prot_h else fd_h
+    target = template.get("target_dimensions", {})
+    target_w = float(target.get("width", 0.0))
+    target_h = float(target.get("height", 0.0))
+
+    path_order = [
+        "canvas.dimensions",
+        "canvas.effective_dimensions",
+        "framing_decision.protection_dimensions",
+        "framing_decision.dimensions",
+    ]
+
+    def _dims_of(path: str) -> dict | None:
+        if path == "canvas.dimensions":
+            return src_canvas.get("dimensions")
+        if path == "canvas.effective_dimensions":
+            return src_canvas.get("effective_dimensions")
+        if path == "framing_decision.protection_dimensions":
+            return src_fd.get("protection_dimensions")
+        if path == "framing_decision.dimensions":
+            return src_fd.get("dimensions")
+        return None
+
+    def _anchor_of(path: str) -> dict:
+        if path == "canvas.effective_dimensions":
+            return src_canvas.get("effective_anchor_point") or {"x": 0.0, "y": 0.0}
+        if path == "framing_decision.protection_dimensions":
+            return src_fd.get("protection_anchor_point") or {"x": 0.0, "y": 0.0}
+        if path == "framing_decision.dimensions":
+            return src_fd.get("anchor_point") or {"x": 0.0, "y": 0.0}
+        return {"x": 0.0, "y": 0.0}
+
+    def _resolve(path: str, required: bool = False) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
+        d = _dims_of(path)
+        if not d:
+            if required:
+                raise ValueError(f"Required geometry path missing in source: {path}")
+            return None, None
+        dims = (float(d.get("width", 0.0)), float(d.get("height", 0.0)) )
+        a = _anchor_of(path)
+        anchor = (float(a.get("x", 0.0)), float(a.get("y", 0.0)))
+        return dims, anchor
+
+    # Validate required paths.
+    if preserve_path:
+        _resolve(preserve_path, required=True)
+    fit_dims_check, _ = _resolve(fit_source, required=True)
+    if not fit_dims_check or fit_dims_check[0] <= 0 or fit_dims_check[1] <= 0:
+        raise ValueError("fit_source dimensions are zero")
+
+    # Phase 2: two-pass population.
+    geom_dims: dict[str, tuple[float, float]] = {
+        "canvas.dimensions": (0.0, 0.0),
+        "canvas.effective_dimensions": (0.0, 0.0),
+        "framing_decision.protection_dimensions": (0.0, 0.0),
+        "framing_decision.dimensions": (0.0, 0.0),
+    }
+    geom_anchor: dict[str, tuple[float, float]] = {
+        "canvas.effective_dimensions": (0.0, 0.0),
+        "framing_decision.protection_dimensions": (0.0, 0.0),
+        "framing_decision.dimensions": (0.0, 0.0),
+    }
+
+    def _populate_from(start_path: str) -> None:
+        if start_path not in path_order:
+            return
+        si = path_order.index(start_path)
+        for pth in path_order[si:]:
+            d, a = _resolve(pth, required=False)
+            if d is None:
+                continue
+            geom_dims[pth] = d
+            if pth in geom_anchor and a is not None:
+                geom_anchor[pth] = a
+
+    if preserve_path:
+        _populate_from(preserve_path)
+    _populate_from(fit_source)
+
+    # Phase 3: fill hierarchy gaps.
+    def _is_zero(d: tuple[float, float]) -> bool:
+        return d[0] == 0.0 and d[1] == 0.0
+
+    if not _is_zero(geom_dims["canvas.dimensions"]):
+        ref_dims = geom_dims["canvas.dimensions"]
+        ref_anchor = (0.0, 0.0)
+    elif not _is_zero(geom_dims["canvas.effective_dimensions"]):
+        ref_dims = geom_dims["canvas.effective_dimensions"]
+        ref_anchor = geom_anchor["canvas.effective_dimensions"]
+    elif not _is_zero(geom_dims["framing_decision.protection_dimensions"]):
+        ref_dims = geom_dims["framing_decision.protection_dimensions"]
+        ref_anchor = geom_anchor["framing_decision.protection_dimensions"]
     else:
-        src_w, src_h = fd_w, fd_h
+        ref_dims = geom_dims["framing_decision.dimensions"]
+        ref_anchor = geom_anchor["framing_decision.dimensions"]
 
-    if src_w <= 0 or src_h <= 0:
-        raise ValueError("Source dimensions are zero")
+    if _is_zero(geom_dims["canvas.dimensions"]):
+        geom_dims["canvas.dimensions"] = ref_dims
+    if _is_zero(geom_dims["canvas.effective_dimensions"]):
+        geom_dims["canvas.effective_dimensions"] = ref_dims
+        geom_anchor["canvas.effective_dimensions"] = ref_anchor
+    # protection intentionally not auto-filled from framing.
 
-    # 2. Compute output effective dimensions from source aspect.
-    # ASC behavior is based on display aspect (desqueezed width), while
-    # persisted dimensions remain in squeezed source space.
-    display_src_w = src_w * squeeze
-    source_aspect = display_src_w / src_h
-    target_aspect = target_w / target_h if target_h > 0 else source_aspect
+    fit_dims = geom_dims.get(fit_source, (0.0, 0.0))
+    fit_anchor = (0.0, 0.0) if fit_source == "canvas.dimensions" else geom_anchor.get(fit_source, (0.0, 0.0))
+    preserve_dims = geom_dims.get(preserve_path, (0.0, 0.0)) if preserve_path else (0.0, 0.0)
+    preserve_anchor = (0.0, 0.0) if preserve_path == "canvas.dimensions" else geom_anchor.get(preserve_path, (0.0, 0.0))
 
+    anchor_offset = preserve_anchor if (preserve_path and not _is_zero(preserve_dims)) else fit_anchor
+    for pth in [
+        "canvas.effective_dimensions",
+        "framing_decision.protection_dimensions",
+        "framing_decision.dimensions",
+    ]:
+        ax, ay = geom_anchor[pth]
+        geom_anchor[pth] = (ax - anchor_offset[0], ay - anchor_offset[1])
+
+    # Phase 4: scale factor.
+    fit_norm_w = fit_dims[0] * source_squeeze
+    fit_norm_h = fit_dims[1]
+    tgt_norm_w = target_w * target_squeeze
+    tgt_norm_h = target_h
+    if fit_norm_w <= 0 or fit_norm_h <= 0 or tgt_norm_w <= 0 or tgt_norm_h <= 0:
+        raise ValueError("invalid fit/target dimensions")
+
+    ratio_w = tgt_norm_w / fit_norm_w
+    ratio_h = tgt_norm_h / fit_norm_h
     if fit_method == "width":
-        out_eff_w = target_w
-        out_eff_h = target_w / source_aspect
+        scale_factor = ratio_w
     elif fit_method == "height":
-        out_eff_h = target_h
-        out_eff_w = target_h * source_aspect
+        scale_factor = ratio_h
     elif fit_method == "fill":
-        if source_aspect >= target_aspect:
-            out_eff_h = target_h
-            out_eff_w = target_h * source_aspect
-        else:
-            out_eff_w = target_w
-            out_eff_h = target_w / source_aspect
-    else:  # fit_all
-        if source_aspect >= target_aspect:
-            out_eff_w = target_w
-            out_eff_h = target_w / source_aspect
-        else:
-            out_eff_h = target_h
-            out_eff_w = target_h * source_aspect
-
-    # ASC expected output dimensions are expressed in display-space width.
-    new_eff_w = out_eff_w
-    new_eff_h = out_eff_h
-
-    # 3. Scale geometry into the output effective region.
-    scale_w = new_eff_w / fd_w if fd_w > 0 else 1.0
-    scale_h = new_eff_h / fd_h if fd_h > 0 else 1.0
-    new_fd_w = new_eff_w
-    new_fd_h = new_eff_h
-    new_prot_w = prot_w * scale_w if prot_w else None
-    new_prot_h = prot_h * scale_h if prot_h else None
-
-    # 4. Round
-    def _round(val: float) -> float:
-        if round_even == "even":
-            base = 2
-        else:
-            base = 1
-        if round_mode == "up":
-            return math.ceil(val / base) * base
-        elif round_mode == "down":
-            return math.floor(val / base) * base
-        else:
-            return round(val / base) * base
-
-    new_eff_w = _round(new_eff_w)
-    new_eff_h = _round(new_eff_h)
-    new_fd_w = _round(new_fd_w)
-    new_fd_h = _round(new_fd_h)
-    if new_prot_w is not None:
-        new_prot_w = _round(new_prot_w)
-        new_prot_h = _round(new_prot_h)
-
-    # 5. Apply maximum dimensions
-    if max_dims:
-        max_w = float(max_dims.get("width", new_eff_w))
-        max_h = float(max_dims.get("height", new_eff_h))
-        if pad_to_max:
-            new_canvas_w = max_w
-            new_canvas_h = max_h
-        else:
-            new_canvas_w = min(new_eff_w, max_w)
-            new_canvas_h = min(new_eff_h, max_h)
+        scale_factor = max(ratio_w, ratio_h)
     else:
-        new_canvas_w = new_eff_w
-        new_canvas_h = new_eff_h
+        scale_factor = min(ratio_w, ratio_h)
 
-    # 6. Compute anchor for framing within canvas
-    def _align(canvas_dim: float, fd_dim: float, mode: str) -> float:
+    # Phase 5: normalize + scale + round.
+    def _round_value(v: float, mode: str, base: int) -> float:
+        if mode == "up":
+            return math.ceil(v / base) * base
+        if mode == "down":
+            return math.floor(v / base) * base
+        # round-half-away-from-zero
+        if v >= 0:
+            return math.floor((v / base) + 0.5) * base
+        return -math.floor((-v / base) + 0.5) * base
+
+    base = 2 if round_even == "even" else 1
+
+    def _scale_dims(d: tuple[float, float]) -> tuple[float, float]:
+        return (
+            (d[0] * source_squeeze * scale_factor) / target_squeeze,
+            d[1] * scale_factor,
+        )
+
+    def _scale_point(p: tuple[float, float]) -> tuple[float, float]:
+        return (
+            (p[0] * source_squeeze * scale_factor) / target_squeeze,
+            p[1] * scale_factor,
+        )
+
+    for pth, d in list(geom_dims.items()):
+        sw, sh = _scale_dims(d)
+        geom_dims[pth] = (
+            _round_value(sw, round_mode, base),
+            _round_value(sh, round_mode, base),
+        )
+
+    for pth, a in list(geom_anchor.items()):
+        sx, sy = _scale_point(a)
+        geom_anchor[pth] = (
+            _round_value(sx, round_mode, base),
+            _round_value(sy, round_mode, base),
+        )
+
+    scaled_fit_dims = geom_dims.get(fit_source, (0.0, 0.0))
+    scaled_fit_anchor = (0.0, 0.0) if fit_source == "canvas.dimensions" else geom_anchor.get(fit_source, (0.0, 0.0))
+    scaled_canvas = geom_dims["canvas.dimensions"]
+
+    # Phase 6: output size + alignment shift.
+    max_w = float(max_dims.get("width", 0.0)) if has_max_dims else 0.0
+    max_h = float(max_dims.get("height", 0.0)) if has_max_dims else 0.0
+
+    def _output_size(canvas_size: float, max_size: float, has_max: bool, pad: bool) -> float:
+        if has_max and pad:
+            return max_size
+        if has_max and canvas_size > max_size:
+            return max_size
+        return canvas_size
+
+    out_w = _output_size(scaled_canvas[0], max_w, has_max_dims, pad_to_max)
+    out_h = _output_size(scaled_canvas[1], max_h, has_max_dims, pad_to_max)
+
+    def _align_factor(mode: str) -> float:
         if mode in ("left", "top"):
             return 0.0
-        elif mode in ("right", "bottom"):
-            return canvas_dim - fd_dim
-        else:
-            return (canvas_dim - fd_dim) / 2.0
+        if mode in ("right", "bottom"):
+            return 1.0
+        return 0.5
 
-    anchor_x = _align(new_canvas_w, new_fd_w, align_h)
-    anchor_y = _align(new_canvas_h, new_fd_h, align_v)
+    def _shift_axis(
+        canvas_size: float,
+        output_size: float,
+        target_size: float,
+        fit_size: float,
+        fit_anchor_axis: float,
+        align_mode: str,
+        pad: bool,
+    ) -> float:
+        overflow = canvas_size - output_size
+        if overflow == 0.0 and not pad:
+            return 0.0
 
-    # 7. Build output FDL
+        is_center = align_mode == "center"
+        center_target = pad or is_center
+        target_offset = ((output_size - target_size) * 0.5) if center_target else 0.0
+        gap = target_size - fit_size
+        alignment_offset = gap * _align_factor(align_mode)
+        shift = target_offset + alignment_offset - fit_anchor_axis
+
+        if (not pad) and overflow > 0.0:
+            shift = max(min(shift, 0.0), -overflow)
+        return shift
+
+    shift_x = _shift_axis(
+        scaled_canvas[0],
+        out_w,
+        target_w,
+        scaled_fit_dims[0],
+        scaled_fit_anchor[0],
+        align_h,
+        pad_to_max,
+    )
+    shift_y = _shift_axis(
+        scaled_canvas[1],
+        out_h,
+        target_h,
+        scaled_fit_dims[1],
+        scaled_fit_anchor[1],
+        align_v,
+        pad_to_max,
+    )
+
+    # Phase 7: apply offsets.
+    theo_anchor: dict[str, tuple[float, float]] = {}
+    for pth in [
+        "canvas.effective_dimensions",
+        "framing_decision.protection_dimensions",
+        "framing_decision.dimensions",
+    ]:
+        ax, ay = geom_anchor[pth]
+        tx, ty = ax + shift_x, ay + shift_y
+        theo_anchor[pth] = (tx, ty)
+        geom_anchor[pth] = (max(0.0, tx), max(0.0, ty))
+
+    # Phase 8: crop visible.
+    def _crop_dims(
+        dims: tuple[float, float],
+        theo: tuple[float, float],
+        clamped: tuple[float, float],
+        canvas: tuple[float, float],
+    ) -> tuple[float, float]:
+        clip_left = max(0.0, -theo[0])
+        clip_top = max(0.0, -theo[1])
+        vis_w = dims[0] - clip_left
+        vis_h = dims[1] - clip_top
+        vis_w = min(vis_w, canvas[0] - clamped[0])
+        vis_h = min(vis_h, canvas[1] - clamped[1])
+        return (max(0.0, vis_w), max(0.0, vis_h))
+
+    canvas_out = (out_w, out_h)
+    eff_dims = _crop_dims(
+        geom_dims["canvas.effective_dimensions"],
+        theo_anchor["canvas.effective_dimensions"],
+        geom_anchor["canvas.effective_dimensions"],
+        canvas_out,
+    )
+    prot_dims = (0.0, 0.0)
+    if not _is_zero(geom_dims["framing_decision.protection_dimensions"]):
+        prot_dims = _crop_dims(
+            geom_dims["framing_decision.protection_dimensions"],
+            theo_anchor["framing_decision.protection_dimensions"],
+            geom_anchor["framing_decision.protection_dimensions"],
+            canvas_out,
+        )
+
+    frm_dims = _crop_dims(
+        geom_dims["framing_decision.dimensions"],
+        theo_anchor["framing_decision.dimensions"],
+        geom_anchor["framing_decision.dimensions"],
+        canvas_out,
+    )
+
+    # Enforce hierarchy containment.
+    eff_dims = (min(eff_dims[0], canvas_out[0]), min(eff_dims[1], canvas_out[1]))
+    if not _is_zero(prot_dims):
+        prot_dims = (min(prot_dims[0], eff_dims[0]), min(prot_dims[1], eff_dims[1]))
+        parent = prot_dims
+    else:
+        parent = eff_dims
+    frm_dims = (min(frm_dims[0], parent[0]), min(frm_dims[1], parent[1]))
+
+    # Build output FDL.
     out_fdl = copy.deepcopy(source_fdl)
     out_ctx = out_fdl["contexts"][ctx_idx]
     out_canvas = out_ctx["canvases"][canvas_idx]
 
     out_canvas["id"] = str(uuid.uuid4())
     out_canvas["source_canvas_id"] = src_canvas.get("id", "")
-    out_canvas["dimensions"] = {
-        "width": new_canvas_w,
-        "height": new_canvas_h,
-    }
-    out_canvas["anamorphic_squeeze"] = squeeze
-
-    eff_w_out = min(new_eff_w, new_canvas_w)
-    eff_h_out = min(new_eff_h, new_canvas_h)
-    eff_anchor_x = _align(new_canvas_w, eff_w_out, align_h)
-    eff_anchor_y = _align(new_canvas_h, eff_h_out, align_v)
-    out_canvas["effective_dimensions"] = {
-        "width": eff_w_out,
-        "height": eff_h_out,
-    }
+    out_canvas["dimensions"] = {"width": canvas_out[0], "height": canvas_out[1]}
+    out_canvas["anamorphic_squeeze"] = target_squeeze
+    out_canvas["effective_dimensions"] = {"width": eff_dims[0], "height": eff_dims[1]}
     out_canvas["effective_anchor_point"] = {
-        "x": eff_anchor_x,
-        "y": eff_anchor_y,
+        "x": geom_anchor["canvas.effective_dimensions"][0],
+        "y": geom_anchor["canvas.effective_dimensions"][1],
     }
 
-    if src_fd and fd_idx < len(out_canvas.get("framing_decisions", [])):
-        out_fd = out_canvas["framing_decisions"][fd_idx]
-        out_fd["dimensions"] = {"width": new_fd_w, "height": new_fd_h}
-        out_fd["anchor_point"] = {"x": anchor_x, "y": anchor_y}
-        if new_prot_w is not None:
-            out_fd["protection_dimensions"] = {
-                "width": new_prot_w,
-                "height": new_prot_h,
-            }
-            prot_ax = _align(new_canvas_w, new_prot_w, align_h)
-            prot_ay = _align(new_canvas_h, new_prot_h, align_v)
-            out_fd["protection_anchor_point"] = {
-                "x": prot_ax,
-                "y": prot_ay,
-            }
+    out_fd = out_canvas["framing_decisions"][fd_idx]
+    out_fd["dimensions"] = {"width": frm_dims[0], "height": frm_dims[1]}
+    out_fd["anchor_point"] = {
+        "x": geom_anchor["framing_decision.dimensions"][0],
+        "y": geom_anchor["framing_decision.dimensions"][1],
+    }
 
-        # Scale any additional framing decisions
-        for i, fd in enumerate(out_canvas.get("framing_decisions", [])):
-            if i == fd_idx:
-                continue
-            other_dims = fd.get("dimensions", {})
-            ow = _round(float(other_dims.get("width", 0)) * scale_w)
-            oh = _round(float(other_dims.get("height", 0)) * scale_h)
-            fd["dimensions"] = {"width": ow, "height": oh}
-            fd["anchor_point"] = {
-                "x": _align(new_canvas_w, ow, align_h),
-                "y": _align(new_canvas_h, oh, align_v),
-            }
+    if not _is_zero(prot_dims):
+        out_fd["protection_dimensions"] = {"width": prot_dims[0], "height": prot_dims[1]}
+        out_fd["protection_anchor_point"] = {
+            "x": geom_anchor["framing_decision.protection_dimensions"][0],
+            "y": geom_anchor["framing_decision.protection_dimensions"][1],
+        }
+    else:
+        out_fd.pop("protection_dimensions", None)
+        out_fd.pop("protection_anchor_point", None)
+
+    # Scale additional framing decisions using same geometry transform.
+    for i, fd in enumerate(out_canvas.get("framing_decisions", [])):
+        if i == fd_idx:
+            continue
+        dims = fd.get("dimensions", {})
+        anchor = fd.get("anchor_point", {})
+        sw, sh = _scale_dims((float(dims.get("width", 0.0)), float(dims.get("height", 0.0))))
+        sa = _scale_point((float(anchor.get("x", 0.0)), float(anchor.get("y", 0.0))))
+        sw = _round_value(sw, round_mode, base)
+        sh = _round_value(sh, round_mode, base)
+        sax = max(0.0, _round_value(sa[0] + shift_x, round_mode, base))
+        say = max(0.0, _round_value(sa[1] + shift_y, round_mode, base))
+        fd["dimensions"] = {"width": min(sw, canvas_out[0]), "height": min(sh, canvas_out[1])}
+        fd["anchor_point"] = {"x": sax, "y": say}
 
     return {"fdl": out_fdl}
 

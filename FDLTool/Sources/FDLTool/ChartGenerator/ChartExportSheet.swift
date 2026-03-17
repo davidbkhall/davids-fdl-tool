@@ -176,7 +176,8 @@ struct SaveToLibrarySheet: View {
                 Spacer()
                 Button("Save") {
                     if let projectID = selectedProjectID {
-                        viewModel.saveToLibrary(projectID: projectID)
+                        let projectName = projects.first(where: { $0.id == projectID })?.name
+                        viewModel.saveToLibrary(projectID: projectID, projectName: projectName)
                         dismiss()
                     }
                 }
