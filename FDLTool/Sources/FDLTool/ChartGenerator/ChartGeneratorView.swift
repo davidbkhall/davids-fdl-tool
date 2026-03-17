@@ -123,25 +123,25 @@ private struct ChartGeneratorContent: View {
             Text(viewModel.diagnosticsStatusMessage ?? "")
         }
         .onChange(of: viewModel.exportStatusMessage) { _, newValue in
-            guard newValue != nil else { return }
+            guard let message = newValue else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                if viewModel.exportStatusMessage != nil {
+                if viewModel.exportStatusMessage == message {
                     viewModel.exportStatusMessage = nil
                 }
             }
         }
         .onChange(of: viewModel.saveStatusMessage) { _, newValue in
-            guard newValue != nil else { return }
+            guard let message = newValue else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                if viewModel.saveStatusMessage != nil {
+                if viewModel.saveStatusMessage == message {
                     viewModel.saveStatusMessage = nil
                 }
             }
         }
         .onChange(of: viewModel.diagnosticsStatusMessage) { _, newValue in
-            guard newValue != nil else { return }
+            guard let message = newValue else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                if viewModel.diagnosticsStatusMessage != nil {
+                if viewModel.diagnosticsStatusMessage == message {
                     viewModel.diagnosticsStatusMessage = nil
                 }
             }
