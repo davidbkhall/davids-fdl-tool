@@ -412,6 +412,51 @@ class LibraryStore: ObservableObject {
         try saveProjectAsset(asset)
     }
 
+    func renameFDLEntry(id: String, projectID: String, newName: String) throws {
+        guard let db = db else { throw LibraryStoreError.databaseNotOpen }
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let now = dateFormatter.string(from: Date())
+
+        try db.run(
+            fdlEntriesTable
+                .filter(colID == id && colProjectID == projectID)
+                .update(
+                    colName <- trimmed,
+                    colUpdatedAt <- now
+                )
+        )
+
+        let fdlAssetID = "asset-fdl-\(id)"
+        try db.run(
+            projectAssetsTable
+                .filter(colID == fdlAssetID)
+                .update(
+                    colName <- trimmed,
+                    colUpdatedAt <- now
+                )
+        )
+
+        // Keep chart/reference asset names aligned when the entry originated from charts.
+        try db.run(
+            projectAssetsTable
+                .filter(colProjectID == projectID && colAssetType == ProjectAssetType.chart.rawValue && colReferenceID == id)
+                .update(
+                    colName <- "\(trimmed) Chart Config",
+                    colUpdatedAt <- now
+                )
+        )
+
+        try db.run(
+            projectAssetsTable
+                .filter(colProjectID == projectID && colAssetType == ProjectAssetType.referenceImage.rawValue && colReferenceID == id)
+                .update(
+                    colName <- "\(trimmed) Chart TIFF",
+                    colUpdatedAt <- now
+                )
+        )
+    }
+
     func deleteFDLEntry(id: String, projectID: String) throws {
         guard let db = db else { throw LibraryStoreError.databaseNotOpen }
         let row = fdlEntriesTable.filter(colID == id)
@@ -421,6 +466,11 @@ class LibraryStore: ObservableObject {
         let fileURL = Self.projectDirectoryURL(projectID: projectID)
             .appendingPathComponent("\(id).fdl.json")
         try? fileManager.removeItem(at: fileURL)
+
+        // Remove graph asset + dangling links for this FDL entry.
+        let assetID = "asset-fdl-\(id)"
+        try db.run(assetLinksTable.filter((colFromAssetID == assetID) || (colToAssetID == assetID)).delete())
+        try db.run(projectAssetsTable.filter(colID == assetID).delete())
     }
 
     // MARK: - Canvas Template CRUD
@@ -661,6 +711,17 @@ class LibraryStore: ObservableObject {
     func removeCameraModeAssignment(id: String) throws {
         guard let db = db else { throw LibraryStoreError.databaseNotOpen }
         try db.run(projectCameraModesTable.filter(colID == id).delete())
+    }
+
+    func updateCameraModeAssignmentNotes(id: String, notes: String?) throws {
+        guard let db = db else { throw LibraryStoreError.databaseNotOpen }
+        let trimmed = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        try db.run(
+            projectCameraModesTable.filter(colID == id).update(
+                colNotes <- ((trimmed?.isEmpty == true) ? nil : trimmed),
+                colUpdatedAt <- dateFormatter.string(from: Date())
+            )
+        )
     }
 }
 

@@ -217,6 +217,7 @@ Compatibility note:
 
 - [ ] Charts: Fix single-format export reliability for TIFF/PNG/PDF/SVG/FDL (.fdl).
   - Acceptance: Each single export either writes a valid file or displays explicit error feedback.
+  - Deferred validation checkpoint: Re-run manual formatting verification for SVG visual parity versus TIFF and `.fdl` key ordering (`width` before `height`) before merge/release sign-off.
   - Progress: Added backend acceptance tests at `python_backend/tests/test_chart_export_reliability.py` validating deterministic file creation/signatures for SVG/PNG/TIFF/PDF plus FDL structure generation and `.fdl` JSON roundtrip file verification. Added explicit CI gate step `Run chart export reliability acceptance tests` (Python 3.12).
   - Progress: Hardened single-export cancellation telemetry (`single_export_cancelled`) and no-format-selected handling to ensure deterministic user-facing failure text instead of silent return paths.
   - Progress: Added focused manual validation checklist at `docs/EXPORT_VALIDATION_RUNBOOK.md` for single/multi/cancel export verification and request-id based diagnostics triage.
@@ -233,10 +234,20 @@ Compatibility note:
 ### P2 - Save-to-Library Reliability
 
 - [ ] Charts -> Library: Save generated outputs to project graph with stable links.
+  - Progress: Added `LibraryStore` reliability tests in `FDLTool/Tests/FDLToolTests/LibraryStoreTests.swift` covering persisted `.fdl` file creation, project-asset graph insertion (`asset_type = fdl`), and tag persistence for saved chart outputs.
+  - Progress: Added delete-path cleanup for chart-saved FDL entries in `LibraryStore.deleteFDLEntry` to remove stale graph assets/links, plus test coverage (`testDeleteFDLEntryRemovesFileAndGraphAsset`).
+  - Progress: `ChartGeneratorViewModel.saveToLibrary(...)` now persists a companion `chart` project asset and links the saved FDL asset to that chart asset via `derived_from`; covered by `ChartGeneratorSaveToLibraryTests`.
+  - Progress: Added manual verification steps in `docs/LIBRARY_VALIDATION_RUNBOOK.md` (Test A).
   - Acceptance: Saved items appear in expected project, reopen successfully, and preserve provenance links.
 - [ ] Workspace -> Library: Save transformed outputs with template/source relationships.
+  - Progress: Hardened `ViewerViewModel.saveOutputToProject(...)` to persist `derived_from` links back to source FDL assets when source/output are in the same project, while still skipping invalid cross-project derived links.
+  - Progress: Added `FDLTool/Tests/FDLToolTests/ViewerSaveOutputToProjectTests.swift` coverage for same-project (`uses_template` + `derived_from`) and cross-project safety behavior.
+  - Progress: Added manual verification steps in `docs/LIBRARY_VALIDATION_RUNBOOK.md` (Test B/C).
   - Acceptance: Library records maintain correct source/template linkage and metadata.
 - [ ] Library preview/state consistency for saved artifacts.
+  - Progress: Hardened `LibraryViewModel` state reconciliation so `loadEntries()` now clears stale selection/detail state when an entry disappears and refreshes selected entry snapshots when still present; added stale-async-result guards in `loadAndValidateEntry`.
+  - Progress: Added `FDLTool/Tests/FDLToolTests/LibraryViewModelTests.swift` coverage for stale-selection clearing and valid-selection retention across entry reloads.
+  - Progress: Added manual verification steps in `docs/LIBRARY_VALIDATION_RUNBOOK.md` (Test D).
   - Acceptance: Selecting saved assets updates preview/details deterministically without stale state.
 
 ### P1/P2 - UI Issues Coupled to Correctness
@@ -251,3 +262,4 @@ Compatibility note:
 - [ ] Library: Save/open interaction feedback and selection stability.
   - Acceptance: User receives clear success/failure state and current selection remains predictable after operations.
   - Progress: Added explicit success feedback alerts for Chart export completion and Chart save-to-library completion in `ChartGeneratorView`/`ChartGeneratorViewModel`.
+  - Progress: Added focused save/open feedback + selection stability checks in `docs/LIBRARY_VALIDATION_RUNBOOK.md`.

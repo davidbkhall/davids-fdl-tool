@@ -7,13 +7,29 @@ struct FDLDetailView: View {
     @ObservedObject var libraryViewModel: LibraryViewModel
     let onOpenInViewer: () -> Void
     let onExport: () -> Void
+    let onEditTitle: (() -> Void)?
     let onDelete: () -> Void
+
+    private var firstCanvas: FDLCanvas? {
+        document?.contexts.first?.canvases.first
+    }
+
+    private var firstFramingDecision: FDLFramingDecision? {
+        firstCanvas?.framingDecisions.first
+    }
+
+    private var resolvedFramingIntent: FDLFramingIntent? {
+        guard let doc = document,
+              let intentID = firstFramingDecision?.framingIntentId else { return nil }
+        return doc.framingIntents?.first(where: { $0.id == intentID })
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 headerSection
                 metadataSection
+                geometryMetadataSection
                 tagsSection
                 framelineInteropSection
 
@@ -51,6 +67,12 @@ struct FDLDetailView: View {
 
                 Button(action: onExport) {
                     Label("Export", systemImage: "square.and.arrow.up")
+                }
+
+                if let onEditTitle {
+                    Button(action: onEditTitle) {
+                        Label("Edit Title", systemImage: "pencil")
+                    }
                 }
 
                 Button(role: .destructive, action: onDelete) {
@@ -93,6 +115,71 @@ struct FDLDetailView: View {
     }
 
     @ViewBuilder
+    private var geometryMetadataSection: some View {
+        if let canvas = firstCanvas {
+            GroupBox("Geometry Metadata") {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                    GridRow {
+                        Text("Canvas")
+                            .foregroundStyle(.secondary)
+                        Text(verbatim: "\(Int(canvas.dimensions.width)) x \(Int(canvas.dimensions.height))")
+                    }
+
+                    if let effective = canvas.effectiveDimensions {
+                        GridRow {
+                            Text("Effective")
+                                .foregroundStyle(.secondary)
+                            Text(verbatim: "\(Int(effective.width)) x \(Int(effective.height))")
+                        }
+                    }
+
+                    if let fd = firstFramingDecision {
+                        GridRow {
+                            Text("Framing Decision")
+                                .foregroundStyle(.secondary)
+                            Text(verbatim: "\(Int(fd.dimensions.width)) x \(Int(fd.dimensions.height))")
+                        }
+
+                        if let protection = fd.protectionDimensions {
+                            GridRow {
+                                Text("Protection")
+                                    .foregroundStyle(.secondary)
+                                Text(verbatim: "\(Int(protection.width)) x \(Int(protection.height))")
+                            }
+                        }
+                    }
+
+                    if let intent = resolvedFramingIntent {
+                        if let aspect = intent.aspectRatio {
+                            GridRow {
+                                Text("Framing Intent")
+                                    .foregroundStyle(.secondary)
+                                Text("\(intent.label ?? intent.id) (\(Int(aspect.width)):\(Int(aspect.height)))")
+                            }
+                        } else {
+                            GridRow {
+                                Text("Framing Intent")
+                                    .foregroundStyle(.secondary)
+                                Text(intent.label ?? intent.id)
+                            }
+                        }
+
+                        if let intentProtection = intent.protection {
+                            GridRow {
+                                Text("Intent Protection")
+                                    .foregroundStyle(.secondary)
+                                Text(String(format: "%.1f%%", intentProtection * 100.0))
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    @ViewBuilder
     private var tagsSection: some View {
         if !entry.tags.isEmpty {
             GroupBox("Tags") {
@@ -115,129 +202,87 @@ struct FDLDetailView: View {
     private var framelineInteropSection: some View {
         GroupBox("Manufacturer XML Interop") {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Label(
-                        libraryViewModel.framelineStatus.arriAvailable ? "ARRI Ready" : "ARRI Unavailable",
-                        systemImage: libraryViewModel.framelineStatus.arriAvailable ? "checkmark.circle.fill" : "xmark.circle"
-                    )
-                    .foregroundStyle(libraryViewModel.framelineStatus.arriAvailable ? .green : .orange)
-                    .font(.caption)
+                interopStatusRow(
+                    title: "ARRI",
+                    isReady: libraryViewModel.framelineStatus.arriAvailable,
+                    compatibility: compatibilityState(for: "arri")
+                )
+                interopStatusRow(
+                    title: "Sony",
+                    isReady: libraryViewModel.framelineStatus.sonyAvailable,
+                    compatibility: compatibilityState(for: "sony")
+                )
 
-                    Label(
-                        libraryViewModel.framelineStatus.sonyAvailable ? "Sony Ready" : "Sony Unavailable",
-                        systemImage: libraryViewModel.framelineStatus.sonyAvailable ? "checkmark.circle.fill" : "xmark.circle"
-                    )
-                    .foregroundStyle(libraryViewModel.framelineStatus.sonyAvailable ? .green : .orange)
-                    .font(.caption)
-                }
-
-                if libraryViewModel.framelineStatus.arriAvailable {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("ARRI XML")
-                            .font(.caption.weight(.semibold))
-                        HStack(spacing: 6) {
-                            Picker("Camera", selection: $libraryViewModel.selectedArriCameraType) {
-                                ForEach(libraryViewModel.arriCameras) { camera in
-                                    Text(camera.cameraType).tag(camera.cameraType)
-                                }
-                            }
-                            .controlSize(.small)
-                            .onChange(of: libraryViewModel.selectedArriCameraType) { _, selected in
-                                libraryViewModel.selectedArriSensorMode = libraryViewModel.arriCameras
-                                    .first(where: { $0.cameraType == selected })?
-                                    .modes.first?.name ?? ""
-                            }
-                            Picker("Mode", selection: $libraryViewModel.selectedArriSensorMode) {
-                                let modes = libraryViewModel.arriCameras
-                                    .first(where: { $0.cameraType == libraryViewModel.selectedArriCameraType })?
-                                    .modes ?? []
-                                ForEach(modes) { mode in
-                                    Text(mode.name).tag(mode.name)
-                                }
-                            }
-                            .controlSize(.small)
-                        }
-                        .font(.caption)
-
-                        HStack(spacing: 6) {
-                            Button("Export ARRI XML") {
-                                libraryViewModel.exportSelectedEntryToArriXML()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-
-                            Button("Import ARRI XML to Project") {
-                                libraryViewModel.importArriXMLToSelectedProject()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    }
-                }
-
-                if libraryViewModel.framelineStatus.sonyAvailable {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Sony XML")
-                            .font(.caption.weight(.semibold))
-                        HStack(spacing: 6) {
-                            Picker("Camera", selection: $libraryViewModel.selectedSonyCameraType) {
-                                ForEach(libraryViewModel.sonyCameras) { camera in
-                                    Text(camera.cameraType).tag(camera.cameraType)
-                                }
-                            }
-                            .controlSize(.small)
-                            .onChange(of: libraryViewModel.selectedSonyCameraType) { _, selected in
-                                libraryViewModel.selectedSonyImagerMode = libraryViewModel.sonyCameras
-                                    .first(where: { $0.cameraType == selected })?
-                                    .modes.first?.name ?? ""
-                            }
-                            Picker("Mode", selection: $libraryViewModel.selectedSonyImagerMode) {
-                                let modes = libraryViewModel.sonyCameras
-                                    .first(where: { $0.cameraType == libraryViewModel.selectedSonyCameraType })?
-                                    .modes ?? []
-                                ForEach(modes) { mode in
-                                    Text(mode.name).tag(mode.name)
-                                }
-                            }
-                            .controlSize(.small)
-                        }
-                        .font(.caption)
-
-                        HStack(spacing: 6) {
-                            Button("Export Sony XML") {
-                                libraryViewModel.exportSelectedEntryToSonyXML()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-
-                            Button("Import Sony XML to Project") {
-                                libraryViewModel.importSonyXMLToSelectedProject()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    }
-                }
-
-                if let report = libraryViewModel.framelineReport {
-                    Divider()
-                    FramelineReportCard(
-                        report: report,
-                        onCopy: {
-                            if let data = try? JSONEncoder().encode(report),
-                               let text = String(data: data, encoding: .utf8) {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(text, forType: .string)
-                            }
-                        },
-                        onExport: { libraryViewModel.exportFramelineReportJSON() },
-                        onSave: { libraryViewModel.saveFramelineReportToSelectedProject() },
-                        saveTitle: "Save Report to Project"
-                    )
-                }
+                Text("XML exports/imports are available from Framing Workspace and export menus.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private enum CompatibilityState {
+        case compatible
+        case incompatible
+        case unknown
+    }
+
+    private func compatibilityState(for manufacturer: String) -> CompatibilityState {
+        guard let camera = entry.cameraModel?.lowercased(), !camera.isEmpty else {
+            return .unknown
+        }
+        if manufacturer == "arri" {
+            return camera.contains("arri") ? .compatible : .incompatible
+        }
+        if manufacturer == "sony" {
+            return camera.contains("sony") ? .compatible : .incompatible
+        }
+        return .unknown
+    }
+
+    @ViewBuilder
+    private func interopStatusRow(title: String, isReady: Bool, compatibility: CompatibilityState) -> some View {
+        let readinessText = isReady ? "Ready" : "Unavailable"
+        let readinessIcon = isReady ? "checkmark.circle.fill" : "xmark.circle"
+        let readinessColor: Color = isReady ? .green : .orange
+
+        let compatibilityText: String = {
+            switch compatibility {
+            case .compatible: return "Compatible"
+            case .incompatible: return "Incompatible"
+            case .unknown: return "Unknown"
+            }
+        }()
+        let compatibilityIcon: String = {
+            switch compatibility {
+            case .compatible: return "checkmark.seal.fill"
+            case .incompatible: return "xmark.seal.fill"
+            case .unknown: return "questionmark.circle"
+            }
+        }()
+        let compatibilityColor: Color = {
+            switch compatibility {
+            case .compatible: return .green
+            case .incompatible: return .red
+            case .unknown: return .secondary
+            }
+        }()
+
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .frame(width: 44, alignment: .leading)
+
+            Label(readinessText, systemImage: readinessIcon)
+                .foregroundStyle(readinessColor)
+                .font(.caption)
+
+            Label(compatibilityText, systemImage: compatibilityIcon)
+                .foregroundStyle(compatibilityColor)
+                .font(.caption)
+
+            Spacer()
         }
     }
 }

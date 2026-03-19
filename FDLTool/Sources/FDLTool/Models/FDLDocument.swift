@@ -205,6 +205,10 @@ enum FDLJSONSerializer {
          "maximum_dimensions", "pad_to_maximum", "round"],
         // FDLFramingIntent
         ["label", "id", "aspect_ratio", "protection"],
+        // FDLDimensions / FDLDimensionsFloat / aspect_ratio
+        ["width", "height"],
+        // FDLPoint
+        ["x", "y"],
     ]
 
     private static func orderedKeys(for keys: [String]) -> [String] {

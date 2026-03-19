@@ -75,6 +75,10 @@ class ViewerViewModel: ObservableObject {
 
     // UI state
     @Published var errorMessage: String?
+
+    // Source provenance tracking (for Workspace -> Library linking)
+    private var loadedLibraryEntryID: String?
+    private var loadedLibraryProjectID: String?
     @Published var framelineStatus = FramelineInteropStatus()
     @Published var framelineReport: FramelineConversionReport?
     @Published var arriCameras: [FramelineCameraOption] = []
@@ -297,7 +301,9 @@ class ViewerViewModel: ObservableObject {
     func saveOutputToProject(
         projectID: String,
         libraryStore: LibraryStore,
-        libraryViewModel: LibraryViewModel
+        libraryViewModel: LibraryViewModel,
+        sourceEntryID: String? = nil,
+        sourceProjectID: String? = nil
     ) {
         guard let outputDoc = outputDocument else {
             errorMessage = "No output document to save"
@@ -361,6 +367,22 @@ class ViewerViewModel: ObservableObject {
                     linkType: .usesTemplate
                 )
                 try libraryStore.linkAssets(link)
+            }
+
+            let resolvedSourceEntryID = sourceEntryID ?? loadedLibraryEntryID
+            let resolvedSourceProjectID = sourceProjectID ?? loadedLibraryProjectID
+            if let resolvedSourceEntryID,
+               let resolvedSourceProjectID,
+               resolvedSourceProjectID == projectID,
+               resolvedSourceEntryID != entry.id {
+                let sourceAssetID = "asset-fdl-\(resolvedSourceEntryID)"
+                let derived = ProjectAssetLink(
+                    projectID: projectID,
+                    fromAssetID: "asset-fdl-\(entry.id)",
+                    toAssetID: sourceAssetID,
+                    linkType: .derivedFrom
+                )
+                try libraryStore.linkAssets(derived)
             }
 
             if libraryViewModel.selectedProject?.id == projectID {
@@ -1310,6 +1332,9 @@ class ViewerViewModel: ObservableObject {
     }
 
     func loadFromURL(_ url: URL, pythonBridge: PythonBridge) {
+        loadedLibraryEntryID = nil
+        loadedLibraryProjectID = nil
+
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
 
@@ -1504,6 +1529,9 @@ class ViewerViewModel: ObservableObject {
     // MARK: - Load from In-Memory Document
 
     func loadDocument(_ doc: FDLDocument, fileName: String) {
+        loadedLibraryEntryID = nil
+        loadedLibraryProjectID = nil
+
         loadedFileName = fileName
         loadedFilePath = nil
         activeTab = .source
@@ -1527,10 +1555,39 @@ class ViewerViewModel: ObservableObject {
 
     // MARK: - Load from Library Entry
 
-    func loadFromEntry(_ entry: FDLEntry, pythonBridge: PythonBridge) {
+    func loadFromEntry(
+        _ entry: FDLEntry,
+        pythonBridge: PythonBridge,
+        libraryStore: LibraryStore? = nil
+    ) {
         let filePath = LibraryStore.projectDirectoryURL(projectID: entry.projectID)
             .appendingPathComponent("\(entry.id).fdl.json")
         loadFromURL(filePath, pythonBridge: pythonBridge)
+        loadedLibraryEntryID = entry.id
+        loadedLibraryProjectID = entry.projectID
+
+        if let libraryStore {
+            loadAssociatedChartReferenceImage(entry: entry, libraryStore: libraryStore)
+        }
+    }
+
+    private func loadAssociatedChartReferenceImage(entry: FDLEntry, libraryStore: LibraryStore) {
+        let assets = (try? libraryStore.projectAssets(forProject: entry.projectID)) ?? []
+
+        let referenceAsset = assets.first(where: {
+            $0.assetType == .referenceImage && $0.referenceID == entry.id
+        })
+        let chartAsset = assets.first(where: {
+            $0.assetType == .chart && $0.referenceID == entry.id
+        })
+
+        let preferredPath = referenceAsset?.filePath ?? chartAsset?.filePath
+        guard let preferredPath, !preferredPath.isEmpty else { return }
+
+        let url = URL(fileURLWithPath: preferredPath)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+
+        loadReferenceImage(from: url)
     }
 
     private func normalizeSelectionForCurrentDocument() {
@@ -1662,6 +1719,9 @@ class ViewerViewModel: ObservableObject {
     // MARK: - Close
 
     func closeDocument() {
+        loadedLibraryEntryID = nil
+        loadedLibraryProjectID = nil
+
         loadedDocument = nil
         validationResult = nil
         computedGeometry = nil

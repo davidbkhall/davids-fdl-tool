@@ -287,6 +287,7 @@ class ChartGeneratorViewModel: ObservableObject {
 
     // Chart options
     @Published var chartTitle: String = "Framing Chart"
+    @Published var autoGenerateChartTitle: Bool = true
     @Published var showLabels: Bool = true
 
     // Layer visibility
@@ -358,6 +359,8 @@ class ChartGeneratorViewModel: ObservableObject {
         self.cameraDBStore = cameraDBStore
         self.libraryStore = libraryStore
         setupRecalculationSubscribers()
+        setupAutoNamingSubscribers()
+        regenerateAutoChartTitle()
     }
 
     /// Recalculate all intent-linked framelines (e.g. after squeeze or canvas changes).
@@ -382,8 +385,106 @@ class ChartGeneratorViewModel: ObservableObject {
             .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
             .sink { [weak self] in
                 self?.recalculateAllIntentFramelines()
+                self?.refreshAutoChartTitleIfNeeded()
             }
             .store(in: &cancellables)
+    }
+
+    private func setupAutoNamingSubscribers() {
+        $framingIntents
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.refreshAutoChartTitleIfNeeded()
+            }
+            .store(in: &cancellables)
+
+        $framelines
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.refreshAutoChartTitleIfNeeded()
+            }
+            .store(in: &cancellables)
+
+        $autoGenerateChartTitle
+            .dropFirst()
+            .sink { [weak self] enabled in
+                guard enabled else { return }
+                self?.regenerateAutoChartTitle()
+            }
+            .store(in: &cancellables)
+    }
+
+    func setChartTitleFromUserInput(_ title: String) {
+        chartTitle = title
+        guard autoGenerateChartTitle else { return }
+        let generated = buildAutoChartTitle()
+        if title != generated {
+            autoGenerateChartTitle = false
+        }
+    }
+
+    func regenerateAutoChartTitle() {
+        chartTitle = buildAutoChartTitle()
+    }
+
+    private func refreshAutoChartTitleIfNeeded() {
+        guard autoGenerateChartTitle else { return }
+        let generated = buildAutoChartTitle()
+        if chartTitle != generated {
+            chartTitle = generated
+        }
+    }
+
+    private func buildAutoChartTitle() -> String {
+        let cameraToken = makeCameraShortToken()
+        // File-safe token order: CameraShort_WIDTHxHEIGHT_AR..._SQ..._P...
+        let resolutionToken = resolutionTokenWidthByHeight()
+        let arToken = numberToken(intentAspectRatioForAutoName(), precision: 2)
+        let squeezeToken = numberToken(anamorphicSqueeze, precision: 1)
+        let protectionToken = "\(Int(intentProtectionForAutoName().rounded()))"
+        return "\(cameraToken)_\(resolutionToken)_AR\(arToken)_SQ\(squeezeToken)_P\(protectionToken)"
+    }
+
+    private func resolutionTokenWidthByHeight() -> String {
+        if let mode = selectedRecordingMode {
+            return "\(mode.activePhotosites.width)x\(mode.activePhotosites.height)"
+        }
+        return "\(Int(canvasWidth.rounded()))x\(Int(canvasHeight.rounded()))"
+    }
+
+    private func makeCameraShortToken() -> String {
+        let source = selectedCamera?.model ?? "CUSTOM"
+        let sanitized = source.uppercased().map { ch -> Character in
+            ch.isLetter || ch.isNumber ? ch : "_"
+        }
+        let compact = String(sanitized)
+            .replacingOccurrences(of: "__", with: "_")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        return compact.isEmpty ? "CUSTOM" : String(compact.prefix(16))
+    }
+
+    private func intentAspectRatioForAutoName() -> Double {
+        if let intent = framingIntents.first, intent.aspectRatio > 0 {
+            return intent.aspectRatio
+        }
+        if let fl = framelines.first, fl.height > 0 {
+            return fl.width / fl.height
+        }
+        guard canvasHeight > 0 else { return 1.0 }
+        return canvasWidth / canvasHeight
+    }
+
+    private func intentProtectionForAutoName() -> Double {
+        if let intent = framingIntents.first {
+            return max(0, intent.protectionPercent)
+        }
+        return 0
+    }
+
+    private func numberToken(_ value: Double, precision: Int) -> String {
+        let fmt = "%0.\(precision)f"
+        let formatted = String(format: fmt, value)
+        return formatted.replacingOccurrences(of: ".", with: "p")
     }
 
     func pickLogoImage() {
@@ -806,12 +907,19 @@ class ChartGeneratorViewModel: ObservableObject {
         let base = folder.appendingPathComponent(safeTitle)
         switch format {
         case .svg:
-            let response = try await callBackendWithTimeout(
-                method: "chart.generate_svg",
-                params: chartParams(printSafeMarginPercent: printSafeMarginPercent, requestID: requestID),
-                requestID: requestID
-            )
-            try copyFromTempFile(response, to: base.appendingPathExtension("svg"))
+            guard let pngData = await MainActor.run(body: { self.renderExportImageData(format: .png) }) else {
+                throw NSError(domain: "FDLTool", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "SVG render failed"])
+            }
+            guard let svgData = svgDataEmbeddingPNG(
+                pngData,
+                width: Int(canvasWidth.rounded()),
+                height: Int(canvasHeight.rounded())
+            ) else {
+                throw NSError(domain: "FDLTool", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "SVG encoding failed"])
+            }
+            try writeData(svgData, to: base.appendingPathExtension("svg"))
         case .png:
             guard let data = await MainActor.run(body: { self.renderExportImageData(format: .png) }) else {
                 throw NSError(domain: "FDLTool", code: 1,
@@ -943,13 +1051,28 @@ class ChartGeneratorViewModel: ObservableObject {
             defer { Task { @MainActor in self.isExporting = false } }
             do {
                 traceExport("single export task begin format=SVG")
-                traceExport("backend call start method=chart.generate_svg")
-                let response = try await callBackendWithTimeout(
-                    method: "chart.generate_svg",
-                    params: chartParams(printSafeMarginPercent: printSafeMarginPercent, requestID: requestID),
-                    requestID: requestID
-                )
-                try copyFromTempFile(response, to: dest)
+                let pngData = try await MainActor.run { () throws -> Data in
+                    guard let data = self.renderExportImageData(format: .png) else {
+                        throw NSError(
+                            domain: "FDLTool",
+                            code: 1,
+                            userInfo: [NSLocalizedDescriptionKey: "SVG render failed"]
+                        )
+                    }
+                    return data
+                }
+                guard let svgData = self.svgDataEmbeddingPNG(
+                    pngData,
+                    width: Int(self.canvasWidth.rounded()),
+                    height: Int(self.canvasHeight.rounded())
+                ) else {
+                    throw NSError(
+                        domain: "FDLTool",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "SVG encoding failed"]
+                    )
+                }
+                try self.writeData(svgData, to: dest)
                 traceExport("single export wrote format=SVG path=\(dest.path)")
                 await MainActor.run { self.reportExportSuccess("Export complete.\nFile: \(dest.lastPathComponent)") }
             } catch {
@@ -1170,40 +1293,127 @@ class ChartGeneratorViewModel: ObservableObject {
     }
 
     func saveToLibrary(projectID: String, projectName: String? = nil) {
-        saveStatusMessage = nil
+        let requestID = newExportRequestID()
         Task {
-            do {
-                let requestID = newExportRequestID()
-                let response = try await pythonBridge.callForResult("chart.generate_fdl", params: fdlParams(requestID: requestID))
-                guard let fdlDict = response["fdl"] as? [String: Any] else {
-                    errorMessage = "Failed to generate FDL"
-                    return
+            await saveToLibrary(
+                projectID: projectID,
+                projectName: projectName,
+                requestID: requestID,
+                generateFDL: {
+                    try await self.callBackendWithTimeout(
+                        method: "chart.generate_fdl",
+                        params: self.fdlParams(requestID: requestID),
+                        requestID: requestID
+                    )
                 }
-
-                let fdlUUID = fdlDict["uuid"] as? String ?? UUID().uuidString
-                let jsonData = try JSONSerialization.data(
-                    withJSONObject: fdlDict,
-                    options: [.prettyPrinted, .sortedKeys]
-                )
-
-                let entry = FDLEntry(
-                    projectID: projectID,
-                    fdlUUID: fdlUUID,
-                    name: chartTitle,
-                    filePath: "",
-                    sourceTool: "chart_generator",
-                    cameraModel: selectedCamera.map { "\($0.manufacturer) \($0.model)" },
-                    tags: ["chart"]
-                )
-
-                try libraryStore.addFDLEntry(entry, jsonData: jsonData)
-                saveStatusMessage = "Saved to Library.\nProject: \(projectName ?? "Unknown Project")"
-                showSaveToLibrary = false
-            } catch {
-                errorMessage = "Save to library failed: \(userFacingExportError(error))"
-            }
+            )
         }
     }
+
+    func saveToLibrary(
+        projectID: String,
+        projectName: String? = nil,
+        requestID: String,
+        generateFDL: () async throws -> [String: Any]
+    ) async {
+        saveStatusMessage = nil
+        traceExportEvent("save_to_library_started", requestID: requestID, fields: ["project_id": projectID])
+        do {
+            let response = try await generateFDL()
+            guard let fdlDict = response["fdl"] as? [String: Any] else {
+                reportSaveFailure("Save to Library failed.\nReason: Generated FDL payload missing.")
+                traceExportEvent("save_to_library_failed", requestID: requestID, fields: ["reason": "generated_fdl_missing"])
+                return
+            }
+
+            let fdlUUID = fdlDict["uuid"] as? String ?? UUID().uuidString
+            let jsonData = try JSONSerialization.data(
+                withJSONObject: fdlDict,
+                options: [.prettyPrinted, .sortedKeys]
+            )
+
+            let entry = FDLEntry(
+                projectID: projectID,
+                fdlUUID: fdlUUID,
+                name: chartTitle,
+                filePath: "",
+                sourceTool: "chart_generator",
+                cameraModel: selectedCamera.map { "\($0.manufacturer) \($0.model)" },
+                tags: ["chart"]
+            )
+
+            try libraryStore.addFDLEntry(entry, jsonData: jsonData)
+
+            if let camera = selectedCamera, let mode = selectedRecordingMode {
+                let existingAssignments = try libraryStore.cameraModeAssignments(forProject: projectID)
+                let alreadyAssigned = existingAssignments.contains {
+                    $0.cameraModelID == camera.id && $0.recordingModeID == mode.id
+                }
+                if !alreadyAssigned {
+                    let assignment = ProjectCameraModeAssignment(
+                        projectID: projectID,
+                        cameraModelID: camera.id,
+                        cameraModelName: "\(camera.manufacturer) \(camera.model)",
+                        recordingModeID: mode.id,
+                        recordingModeName: mode.name,
+                        source: "chart_generator",
+                        notes: nil
+                    )
+                    try libraryStore.assignCameraModeToProject(assignment)
+                }
+            }
+
+            // Persist a chart TIFF so Workspace can reopen with visual reference.
+            let tiffPath = LibraryStore.projectDirectoryURL(projectID: projectID)
+                .appendingPathComponent("\(entry.id).chart.tiff")
+            if let tiffData = renderExportImageData(format: .tiff) {
+                try tiffData.write(to: tiffPath, options: .atomic)
+            }
+
+            let chartAsset = ProjectAsset(
+                projectID: projectID,
+                assetType: .chart,
+                name: "\(chartTitle) Chart Config",
+                sourceTool: "chart_generator",
+                referenceID: entry.id,
+                filePath: tiffPath.path,
+                payloadJSON: chartProvenancePayloadJSON()
+            )
+            try libraryStore.saveProjectAsset(chartAsset)
+
+            let referenceImageAsset = ProjectAsset(
+                projectID: projectID,
+                assetType: .referenceImage,
+                name: "\(chartTitle) Chart TIFF",
+                sourceTool: "chart_generator",
+                referenceID: entry.id,
+                filePath: tiffPath.path,
+                payloadJSON: nil
+            )
+            try libraryStore.saveProjectAsset(referenceImageAsset)
+
+            try libraryStore.linkAssets(ProjectAssetLink(
+                projectID: projectID,
+                fromAssetID: "asset-fdl-\(entry.id)",
+                toAssetID: chartAsset.id,
+                linkType: .derivedFrom
+            ))
+
+            saveStatusMessage = "Saved to Library.\nProject: \(projectName ?? "Unknown Project")"
+            NotificationCenter.default.post(
+                name: .libraryContentDidChange,
+                object: nil,
+                userInfo: ["project_id": projectID]
+            )
+            traceExportEvent("save_to_library_complete", requestID: requestID, fields: ["project_id": projectID])
+            showSaveToLibrary = false
+        } catch {
+            let reason = userFacingExportError(error)
+            reportSaveFailure("Save to Library failed.\nReason: \(reason)")
+            traceExportEvent("save_to_library_failed", requestID: requestID, fields: ["reason": reason])
+        }
+    }
+
 
     // MARK: - Open in FDL Viewer
 
@@ -1531,6 +1741,19 @@ class ChartGeneratorViewModel: ObservableObject {
         try? FileManager.default.removeItem(at: src)
     }
 
+    private func svgDataEmbeddingPNG(_ pngData: Data, width: Int, height: Int) -> Data? {
+        let base64 = pngData.base64EncodedString()
+        let safeWidth = max(1, width)
+        let safeHeight = max(1, height)
+        let svg = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="\(safeWidth)" height="\(safeHeight)" viewBox="0 0 \(safeWidth) \(safeHeight)">
+          <image width="\(safeWidth)" height="\(safeHeight)" href="data:image/png;base64,\(base64)" xlink:href="data:image/png;base64,\(base64)"/>
+        </svg>
+        """
+        return svg.data(using: .utf8)
+    }
+
     func copyExportDiagnostics(maxLines: Int = 250) {
         let now = ISO8601DateFormatter().string(from: Date())
         let exportTraceText = tailLogText(url: exportTraceLogURL(), maxLines: maxLines)
@@ -1591,6 +1814,35 @@ class ChartGeneratorViewModel: ObservableObject {
     private func reportExportFailure(_ message: String) {
         exportStatusMessage = nil
         errorMessage = message
+    }
+
+    private func reportSaveFailure(_ message: String) {
+        saveStatusMessage = nil
+        errorMessage = message
+    }
+
+    private func chartProvenancePayloadJSON() -> String? {
+        var payload: [String: Any] = [
+            "title": chartTitle,
+            "canvas_width": Int(canvasWidth.rounded()),
+            "canvas_height": Int(canvasHeight.rounded()),
+            "frameline_count": framelines.count,
+            "anamorphic_squeeze": anamorphicSqueeze,
+        ]
+
+        if let camera = selectedCamera {
+            payload["camera_model_id"] = camera.id
+            payload["camera_model_name"] = "\(camera.manufacturer) \(camera.model)"
+        }
+        if let mode = selectedRecordingMode {
+            payload["recording_mode_id"] = mode.id
+            payload["recording_mode_name"] = mode.name
+        }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
     }
 
     private func tailLogText(url: URL?, maxLines: Int) -> String {

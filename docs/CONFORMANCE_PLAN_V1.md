@@ -2,6 +2,32 @@
 
 This plan defines a concrete, oracle-first path to bring `FDL Tool` into measurable conformance with the ASC FDL reference implementation while improving workflow reliability and UI behavior in the highest-impact areas.
 
+## Progress Update - 2026-03-19
+
+- Library project workflow refinements completed for current P2 pass:
+  - Project filter model simplified to `Camera Formats`, `Framing Charts`, `Canvas Templates`.
+  - `Framing Charts` now represents the saved chart FDL entries (previous duplicate `FDLs` filter removed).
+  - Right detail pane now renders selected item details for all three filters.
+- Charts -> Library relationship hardening completed:
+  - Saving a chart now auto-assigns its selected camera format (`camera model + capture mode`) to the project.
+  - Duplicate camera-format assignments are prevented.
+- Camera format lifecycle safeguards added in Library:
+  - Removing a camera format is blocked when linked framing charts still reference it.
+  - Deleting a chart prompts whether to also remove newly orphaned camera formats.
+  - Camera format notes can be edited from Library (list context menu + details pane action).
+- Chart naming and metadata UX updates completed:
+  - Library supports editing chart titles from details pane and chart list context menu.
+  - Framing chart list rows now show compact label/value metadata (Canvas, Framing, Intent, Protection).
+  - Chart Generator auto naming added with tokenized, file-safe format:
+    `CameraShort_WIDTHxHEIGHT_AR<S>_SQ<S>_P<N>` (decimal points replaced with `p`).
+  - Auto/manual title behavior implemented with explicit `Auto` toggle and `Regenerate` action.
+- Known operator/runtime caveat (validation environment):
+  - Launching debug executable directly from Cursor/terminal can route keyboard input to host terminal/editor instead of app text fields.
+  - Workaround used for validation: launch via wrapper app `~/Applications/FDLTool-Dev.app`.
+
+Open validation carry-over:
+- Continue `docs/LIBRARY_VALIDATION_RUNBOOK.md` remaining checkpoint execution after relaunch with wrapper app.
+
 ## Scope
 
 - In scope:
@@ -38,6 +64,7 @@ Reference URLs:
 - Ensure template and geometry math in Workspace and Charts matches official logic (squeeze, alignment, preserve rules, rounding order).
 - Ensure Framing Charts renderer behavior is validated against `asc-fdl-frameline-generator` for geometry and layer semantics.
 - Ensure export/save flows are observable, deterministic, and fail loudly (no silent no-op outcomes).
+- Add explicit deferred manual validation checkpoint for output formatting consistency (SVG visual parity vs raster exports, `.fdl` field ordering) before release sign-off.
 - Ensure Library interconnection preserves provenance and project relationships across workflows.
 
 ## Phased Approach

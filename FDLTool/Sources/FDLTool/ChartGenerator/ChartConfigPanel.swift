@@ -11,16 +11,61 @@ struct ChartConfigPanel: View {
     @ObservedObject var cameraDB: CameraDBStore
 
     @State private var selectedMake: String?
+    @State private var chartTitleDraft: String = ""
     @State private var squeezeChoice: SqueezeChoice = .preset(1.0)
     @State private var customSqueezeValue: Double = 1.33
+    @FocusState private var isChartTitleFocused: Bool
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 GroupBox {
-                    TextField("Title", text: $viewModel.chartTitle)
+                    TextField("Title", text: $chartTitleDraft)
                         .textFieldStyle(.roundedBorder)
                         .padding(.vertical, 2)
+                        .focused($isChartTitleFocused)
+                        .onChange(of: chartTitleDraft) { _, newValue in
+                            // Always mirror edits; viewModel decides auto/manual behavior.
+                            if viewModel.chartTitle != newValue {
+                                viewModel.setChartTitleFromUserInput(newValue)
+                            }
+                        }
+                        .onChange(of: isChartTitleFocused) { _, focused in
+                            // Commit manual title when focus leaves the field.
+                            if !focused && viewModel.chartTitle != chartTitleDraft {
+                                viewModel.setChartTitleFromUserInput(chartTitleDraft)
+                            }
+                        }
+                        .onSubmit {
+                            if viewModel.chartTitle != chartTitleDraft {
+                                viewModel.setChartTitleFromUserInput(chartTitleDraft)
+                            }
+                        }
+                        .onChange(of: viewModel.chartTitle) { _, newValue in
+                            // Preserve in-progress manual edits unless auto naming is active.
+                            if (!isChartTitleFocused || viewModel.autoGenerateChartTitle) && chartTitleDraft != newValue {
+                                chartTitleDraft = newValue
+                            }
+                        }
+                        .onAppear {
+                            if chartTitleDraft.isEmpty {
+                                chartTitleDraft = viewModel.chartTitle
+                            }
+                        }
+
+
+                    HStack(spacing: 8) {
+                        Toggle("Auto", isOn: $viewModel.autoGenerateChartTitle)
+                            .toggleStyle(.switch)
+                            .font(.caption)
+                        Spacer()
+                        Button("Regenerate") {
+                            viewModel.autoGenerateChartTitle = true
+                            viewModel.regenerateAutoChartTitle()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 } label: {
                     Label("Chart Title", systemImage: "textformat")
                         .font(.headline)

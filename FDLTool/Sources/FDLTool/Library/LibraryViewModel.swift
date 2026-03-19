@@ -1,6 +1,14 @@
 import Foundation
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
+
+struct ChartRowMetadata {
+    let canvasDimensions: String
+    let framingDimensions: String
+    let framingIntent: String
+    let intentProtection: String
+}
 
 @MainActor
 class LibraryViewModel: ObservableObject {
@@ -14,6 +22,8 @@ class LibraryViewModel: ObservableObject {
     @Published var projectAssets: [ProjectAsset] = []
     @Published var projectAssetLinks: [ProjectAssetLink] = []
     @Published var projectCameraModeAssignments: [ProjectCameraModeAssignment] = []
+    @Published var projectTemplates: [CanvasTemplate] = []
+    @Published var chartRowMetadataByEntryID: [String: ChartRowMetadata] = [:]
 
     // Import state
     @Published var showImportSheet = false
@@ -52,13 +62,41 @@ class LibraryViewModel: ObservableObject {
 
     let libraryStore: LibraryStore
     private let pythonBridge: PythonBridge
+    private var cancellables = Set<AnyCancellable>()
+
+    private struct CameraFormatKey: Hashable {
+        let cameraModelID: String
+        let recordingModeID: String
+    }
+
 
     init(libraryStore: LibraryStore, pythonBridge: PythonBridge) {
         self.libraryStore = libraryStore
         self.pythonBridge = pythonBridge
         self.projects = libraryStore.projects
         refreshCanvasTemplates()
+
+        NotificationCenter.default.publisher(for: .libraryContentDidChange)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.refreshAfterExternalMutation()
+                }
+            }
+            .store(in: &cancellables)
+
         Task { await refreshFramelineInterop() }
+    }
+
+
+    private func refreshAfterExternalMutation() {
+        refreshProjects()
+        refreshCanvasTemplates()
+        if let selectedID = selectedProject?.id,
+           let refreshed = projects.first(where: { $0.id == selectedID }) {
+            selectedProject = refreshed
+            loadEntries()
+            loadProjectGraph()
+        }
     }
 
     // MARK: - Project Operations
@@ -112,17 +150,74 @@ class LibraryViewModel: ObservableObject {
     func loadEntries() {
         guard let project = selectedProject else {
             fdlEntries = []
+            selectedEntry = nil
+            parsedDocument = nil
+            validationResult = nil
             projectAssets = []
             projectAssetLinks = []
             projectCameraModeAssignments = []
+            projectTemplates = []
+            chartRowMetadataByEntryID = [:]
             return
         }
         do {
             fdlEntries = try libraryStore.fdlEntries(forProject: project.id)
+            updateChartRowMetadata()
+            reconcileSelectedEntryAfterEntriesLoad()
             loadProjectGraph()
         } catch {
             errorMessage = "Failed to load entries: \(error.localizedDescription)"
         }
+    }
+
+    private func updateChartRowMetadata() {
+        var metadataByEntryID: [String: ChartRowMetadata] = [:]
+        for entry in fdlEntries {
+            let path = LibraryStore.projectDirectoryURL(projectID: entry.projectID)
+                .appendingPathComponent("\(entry.id).fdl.json")
+            guard let data = try? Data(contentsOf: path),
+                  let doc = try? JSONDecoder().decode(FDLDocument.self, from: data),
+                  let canvas = doc.contexts.first?.canvases.first,
+                  let fd = canvas.framingDecisions.first else { continue }
+
+            let canvasDims = "\(Int(canvas.dimensions.width))x\(Int(canvas.dimensions.height))"
+            let framingDims = "\(Int(fd.dimensions.width))x\(Int(fd.dimensions.height))"
+
+            let intentsByID = Dictionary(uniqueKeysWithValues: (doc.framingIntents ?? []).map { ($0.id, $0) })
+            let linkedIntent = fd.framingIntentId.flatMap { intentsByID[$0] }
+            let intentLabel = linkedIntent?.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let intentValue = (intentLabel?.isEmpty == false) ? intentLabel! : (fd.framingIntentId ?? "None")
+
+            let intentProtectionValue: String
+            if let protection = linkedIntent?.protection {
+                intentProtectionValue = String(format: "%.1f%%", protection)
+            } else if fd.protectionDimensions != nil {
+                intentProtectionValue = "Defined"
+            } else {
+                intentProtectionValue = "0.0%"
+            }
+
+            metadataByEntryID[entry.id] = ChartRowMetadata(
+                canvasDimensions: canvasDims,
+                framingDimensions: framingDims,
+                framingIntent: intentValue,
+                intentProtection: intentProtectionValue
+            )
+        }
+        chartRowMetadataByEntryID = metadataByEntryID
+    }
+
+    private func reconcileSelectedEntryAfterEntriesLoad() {
+        guard let current = selectedEntry else { return }
+        if let refreshed = fdlEntries.first(where: { $0.id == current.id }) {
+            selectedEntry = refreshed
+            return
+        }
+
+        // Selection is stale (entry removed or moved): clear detail state deterministically.
+        selectedEntry = nil
+        parsedDocument = nil
+        validationResult = nil
     }
 
     func loadProjectGraph() {
@@ -130,12 +225,15 @@ class LibraryViewModel: ObservableObject {
             projectAssets = []
             projectAssetLinks = []
             projectCameraModeAssignments = []
+            projectTemplates = []
+            chartRowMetadataByEntryID = [:]
             return
         }
         do {
             projectAssets = try libraryStore.projectAssets(forProject: project.id)
             projectAssetLinks = try libraryStore.assetLinks(forProject: project.id)
             projectCameraModeAssignments = try libraryStore.cameraModeAssignments(forProject: project.id)
+            projectTemplates = try libraryStore.templatesForProject(project.id).map { $0.0 }
         } catch {
             errorMessage = "Failed to load project graph: \(error.localizedDescription)"
         }
@@ -163,6 +261,25 @@ class LibraryViewModel: ObservableObject {
             errorMessage = "Failed to delete entry: \(error.localizedDescription)"
         }
     }
+
+    func renameChartEntry(_ entry: FDLEntry, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            errorMessage = "Chart title cannot be empty."
+            return
+        }
+        do {
+            try libraryStore.renameFDLEntry(id: entry.id, projectID: entry.projectID, newName: trimmed)
+            loadEntries()
+            loadProjectGraph()
+            if let refreshed = fdlEntries.first(where: { $0.id == entry.id }) {
+                selectedEntry = refreshed
+            }
+        } catch {
+            errorMessage = "Failed to rename chart: \(error.localizedDescription)"
+        }
+    }
+
 
     // MARK: - FDL Import (JSON)
 
@@ -328,9 +445,103 @@ class LibraryViewModel: ObservableObject {
         manualPhotositeAnchorY = 0
     }
 
+
+    func linkedChartNames(for assignment: ProjectCameraModeAssignment) -> [String] {
+        let key = CameraFormatKey(cameraModelID: assignment.cameraModelID, recordingModeID: assignment.recordingModeID)
+        return fdlEntries
+            .filter { chartKeys(forEntryID: $0.id, cameraModelFallback: $0.cameraModel).contains(key) }
+            .map { $0.name }
+    }
+
+    func canRemoveCameraFormat(_ assignment: ProjectCameraModeAssignment) -> (allowed: Bool, linkedChartNames: [String]) {
+        let names = linkedChartNames(for: assignment)
+        return (names.isEmpty, names)
+    }
+
+    func orphanedCameraFormatsIfDeletingChart(_ entry: FDLEntry) -> [ProjectCameraModeAssignment] {
+        let deletingKeys = chartKeys(forEntryID: entry.id, cameraModelFallback: entry.cameraModel)
+        guard !deletingKeys.isEmpty else { return [] }
+
+        let remainingEntries = fdlEntries.filter { $0.id != entry.id }
+        return projectCameraModeAssignments.filter { assignment in
+            let key = CameraFormatKey(cameraModelID: assignment.cameraModelID, recordingModeID: assignment.recordingModeID)
+            guard deletingKeys.contains(key) else { return false }
+            let stillUsed = remainingEntries.contains { other in
+                chartKeys(forEntryID: other.id, cameraModelFallback: other.cameraModel).contains(key)
+            }
+            return !stillUsed
+        }
+    }
+
+    func deleteChartEntry(_ entry: FDLEntry, removeOrphanedFormats: Bool) {
+        do {
+            let orphaned = removeOrphanedFormats ? orphanedCameraFormatsIfDeletingChart(entry) : []
+            try libraryStore.deleteFDLEntry(id: entry.id, projectID: entry.projectID)
+            for assignment in orphaned {
+                try libraryStore.removeCameraModeAssignment(id: assignment.id)
+            }
+            loadEntries()
+            loadProjectGraph()
+            if selectedEntry?.id == entry.id {
+                selectedEntry = nil
+                parsedDocument = nil
+                validationResult = nil
+            }
+        } catch {
+            errorMessage = "Failed to delete chart: \(error.localizedDescription)"
+        }
+    }
+
+    func removeCameraFormatFromProject(_ assignment: ProjectCameraModeAssignment) {
+        do {
+            try libraryStore.removeCameraModeAssignment(id: assignment.id)
+            loadProjectGraph()
+        } catch {
+            errorMessage = "Failed to remove camera format: \(error.localizedDescription)"
+        }
+    }
+
+    func updateCameraFormatNotes(assignmentID: String, notes: String?) {
+        do {
+            try libraryStore.updateCameraModeAssignmentNotes(id: assignmentID, notes: notes)
+            loadProjectGraph()
+        } catch {
+            errorMessage = "Failed to update camera format notes: \(error.localizedDescription)"
+        }
+    }
+
+    private func chartKeys(forEntryID entryID: String, cameraModelFallback: String?) -> Set<CameraFormatKey> {
+        var keys = Set<CameraFormatKey>()
+        let linkedChartAssets = projectAssets.filter {
+            $0.assetType == .chart && $0.referenceID == entryID
+        }
+
+        for asset in linkedChartAssets {
+            if let payload = asset.payloadJSON,
+               let data = payload.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let cameraModelID = obj["camera_model_id"] as? String,
+               let recordingModeID = obj["recording_mode_id"] as? String,
+               !cameraModelID.isEmpty,
+               !recordingModeID.isEmpty {
+                keys.insert(CameraFormatKey(cameraModelID: cameraModelID, recordingModeID: recordingModeID))
+            }
+        }
+
+        if keys.isEmpty, let cameraModelFallback {
+            for assignment in projectCameraModeAssignments where assignment.cameraModelName == cameraModelFallback {
+                keys.insert(CameraFormatKey(cameraModelID: assignment.cameraModelID, recordingModeID: assignment.recordingModeID))
+            }
+        }
+
+        return keys
+    }
+
+
     // MARK: - Load & Validate Entry
 
     func loadAndValidateEntry(_ entry: FDLEntry) async {
+        let targetEntryID = entry.id
         let filePath = LibraryStore.projectDirectoryURL(projectID: entry.projectID)
             .appendingPathComponent("\(entry.id).fdl.json").path
 
@@ -339,6 +550,7 @@ class LibraryViewModel: ObservableObject {
             let parseResponse = try await pythonBridge.callForResult("fdl.parse", params: [
                 "path": filePath,
             ])
+            if selectedEntry?.id != targetEntryID { return }
             if let fdlDict = parseResponse["fdl"] as? [String: Any] {
                 let data = try JSONSerialization.data(withJSONObject: fdlDict)
                 parsedDocument = try JSONDecoder().decode(FDLDocument.self, from: data)
@@ -348,10 +560,13 @@ class LibraryViewModel: ObservableObject {
             let valResponse = try await pythonBridge.callForResult("fdl.validate", params: [
                 "path": filePath,
             ])
+            if selectedEntry?.id != targetEntryID { return }
             let valData = try JSONSerialization.data(withJSONObject: valResponse)
             validationResult = try JSONDecoder().decode(ValidationResult.self, from: valData)
         } catch {
-            errorMessage = "Failed to load FDL: \(error.localizedDescription)"
+            if selectedEntry?.id == targetEntryID {
+                errorMessage = "Failed to load FDL: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -738,4 +953,9 @@ class LibraryViewModel: ObservableObject {
             validationWarningCount: validation.warnings.count
         )
     }
+}
+
+
+extension Notification.Name {
+    static let libraryContentDidChange = Notification.Name("libraryContentDidChange")
 }

@@ -311,7 +311,7 @@ actor PythonBridge {
             guard !lineData.isEmpty else { continue }
 
             do {
-                let response = try JSONDecoder().decode(JSONRPCResponse.self, from: Data(lineData))
+                let response = try decodeResponseLine(Data(lineData))
                 if let id = response.id, let continuation = pendingRequests.removeValue(forKey: id) {
                     continuation.resume(returning: response)
                 }
@@ -319,14 +319,35 @@ actor PythonBridge {
                 print("[PythonBridge] Failed to decode response: \(error)")
                 let raw = String(data: Data(lineData), encoding: .utf8) ?? "<non-utf8 response>"
                 print("[PythonBridge] Raw: \(raw)")
-                // Never leave callers hanging on malformed output.
-                let decodeError = PythonBridgeError.decodingError(raw)
-                for (_, continuation) in pendingRequests {
-                    continuation.resume(throwing: decodeError)
-                }
-                pendingRequests.removeAll()
+                appendBackendTrace("[bridge_decode_ignored] \(raw)")
+                // Ignore malformed/non-JSON stdout lines and keep waiting for
+                // the real JSON-RPC response so unrelated calls are not failed.
             }
         }
+    }
+
+    private func decodeResponseLine(_ lineData: Data) throws -> JSONRPCResponse {
+        do {
+            return try JSONDecoder().decode(JSONRPCResponse.self, from: lineData)
+        } catch {
+            guard let raw = String(data: lineData, encoding: .utf8),
+                  let response = recoverEmbeddedResponse(from: raw) else {
+                throw error
+            }
+            return response
+        }
+    }
+
+    private func recoverEmbeddedResponse(from raw: String) -> JSONRPCResponse? {
+        // Defensive recovery for cases where third-party output leaks to stdout.
+        // If a valid JSON-RPC object is embedded in the line, extract and decode it.
+        guard let start = raw.range(of: "{\"jsonrpc\""),
+              let end = raw.lastIndex(of: "}") else { return nil }
+        guard start.lowerBound <= end else { return nil }
+
+        let jsonSlice = raw[start.lowerBound...end]
+        guard let data = String(jsonSlice).data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(JSONRPCResponse.self, from: data)
     }
 
     private func backendTraceLogURL() -> URL? {

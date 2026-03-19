@@ -1616,23 +1616,36 @@ struct ViewerView: View {
                 Text("No library projects")
             } else {
                 ForEach(projects) { project in
+                    let entries = libraryEntries(for: project.id)
                     Menu(project.name) {
-                        LibraryEntryMenu(
-                            project: project,
-                            libraryStore: appState.libraryStore,
-                            onSelect: { entry in
-                                viewModel.loadFromEntry(entry, pythonBridge: appState.pythonBridge)
+                        if entries.isEmpty {
+                            Text("No FDL entries")
+                        } else {
+                            ForEach(entries) { entry in
+                                Button(entry.name) {
+                                    viewModel.loadFromEntry(
+                                        entry,
+                                        pythonBridge: appState.pythonBridge,
+                                        libraryStore: appState.libraryStore
+                                    )
+                                }
                             }
-                        )
+                        }
                     }
                 }
             }
         } label: {
-            Image(systemName: "building.columns")
-                .help("Browse Library")
+            Label("Open from Library", systemImage: "building.columns")
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
+        .menuStyle(.borderedButton)
+        .controlSize(.small)
+    }
+
+    private func libraryEntries(for projectID: String) -> [FDLEntry] {
+        (try? appState.libraryStore.fdlEntries(forProject: projectID)) ?? []
     }
 
     // MARK: - Drop Handlers
@@ -1671,36 +1684,6 @@ struct ViewerView: View {
                 }
             }
         }
-    }
-}
-
-/// Fetches and displays FDL entries for a project so the user can select one.
-struct LibraryEntryMenu: View {
-    let project: Project
-    let libraryStore: LibraryStore
-    let onSelect: (FDLEntry) -> Void
-    @State private var entries: [FDLEntry] = []
-
-    var body: some View {
-        ForEach(entries) { entry in
-            Button(entry.name) {
-                onSelect(entry)
-            }
-        }
-        if entries.isEmpty {
-            Text("No FDL entries")
-        }
-        // swiftlint:disable:next redundant_discardable_let
-        let _ = loadEntries()
-    }
-
-    private func loadEntries() -> EmptyView {
-        if entries.isEmpty {
-            if let fetched = try? libraryStore.fdlEntries(forProject: project.id) {
-                DispatchQueue.main.async { entries = fetched }
-            }
-        }
-        return EmptyView()
     }
 }
 

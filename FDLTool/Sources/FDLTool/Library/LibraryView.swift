@@ -13,21 +13,45 @@ struct LibraryView: View {
         nonmutating set { appState.librarySelectedSection = newValue }
     }
 
+    private enum ProjectContentFilter: String, CaseIterable {
+        case cameraFormats = "Camera Formats"
+        case framingCharts = "Framing Charts"
+        case canvasTemplates = "Canvas Templates"
+    }
+
+    @State private var projectContentFilter: ProjectContentFilter = .framingCharts
+    @State private var selectedCameraAssignmentID: String?
+    @State private var selectedProjectTemplateID: String?
+    @State private var blockedCameraFormatDeleteMessage: String?
+    @State private var pendingCameraFormatDelete: ProjectCameraModeAssignment?
+    @State private var pendingChartDelete: FDLEntry?
+    @State private var orphanedCameraFormatsForPendingChartDelete: [ProjectCameraModeAssignment] = []
+    @State private var editingCameraFormat: ProjectCameraModeAssignment?
+    @State private var editingCameraNotesDraft: String = ""
+    @State private var editingChartEntry: FDLEntry?
+    @State private var showEditChartTitleSheet = false
+    @State private var editingChartTitleDraft: String = ""
+
     var body: some View {
         HSplitView {
             // Left pane: Projects or Templates
             leftPane
-                .frame(minWidth: 200, idealWidth: 250, maxWidth: 300)
+                .frame(minWidth: 230, idealWidth: 270, maxWidth: 320)
 
             // Center pane: FDL entries or template list
             centerPane
-                .frame(minWidth: 300, idealWidth: 400)
+                .frame(minWidth: 320, idealWidth: 420)
 
             // Right pane: Detail view
             rightPane
-                .frame(minWidth: 300, idealWidth: 400)
+                .frame(minWidth: 360, idealWidth: 460)
         }
         .navigationTitle("FDL Library")
+        .onChange(of: appState.libraryViewModel.selectedProject?.id) { _, _ in
+            projectContentFilter = .framingCharts
+            selectedCameraAssignmentID = nil
+            selectedProjectTemplateID = nil
+        }
         .alert("Error", isPresented: Binding(
             get: { appState.libraryViewModel.errorMessage != nil },
             set: { if !$0 { appState.libraryViewModel.errorMessage = nil } }
@@ -35,6 +59,77 @@ struct LibraryView: View {
             Button("OK") { appState.libraryViewModel.errorMessage = nil }
         } message: {
             Text(appState.libraryViewModel.errorMessage ?? "")
+        }
+        .alert("Cannot Remove Camera Format", isPresented: Binding(
+            get: { blockedCameraFormatDeleteMessage != nil },
+            set: { if !$0 { blockedCameraFormatDeleteMessage = nil } }
+        )) {
+            Button("OK") { blockedCameraFormatDeleteMessage = nil }
+        } message: {
+            Text(blockedCameraFormatDeleteMessage ?? "")
+        }
+        .confirmationDialog(
+            "Remove Camera Format?",
+            isPresented: Binding(
+                get: { pendingCameraFormatDelete != nil },
+                set: { if !$0 { pendingCameraFormatDelete = nil } }
+            ),
+            presenting: pendingCameraFormatDelete
+        ) { assignment in
+            Button("Remove", role: .destructive) {
+                appState.libraryViewModel.removeCameraFormatFromProject(assignment)
+                if selectedCameraAssignmentID == assignment.id {
+                    selectedCameraAssignmentID = nil
+                }
+                pendingCameraFormatDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingCameraFormatDelete = nil
+            }
+        } message: { assignment in
+            Text("Remove \(assignment.cameraModelName) / \(assignment.recordingModeName) from this project?")
+        }
+        .confirmationDialog(
+            "Delete Framing Chart?",
+            isPresented: Binding(
+                get: { pendingChartDelete != nil },
+                set: { if !$0 { pendingChartDelete = nil } }
+            ),
+            presenting: pendingChartDelete
+        ) { entry in
+            if orphanedCameraFormatsForPendingChartDelete.isEmpty {
+                Button("Delete Chart", role: .destructive) {
+                    appState.libraryViewModel.deleteChartEntry(entry, removeOrphanedFormats: false)
+                    pendingChartDelete = nil
+                }
+            } else {
+                Button("Delete Chart Only", role: .destructive) {
+                    appState.libraryViewModel.deleteChartEntry(entry, removeOrphanedFormats: false)
+                    pendingChartDelete = nil
+                }
+                Button("Delete Chart + Remove Orphaned Camera Formats", role: .destructive) {
+                    appState.libraryViewModel.deleteChartEntry(entry, removeOrphanedFormats: true)
+                    pendingChartDelete = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingChartDelete = nil
+            }
+        } message: { entry in
+            if orphanedCameraFormatsForPendingChartDelete.isEmpty {
+                Text("Delete '\(entry.name)' from this project?")
+            } else {
+                let formats = orphanedCameraFormatsForPendingChartDelete
+                    .map { "\($0.cameraModelName) / \($0.recordingModeName)" }
+                    .joined(separator: "\n")
+                Text("Deleting '\(entry.name)' leaves these camera formats unused.\n\n\(formats)\n\nRemove them too?")
+            }
+        }
+        .sheet(item: $editingCameraFormat) { assignment in
+            cameraFormatNotesSheet(for: assignment)
+        }
+        .sheet(isPresented: $showEditChartTitleSheet) {
+            chartTitleRenameSheet
         }
         .onChange(of: appState.pythonBridgeStatus) { _, status in
             guard status == .running else { return }
@@ -50,13 +145,15 @@ struct LibraryView: View {
     private var leftPane: some View {
         VStack(spacing: 0) {
             // Section picker
-            Picker("Section", selection: $appState.librarySelectedSection) {
+            Picker("", selection: $appState.librarySelectedSection) {
                 ForEach(AppState.LibrarySection.allCases, id: \.self) { section in
                     Text(section.rawValue).tag(section)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.segmented)
             .controlSize(.small)
+            .frame(maxWidth: .infinity)
             .padding(8)
 
             Divider()
@@ -101,10 +198,24 @@ struct LibraryView: View {
 
                     Spacer()
 
-                    Button(action: { vm.showImportSheet = true }) {
-                        Label("Add FDL", systemImage: "plus")
+                    Menu {
+                        Button("Camera Format") {
+                            routeToToolForProjectCreation(.cameraDB, project: project)
+                        }
+                        Button("Framing Chart") {
+                            routeToToolForProjectCreation(.chartGenerator, project: project)
+                        }
+                        Button("Canvas Template") {
+                            routeToToolForProjectCreation(.viewer, project: project)
+                        }
+                        Divider()
+                        Button("Import Existing FDL...") {
+                            vm.showImportSheet = true
+                        }
+                    } label: {
+                        Label("Add to Project", systemImage: "plus")
                     }
-                    .buttonStyle(.bordered)
+                    .menuStyle(.borderedButton)
                     .controlSize(.small)
 
                     Button(action: { vm.exportProject() }) {
@@ -116,123 +227,52 @@ struct LibraryView: View {
                 }
                 .padding()
 
-                if !vm.projectAssets.isEmpty || !vm.projectCameraModeAssignments.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
+                if !vm.projectAssets.isEmpty || !vm.projectCameraModeAssignments.isEmpty || !vm.projectTemplates.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Project Graph")
                             .secondarySectionHeader()
-                        HStack(spacing: 12) {
-                            Text("Assets: \(vm.projectAssets.count)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("Camera Modes: \(vm.projectCameraModeAssignments.count)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+
+                        HStack(spacing: 10) {
+                            projectCategoryChip(title: "Camera Formats", count: vm.projectCameraModeAssignments.count)
+                            projectCategoryChip(title: "Framing Charts", count: vm.fdlEntries.count)
+                            projectCategoryChip(title: "Canvas Templates", count: vm.projectTemplates.count)
                         }
+
+                        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
+                            GridRow {
+                                Text("Camera Formats")
+                                    .foregroundStyle(.secondary)
+                                Text("\(vm.projectCameraModeAssignments.count) linked")
+                            }
+                            GridRow {
+                                Text("Framing Charts")
+                                    .foregroundStyle(.secondary)
+                                Text("\(vm.fdlEntries.count) saved")
+                            }
+                            GridRow {
+                                Text("Canvas Templates")
+                                    .foregroundStyle(.secondary)
+                                Text("\(vm.projectTemplates.count) assigned")
+                            }
+                        }
+                        .font(.caption2)
+
                         if let latestMode = vm.projectCameraModeAssignments.first {
-                            Text("Latest mode: \(latestMode.cameraModelName) - \(latestMode.recordingModeName)")
+                            Text("Latest camera format: \(latestMode.cameraModelName) - \(latestMode.recordingModeName)")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                                 .lineLimit(1)
-                        }
-
-                        if !vm.projectAssets.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 6) {
-                                    ForEach(assetTypeCounts(from: vm.projectAssets), id: \.type.rawValue) { group in
-                                        Text("\(assetTypeLabel(group.type)): \(group.count)")
-                                            .font(.caption2)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 3)
-                                            .background(Color.secondary.opacity(0.12), in: Capsule())
-                                    }
-                                }
-                            }
-                        }
-
-                        let reportAssets = vm.projectAssets.filter { $0.assetType == .report }
-                        if !reportAssets.isEmpty {
-                            DisclosureGroup("Report Assets (\(reportAssets.count))") {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    ForEach(reportAssets.prefix(6)) { reportAsset in
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(reportAsset.name)
-                                                .font(.caption2.weight(.medium))
-                                            let links = vm.projectAssetLinks.filter { $0.fromAssetID == reportAsset.id }
-                                            if links.isEmpty {
-                                                Text("No linked assets")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.tertiary)
-                                            } else {
-                                                ForEach(links, id: \.id) { link in
-                                                    let target = vm.projectAssets.first(where: { $0.id == link.toAssetID })
-                                                    Text("\(link.linkType.rawValue) -> \(target?.name ?? link.toAssetID)")
-                                                        .font(.caption2)
-                                                        .foregroundStyle(.secondary)
-                                                        .lineLimit(1)
-                                                }
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                }
-                                .padding(.top, 4)
-                            }
-                            .font(.caption2)
                         }
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 8)
                 }
 
+                projectFilterBar(vm: vm)
+
                 Divider()
 
-                if vm.fdlEntries.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "doc.badge.plus")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.quaternary)
-                        Text("No FDLs in this project")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Button("Add FDL...") { vm.showImportSheet = true }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List(selection: Binding(
-                        get: { vm.selectedEntry?.id },
-                        set: { newID in
-                            if let id = newID, let entry = vm.fdlEntries.first(where: { $0.id == id }) {
-                                vm.selectEntry(entry)
-                            }
-                        }
-                    )) {
-                        ForEach(vm.fdlEntries) { entry in
-                            FDLEntryRow(entry: entry)
-                                .tag(entry.id)
-                                .contextMenu {
-                                    Button("Open in Framing Workspace") {
-                                        appState.selectedTool = .viewer
-                                        appState.viewerViewModel.loadFromEntry(
-                                            entry,
-                                            pythonBridge: appState.pythonBridge
-                                        )
-                                    }
-                                    Divider()
-                                    Button("Export") {
-                                        vm.selectedEntry = entry
-                                        vm.exportSelectedFDL()
-                                    }
-                                    Divider()
-                                    Button("Delete", role: .destructive) {
-                                        vm.deleteEntry(entry)
-                                    }
-                                }
-                        }
-                    }
-                    .listStyle(.inset)
-                }
+                projectItemsList(vm: vm, project: project)
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "folder.badge.plus")
@@ -287,37 +327,43 @@ struct LibraryView: View {
     private var rightPane: some View {
         let vm = appState.libraryViewModel
         if selectedSection == .projects {
-            if let entry = vm.selectedEntry {
-                FDLDetailView(
-                    entry: entry,
-                    document: vm.parsedDocument,
-                    validationResult: vm.validationResult,
-                    libraryViewModel: vm,
-                    onOpenInViewer: {
-                        appState.selectedTool = .viewer
-                        appState.viewerViewModel.loadFromEntry(
-                            entry,
-                            pythonBridge: appState.pythonBridge
-                        )
-                    },
-                    onExport: { vm.exportSelectedFDL() },
-                    onDelete: { vm.deleteEntry(entry) }
-                )
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.quaternary)
-                    Text("Select an FDL")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                    Text("Choose an FDL entry to view its details and validation status.")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 240)
+            switch projectContentFilter {
+            case .framingCharts:
+                if let entry = vm.selectedEntry {
+                    FDLDetailView(
+                        entry: entry,
+                        document: vm.parsedDocument,
+                        validationResult: vm.validationResult,
+                        libraryViewModel: vm,
+                        onOpenInViewer: {
+                            appState.selectedTool = .viewer
+                            appState.viewerViewModel.loadFromEntry(
+                                entry,
+                                pythonBridge: appState.pythonBridge,
+                                libraryStore: appState.libraryStore
+                            )
+                        },
+                        onExport: { vm.exportSelectedFDL() },
+                        onEditTitle: {
+                            beginChartTitleEdit(entry)
+                        },
+                        onDelete: { requestChartDeletion(entry) }
+                    )
+                } else {
+                    emptyFilteredSelectionView()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .cameraFormats:
+                if let selected = vm.projectCameraModeAssignments.first(where: { $0.id == selectedCameraAssignmentID }) {
+                    cameraFormatDetailView(selected)
+                } else {
+                    emptyFilteredSelectionView()
+                }
+            case .canvasTemplates:
+                if let selected = vm.projectTemplates.first(where: { $0.id == selectedProjectTemplateID }) {
+                    projectTemplateDetailView(selected)
+                } else {
+                    emptyFilteredSelectionView()
+                }
             }
         } else {
             TemplatePreviewPanel(
@@ -325,6 +371,364 @@ struct LibraryView: View {
                 pythonBridge: appState.pythonBridge
             )
         }
+    }
+
+    @ViewBuilder
+    private func projectFilterBar(vm: LibraryViewModel) -> some View {
+        HStack(spacing: 8) {
+            filterButton(title: "Camera Formats", count: vm.projectCameraModeAssignments.count, filter: .cameraFormats)
+            filterButton(title: "Framing Charts", count: vm.fdlEntries.count, filter: .framingCharts)
+            filterButton(title: "Canvas Templates", count: vm.projectTemplates.count, filter: .canvasTemplates)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private func projectItemsList(vm: LibraryViewModel, project: Project) -> some View {
+        switch projectContentFilter {
+        case .cameraFormats:
+            if vm.projectCameraModeAssignments.isEmpty {
+                Text("No camera formats assigned")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selection: $selectedCameraAssignmentID) {
+                    ForEach(vm.projectCameraModeAssignments) { mode in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(mode.cameraModelName)
+                                .font(.body)
+                            Text(mode.recordingModeName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(mode.id)
+                        .contextMenu {
+                            Button("Edit Notes") {
+                                editingCameraNotesDraft = mode.notes ?? ""
+                                editingCameraFormat = mode
+                            }
+                            Divider()
+                            Button("Remove from Project", role: .destructive) {
+                                requestCameraFormatRemoval(mode)
+                            }
+                        }
+                    }
+                }
+                .listStyle(.inset)
+            }
+
+        case .framingCharts:
+            if vm.fdlEntries.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "doc.badge.plus")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.quaternary)
+                    Text("No Framing Charts in this project")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selection: Binding(
+                    get: { vm.selectedEntry?.id },
+                    set: { newID in
+                        if let id = newID, let entry = vm.fdlEntries.first(where: { $0.id == id }) {
+                            vm.selectEntry(entry)
+                        }
+                    }
+                )) {
+                    ForEach(vm.fdlEntries) { entry in
+                        FramingChartRow(
+                            entry: entry,
+                            metadata: vm.chartRowMetadataByEntryID[entry.id]
+                        )
+                        .tag(entry.id)
+                        .contextMenu {
+                            Button("Open in Framing Workspace") {
+                                appState.selectedTool = .viewer
+                                appState.viewerViewModel.loadFromEntry(
+                                    entry,
+                                    pythonBridge: appState.pythonBridge,
+                                    libraryStore: appState.libraryStore
+                                )
+                            }
+                            Divider()
+                            Button("Export") {
+                                vm.selectedEntry = entry
+                                vm.exportSelectedFDL()
+                            }
+                            Divider()
+                            Button("Edit Chart Title") {
+                                beginChartTitleEdit(entry)
+                            }
+                            Button("Delete", role: .destructive) {
+                                requestChartDeletion(entry)
+                            }
+                        }
+                    }
+                }
+                .listStyle(.inset)
+            }
+
+        case .canvasTemplates:
+            if vm.projectTemplates.isEmpty {
+                Text("No templates assigned")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selection: $selectedProjectTemplateID) {
+                    ForEach(vm.projectTemplates) { template in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(template.name)
+                                .font(.body)
+                            Text(template.source ?? "manual")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(template.id)
+                    }
+                }
+                .listStyle(.inset)
+            }
+        }
+    }
+
+    private func routeToToolForProjectCreation(_ tool: Tool, project: Project) {
+        appState.currentProject = project
+        appState.selectedTool = tool
+    }
+
+    private func filterButton(title: String, count: Int, filter: ProjectContentFilter) -> some View {
+        Button {
+            projectContentFilter = filter
+            switch filter {
+            case .cameraFormats:
+                appState.libraryViewModel.selectedEntry = nil
+                selectedProjectTemplateID = nil
+            case .framingCharts:
+                selectedCameraAssignmentID = nil
+                selectedProjectTemplateID = nil
+            case .canvasTemplates:
+                appState.libraryViewModel.selectedEntry = nil
+                selectedCameraAssignmentID = nil
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(title)
+                Text("\(count)")
+                    .fontWeight(.semibold)
+            }
+            .font(.caption2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(projectContentFilter == filter ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func emptyFilteredSelectionView() -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 32))
+                .foregroundStyle(.quaternary)
+            Text("Select an item")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            Text("Choose an item from the filtered project list.")
+                .font(.callout)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 240)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func cameraFormatDetailView(_ assignment: ProjectCameraModeAssignment) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Camera Format")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Button("Edit Notes") {
+                    editingCameraNotesDraft = assignment.notes ?? ""
+                    editingCameraFormat = assignment
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button("Remove", role: .destructive) {
+                    requestCameraFormatRemoval(assignment)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            GroupBox("Details") {
+                Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
+                    GridRow {
+                        Text("Camera").foregroundStyle(.secondary)
+                        Text(assignment.cameraModelName)
+                    }
+                    GridRow {
+                        Text("Capture Mode").foregroundStyle(.secondary)
+                        Text(assignment.recordingModeName)
+                    }
+                    if let source = assignment.source, !source.isEmpty {
+                        GridRow {
+                            Text("Source").foregroundStyle(.secondary)
+                            Text(source)
+                        }
+                    }
+                    GridRow {
+                        Text("Notes").foregroundStyle(.secondary)
+                        Text((assignment.notes?.isEmpty == false) ? assignment.notes! : "None")
+                    }
+                }
+                .font(.caption)
+                .padding(.vertical, 4)
+            }
+            Spacer()
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func projectTemplateDetailView(_ template: CanvasTemplate) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Canvas Template")
+                .font(.title3.weight(.semibold))
+            GroupBox("Details") {
+                Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
+                    GridRow {
+                        Text("Name").foregroundStyle(.secondary)
+                        Text(template.name)
+                    }
+                    GridRow {
+                        Text("Source").foregroundStyle(.secondary)
+                        Text(template.source ?? "manual")
+                    }
+                    GridRow {
+                        Text("Template ID").foregroundStyle(.secondary)
+                        Text(template.id)
+                            .textSelection(.enabled)
+                    }
+                }
+                .font(.caption)
+                .padding(.vertical, 4)
+            }
+            Spacer()
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func requestCameraFormatRemoval(_ assignment: ProjectCameraModeAssignment) {
+        let result = appState.libraryViewModel.canRemoveCameraFormat(assignment)
+        if result.allowed {
+            pendingCameraFormatDelete = assignment
+            return
+        }
+
+        let chartList = result.linkedChartNames.joined(separator: "\n")
+        blockedCameraFormatDeleteMessage = "This camera format is still linked to framing charts.\n\n\(chartList)\n\nDelete those charts first, or remove the link from each chart."
+    }
+
+    private func requestChartDeletion(_ entry: FDLEntry) {
+        orphanedCameraFormatsForPendingChartDelete = appState.libraryViewModel.orphanedCameraFormatsIfDeletingChart(entry)
+        pendingChartDelete = entry
+    }
+
+    @ViewBuilder
+    private func cameraFormatNotesSheet(for assignment: ProjectCameraModeAssignment) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Edit Camera Format Notes")
+                .font(.headline)
+            Text("\(assignment.cameraModelName) / \(assignment.recordingModeName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextEditor(text: $editingCameraNotesDraft)
+                .frame(minHeight: 140)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                )
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    editingCameraFormat = nil
+                }
+                Button("Save") {
+                    appState.libraryViewModel.updateCameraFormatNotes(
+                        assignmentID: assignment.id,
+                        notes: editingCameraNotesDraft
+                    )
+                    editingCameraFormat = nil
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .frame(minWidth: 420, minHeight: 260)
+    }
+
+    private func beginChartTitleEdit(_ entry: FDLEntry) {
+        editingChartEntry = entry
+        editingChartTitleDraft = entry.name
+        showEditChartTitleSheet = true
+    }
+
+    @ViewBuilder
+    private var chartTitleRenameSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Edit Chart Title")
+                .font(.headline)
+            if let entry = editingChartEntry {
+                Text("Current: \(entry.name)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            TextField("Chart title", text: $editingChartTitleDraft)
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    showEditChartTitleSheet = false
+                }
+                Button("Save") {
+                    if let entry = editingChartEntry {
+                        appState.libraryViewModel.renameChartEntry(entry, to: editingChartTitleDraft)
+                    }
+                    showEditChartTitleSheet = false
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(editingChartTitleDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding()
+        .frame(minWidth: 420, minHeight: 180)
+    }
+
+    @ViewBuilder
+    private func projectCategoryChip(title: String, count: Int) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+            Text("\(count)")
+                .fontWeight(.semibold)
+        }
+        .font(.caption2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Color.secondary.opacity(0.12), in: Capsule())
     }
 
     private func assetTypeCounts(from assets: [ProjectAsset]) -> [(type: ProjectAssetType, count: Int)] {
@@ -343,6 +747,98 @@ struct LibraryView: View {
         case .cameraMode: return "Camera Mode"
         case .referenceImage: return "Reference"
         }
+    }
+}
+
+// MARK: - Framing Chart Row
+
+struct FramingChartRow: View {
+    let entry: FDLEntry
+    let metadata: ChartRowMetadata?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(entry.name)
+                .font(.body)
+                .lineLimit(1)
+
+            HStack(spacing: 6) {
+                if let source = entry.sourceTool {
+                    Text(source)
+                        .font(.caption2)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(.blue.opacity(0.1), in: Capsule())
+                }
+
+                if let camera = entry.cameraModel {
+                    Text(camera)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            if let metadata {
+                metadataPairLine(
+                    leftLabel: "Canvas",
+                    leftValue: metadata.canvasDimensions,
+                    rightLabel: "Framing",
+                    rightValue: metadata.framingDimensions
+                )
+                metadataPairLine(
+                    leftLabel: "Intent",
+                    leftValue: metadata.framingIntent,
+                    rightLabel: "Protection",
+                    rightValue: metadata.intentProtection
+                )
+            }
+
+            if !entry.tags.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(entry.tags.prefix(3), id: \.self) { tag in
+                        Text(tag)
+                            .font(.caption2)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(.secondary.opacity(0.1), in: Capsule())
+                    }
+                    if entry.tags.count > 3 {
+                        Text("+\(entry.tags.count - 3)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func metadataPairLine(
+        leftLabel: String,
+        leftValue: String,
+        rightLabel: String,
+        rightValue: String
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            metadataItem(label: leftLabel, value: leftValue)
+            metadataItem(label: rightLabel, value: rightValue)
+        }
+    }
+
+    @ViewBuilder
+    private func metadataItem(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text("\(label):")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
